@@ -47,7 +47,7 @@ class VendorSalePlatformScreen extends ConsumerWidget {
               ),
               SizedBox(height: 4.h),
               Text(
-                ref.t(BKeys.last30DaysOverview),
+                _overviewSubtitle(selectedDays),
                 style: TextStyle(
                   color: AllColor.black54,
                   fontSize: 13.sp,
@@ -612,6 +612,14 @@ class TopSellingSection extends ConsumerWidget {
 
 /* ------------------------ Days Filter Dropdown ------------------------ */
 
+String _overviewSubtitle(int days) {
+  if (days == 1) return 'Last 1 day overview';
+  if (days == 7) return 'Last 7 days overview';
+  if (days == 30) return 'Last 30 days overview';
+  if (days == 90) return 'Last 90 days overview';
+  return 'Last $days days overview';
+}
+
 class _DaysFilterDropdown extends StatelessWidget {
   final int selectedDays;
   final ValueChanged<int> onDaysChanged;
@@ -622,6 +630,7 @@ class _DaysFilterDropdown extends StatelessWidget {
   });
 
   String _labelForDays(int days) {
+    if (days == 1) return 'Last 1 day';
     if (days == 7) return 'Last 7 days';
     if (days == 30) return 'Last 30 days';
     if (days == 90) return 'Last 90 days';
@@ -654,6 +663,10 @@ class _DaysFilterDropdown extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 8.h),
+                  ListTile(
+                    title: const Text('Last 1 day'),
+                    onTap: () => Navigator.pop(ctx, 1),
+                  ),
                   ListTile(
                     title: const Text('Last 7 days'),
                     onTap: () => Navigator.pop(ctx, 7),
