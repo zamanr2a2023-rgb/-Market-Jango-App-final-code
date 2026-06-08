@@ -300,6 +300,7 @@ class BKeys {
   static const String transport_type_air = 'transport_type_air';
   static const String transport_type_water = 'transport_type_water';
   static const String transport_type = 'transport_type';
+  static const String delivery_type = 'delivery_type';
   static const String transport_type_all = 'transport_type_all';
   static const String failed_to_load_drivers = 'failed_to_load_drivers';
   static const String no_drivers_available = 'No_drivers_available';

@@ -16,7 +16,14 @@ class CartItem {
 class ShippingOption {
   final String title;
   final double cost; // 0.0 => Free/Pickup
-  ShippingOption({required this.title, required this.cost});
+  /// When set, shown instead of auto "Free" / currency formatting.
+  final String? displayPrice;
+
+  ShippingOption({
+    required this.title,
+    required this.cost,
+    this.displayPrice,
+  });
 }
 
 /// Single payment option model

@@ -9,8 +9,7 @@ import 'package:market_jango/features/vendor/screens/vendor_order_management/wid
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_order_document_local_save.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_marketplace_line_product_card.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_order_assign_rules.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_invoice_print_data.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_invoice_print_sheet.dart';
+import 'package:market_jango/features/vendor/screens/vendor_barcode/util/vendor_barcode_label_print_flow.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_order_document_download_row.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
@@ -384,18 +383,77 @@ class _VendorManualOrderDetailScreenState
   }
 
   Future<void> _openPrintInvoice(VendorManualOrderInvoice inv) async {
-    final pathId = _manualOrderDocumentPathId(inv);
-    if (pathId <= 0) {
+    if (inv.items.isEmpty) {
       GlobalSnackbar.show(
         context,
-        title: 'Unavailable',
-        message: 'Could not resolve order id for printing.',
+        title: 'No products',
+        message: 'Add a line item before printing labels.',
         type: CustomSnackType.error,
       );
       return;
     }
-    final data = VendorInvoicePrintData.fromManualInvoice(inv, pathId);
-    await VendorInvoicePrintSheet.show(context, data);
+
+    final productId = await _pickProductForLabelPrint(inv.items);
+    if (productId == null || !mounted) return;
+
+    await VendorBarcodeLabelPrintFlow.printForProduct(
+      context,
+      productId: productId,
+    );
+  }
+
+  Future<int?> _pickProductForLabelPrint(
+    List<VendorManualLineItem> items,
+  ) async {
+    if (items.length == 1) {
+      final id = items.first.productId;
+      if (id <= 0) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Unavailable',
+          message: 'Could not resolve product id for printing.',
+          type: CustomSnackType.error,
+        );
+        return null;
+      }
+      return id;
+    }
+
+    return showModalBottomSheet<int>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 8.h),
+              child: Text(
+                'Print label for',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            ...items.map((item) {
+              final name = (item.productName ?? '').trim().isNotEmpty
+                  ? item.productName!.trim()
+                  : 'Product #${item.productId}';
+              return ListTile(
+                title: Text(name),
+                subtitle: Text('Qty ${item.quantity}'),
+                onTap: () => Navigator.pop(ctx, item.productId),
+              );
+            }),
+            SizedBox(height: 8.h),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openOrderDocument(

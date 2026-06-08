@@ -46,8 +46,23 @@ class VendorAPIController {
   static String vendorInvoiceCreate(int driverId, int orderItemId) =>
       '$_base_api/vendor/invoice/create/$driverId/$orderItemId';
 
-  static String vendor_income_update(day) =>
-      '$_base_api/vendor/income/update?days=$day';
+  static String vendor_income_update({
+    required int days,
+    String? sellingMode,
+    String? paymentType,
+  }) {
+    final params = <String, String>{'days': days.toString()};
+    if (sellingMode != null && sellingMode.isNotEmpty) {
+      params['selling_mode'] = sellingMode;
+    }
+    if (paymentType != null && paymentType.isNotEmpty) {
+      params['payment_type'] = paymentType;
+    }
+    final query = params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+    return '$_base_api/vendor/income/update?$query';
+  }
   static String weekly_sell = '$_base_api/vendor/weekly-sell';
   static String sell_top_product = '$_base_api/vendor/sell-top-product';
 

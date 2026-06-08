@@ -174,7 +174,7 @@ class _BuyerProfileEditScreenState
   }
 
   Future<void> _onPasswordSecurityTap() async {
-    final email = widget.user.email?.trim() ?? '';
+    final email = widget.user.email.trim() ?? '';
     if (email.isEmpty) {
       GlobalSnackbar.show(
         context,
@@ -266,7 +266,7 @@ class _BuyerProfileEditScreenState
                                 ),
                                 SizedBox(height: 4.h),
                                 Text(
-                                  (widget.user.email?.trim().isEmpty ?? true)
+                                  (widget.user.email.trim().isEmpty ?? true)
                                       ? '${ref.t(BKeys.forgotPassword)} — add email to your account'
                                       : 'OTP will be sent to ${widget.user.email}',
                                   style: TextStyle(

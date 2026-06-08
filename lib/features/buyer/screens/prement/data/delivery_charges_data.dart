@@ -129,6 +129,32 @@ class DeliveryChargesResponse {
     this.routeSummaries = const <DeliveryRouteSummary>[],
   });
 
+  /// Best-effort delivery total when API root field is 0 but breakdown has values.
+  num get effectiveDeliveryTotal {
+    if (cartTotalDeliveryCharge > 0) return cartTotalDeliveryCharge;
+
+    final fromLines =
+        items.fold<num>(0, (sum, it) => sum + it.finalDeliveryCharge);
+    if (fromLines > 0) return fromLines;
+
+    final fromRoutes =
+        routeSummaries.fold<num>(0, (sum, r) => sum + r.townTotal);
+    if (fromRoutes > 0) return fromRoutes;
+
+    return zoneChargesApplied.values.fold<num>(0, (sum, v) => sum + v);
+  }
+
+  bool get hasDeliverySkipReason =>
+      items.any((it) => it.skipReason.trim().isNotEmpty);
+
+  String get firstDeliverySkipReason {
+    for (final it in items) {
+      final r = it.skipReason.trim();
+      if (r.isNotEmpty) return r;
+    }
+    return '';
+  }
+
   factory DeliveryChargesResponse.fromJson(Map<String, dynamic> json) {
     num asNum(dynamic v) {
       if (v is num) return v;

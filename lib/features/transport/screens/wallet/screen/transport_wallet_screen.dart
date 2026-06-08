@@ -144,7 +144,11 @@ class TransportWalletScreen extends ConsumerWidget {
                                 context: context,
                                 builder: (_) => const _TransportTopupDialog(),
                               );
-                              if (!context.mounted || init == null) return;
+                              if (!context.mounted ||
+                                  init == null ||
+                                  init.paymentUrl.trim().isEmpty) {
+                                return;
+                              }
                               final payResult =
                                   await Navigator.of(context).push<
                                       PaymentStatusResult>(

@@ -22,7 +22,10 @@ class VendorSalePlatformScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedDays = ref.watch(selectedIncomeDaysProvider);
-    final asyncIncome = ref.watch(vendorIncomeProvider(selectedDays));
+    final selectedSellingMode = ref.watch(selectedSellingModeProvider);
+    final selectedPaymentType = ref.watch(selectedPaymentTypeProvider);
+    final incomeFilter = ref.watch(vendorIncomeFilterProvider);
+    final asyncIncome = ref.watch(vendorIncomeProvider(incomeFilter));
 
     return Scaffold(
       backgroundColor: AllColor.white,
@@ -56,15 +59,51 @@ class VendorSalePlatformScreen extends ConsumerWidget {
               ),
               SizedBox(height: 12.h),
 
-              /// Days filter dropdown
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _DaysFilterDropdown(
-                  selectedDays: selectedDays,
-                  onDaysChanged: (days) {
-                    ref.read(selectedIncomeDaysProvider.notifier).state = days;
-                  },
-                ),
+              /// Filters: days, selling mode, payment type
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _DaysFilterDropdown(
+                    selectedDays: selectedDays,
+                    onDaysChanged: (days) {
+                      ref.read(selectedIncomeDaysProvider.notifier).state =
+                          days;
+                    },
+                  ),
+                  _OptionFilterDropdown(
+                    icon: Icons.storefront_outlined,
+                    label: _sellingModeLabel(selectedSellingMode),
+                    options: const [
+                      _FilterOption(value: null, label: 'All channels'),
+                      _FilterOption(
+                        value: 'marketplace',
+                        label: 'Marketplace',
+                      ),
+                      _FilterOption(value: 'walk_in', label: 'Walk-in'),
+                    ],
+                    onChanged: (value) {
+                      ref.read(selectedSellingModeProvider.notifier).state =
+                          value;
+                    },
+                  ),
+                  _OptionFilterDropdown(
+                    icon: Icons.payments_outlined,
+                    label: _paymentTypeLabel(selectedPaymentType),
+                    options: const [
+                      _FilterOption(value: null, label: 'All payments'),
+                      _FilterOption(
+                        value: 'online_pay',
+                        label: 'Online pay',
+                      ),
+                      _FilterOption(value: 'cash_pay', label: 'Cash pay'),
+                    ],
+                    onChanged: (value) {
+                      ref.read(selectedPaymentTypeProvider.notifier).state =
+                          value;
+                    },
+                  ),
+                ],
               ),
               SizedBox(height: 14.h),
 
@@ -610,7 +649,113 @@ class TopSellingSection extends ConsumerWidget {
   }
 }
 
-/* ------------------------ Days Filter Dropdown ------------------------ */
+/* ------------------------ Filter Dropdowns ------------------------ */
+
+class _FilterOption {
+  final String? value;
+  final String label;
+
+  const _FilterOption({required this.value, required this.label});
+}
+
+String _sellingModeLabel(String? value) {
+  if (value == 'marketplace') return 'Marketplace';
+  if (value == 'walk_in') return 'Walk-in';
+  return 'All channels';
+}
+
+String _paymentTypeLabel(String? value) {
+  if (value == 'online_pay') return 'Online pay';
+  if (value == 'cash_pay') return 'Cash pay';
+  return 'All payments';
+}
+
+class _OptionFilterDropdown extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final List<_FilterOption> options;
+  final ValueChanged<String?> onChanged;
+
+  const _OptionFilterDropdown({
+    required this.icon,
+    required this.label,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20.r),
+      onTap: () async {
+        final result = await showModalBottomSheet<_FilterOption>(
+          context: context,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
+          ),
+          builder: (ctx) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(height: 8.h),
+                  Container(
+                    width: 40.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2.r),
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  ...options.map(
+                    (option) => ListTile(
+                      title: Text(option.label),
+                      onTap: () => Navigator.pop(ctx, option),
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                ],
+              ),
+            );
+          },
+        );
+
+        if (result == null) return;
+        onChanged(result.value);
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14.sp, color: Colors.black54),
+            SizedBox(width: 8.w),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(width: 4.w),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 18.sp,
+              color: Colors.black54,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 String _overviewSubtitle(int days) {
   if (days == 1) return 'Last 1 day overview';

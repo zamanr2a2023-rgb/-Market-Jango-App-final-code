@@ -107,18 +107,48 @@ class _VendorBarcodeProductDetailScreenState
     }
   }
 
-  Future<void> _printLabels() async {
+  Future<VendorBarcodeLabelsResult?> _fetchLabelPayload(int labelCount) async {
+    setState(() => _actionBusy = true);
+    try {
+      final result = await VendorBarcodeApi.instance.fetchLabelPayload(
+        productId: widget.productId,
+        labelCount: labelCount,
+      );
+      if (mounted && result.product.id != 0) {
+        setState(() => _product = result.product);
+      }
+      return result;
+    } catch (e) {
+      if (mounted) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Error',
+          message: e.toString().replaceFirst('Exception: ', ''),
+          type: CustomSnackType.error,
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
+  Future<int?> _promptLabelCount({
+    required String title,
+    required String confirmLabel,
+    int maxCount = 500,
+  }) async {
     final countCtrl = TextEditingController(text: '1');
     final submitted = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Label count'),
+        title: Text(title),
         content: TextField(
           controller: countCtrl,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            hintText: '1–500',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: '1–$maxCount',
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -131,61 +161,94 @@ class _VendorBarcodeProductDetailScreenState
               final n = int.tryParse(countCtrl.text.trim()) ?? 0;
               Navigator.pop(ctx, n);
             },
-            child: const Text('Get print data'),
+            child: Text(confirmLabel),
           ),
         ],
       ),
     );
-    if (submitted == null || submitted < 1 || submitted > 500) return;
+    countCtrl.dispose();
+    if (submitted == null || submitted < 1 || submitted > maxCount) return null;
+    return submitted;
+  }
 
-    setState(() => _actionBusy = true);
-    try {
-      final result = await VendorBarcodeApi.instance.fetchLabelPayload(
-        productId: widget.productId,
-        labelCount: submitted,
+  Future<void> _viewBarcodeLabel() async {
+    final p = _product;
+    if (p == null || p.barcode.isEmpty) {
+      GlobalSnackbar.show(
+        context,
+        title: 'No barcode',
+        message: 'Generate or assign a barcode first.',
+        type: CustomSnackType.error,
       );
-      if (!mounted) return;
-      if (result.product.id != 0) {
-        setState(() => _product = result.product);
-      }
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (ctx) => _BarcodeLabelPreviewDialog(
-          result: result,
-          onDownloadPdf: () async {
-            Navigator.pop(ctx);
-            await _downloadLabelTemplatePdf(result);
-          },
-          onPrint: () {
-            Navigator.pop(ctx);
-            _openPrinterSheetForLabels(result);
-          },
-          onCopyAll: () {
-            Clipboard.setData(ClipboardData(text: _formatPrintData(result)));
-            Navigator.pop(ctx);
-            GlobalSnackbar.show(
-              context,
-              title: 'Copied',
-              message: 'Label text copied',
-              type: CustomSnackType.success,
-            );
-          },
-          onClose: () => Navigator.pop(ctx),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        GlobalSnackbar.show(
-          context,
-          title: 'Error',
-          message: e.toString().replaceFirst('Exception: ', ''),
-          type: CustomSnackType.error,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _actionBusy = false);
+      return;
     }
+
+    final count = await _promptLabelCount(
+      title: 'Label count',
+      confirmLabel: 'View label',
+    );
+    if (count == null) return;
+
+    final result = await _fetchLabelPayload(count);
+    if (!mounted || result == null) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _BarcodeLabelPreviewDialog(
+        result: result,
+        onDownloadPdf: () async {
+          Navigator.pop(ctx);
+          await _downloadLabelTemplatePdf(result);
+        },
+        onPrint: () {
+          Navigator.pop(ctx);
+          _openPrinterSheetForLabels(result);
+        },
+        onCopyAll: () {
+          Clipboard.setData(ClipboardData(text: _formatPrintData(result)));
+          Navigator.pop(ctx);
+          GlobalSnackbar.show(
+            context,
+            title: 'Copied',
+            message: 'Label text copied',
+            type: CustomSnackType.success,
+          );
+        },
+        onClose: () => Navigator.pop(ctx),
+      ),
+    );
+  }
+
+  Future<void> _downloadBarcodeLabel() async {
+    final p = _product;
+    if (p == null || p.barcode.isEmpty) {
+      GlobalSnackbar.show(
+        context,
+        title: 'No barcode',
+        message: 'Generate or assign a barcode first.',
+        type: CustomSnackType.error,
+      );
+      return;
+    }
+
+    final count = await _promptLabelCount(
+      title: 'How many labels?',
+      confirmLabel: 'Download PDF',
+    );
+    if (count == null) return;
+
+    final result = await _fetchLabelPayload(count);
+    if (!mounted || result == null) return;
+
+    await _downloadLabelTemplatePdf(result);
+    if (!mounted) return;
+    GlobalSnackbar.show(
+      context,
+      title: 'Ready',
+      message: 'Barcode PDF shared — save or send from the share sheet.',
+      type: CustomSnackType.success,
+    );
   }
 
   Future<void> _openPrinterSheetForLabels(VendorBarcodeLabelsResult result) async {
@@ -401,6 +464,10 @@ class _VendorBarcodeProductDetailScreenState
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (p.barcode.isNotEmpty) ...[
+                    SizedBox(height: 14.h),
+                    _BarcodePreviewWidget(barcode: p.barcode),
+                  ],
                   SizedBox(height: 12.h),
                   Text(
                     'Regular ${p.regularPrice} · Stock ${p.stock}',
@@ -471,13 +538,34 @@ class _VendorBarcodeProductDetailScreenState
             label: const Text('Regenerate barcode'),
           ),
           SizedBox(height: 10.h),
-          OutlinedButton.icon(
-            onPressed: _actionBusy ? null : _printLabels,
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size(double.infinity, 48.h),
-            ),
-            icon: const Icon(Icons.download_outlined),
-            label: const Text('Download barcode'),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _actionBusy || p.barcode.isEmpty
+                      ? null
+                      : _viewBarcodeLabel,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: Size(0, 48.h),
+                  ),
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('View label'),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _actionBusy || p.barcode.isEmpty
+                      ? null
+                      : _downloadBarcodeLabel,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: Size(0, 48.h),
+                  ),
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('Download'),
+                ),
+              ),
+            ],
           ),
           SizedBox(height: 10.h),
           OutlinedButton.icon(
@@ -512,6 +600,55 @@ class _VendorBarcodeProductDetailScreenState
             style: TextStyle(fontSize: 12.sp, color: AllColor.grey500),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BarcodePreviewWidget extends StatelessWidget {
+  const _BarcodePreviewWidget({required this.barcode});
+
+  final String barcode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      alignment: Alignment.center,
+      padding: EdgeInsets.symmetric(
+        vertical: 12.h,
+        horizontal: 8.w,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AllColor.grey200),
+      ),
+      child: BarcodeWidget(
+        barcode: Barcode.code128(),
+        data: barcode,
+        drawText: true,
+        color: Colors.black,
+        backgroundColor: Colors.white,
+        width: 280.w,
+        height: 112.h,
+        padding: EdgeInsets.all(8.w),
+        style: TextStyle(
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        textPadding: 6,
+        errorBuilder: (ctx, err) => Padding(
+          padding: EdgeInsets.all(8.w),
+          child: SelectableText(
+            barcode,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 13.sp,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -600,7 +737,7 @@ class _BarcodeLabelPreviewDialog extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Barcode label',
+                          'Barcode label preview',
                           style: TextStyle(
                             fontSize: 18.sp,
                             fontWeight: FontWeight.w800,
@@ -609,7 +746,7 @@ class _BarcodeLabelPreviewDialog extends StatelessWidget {
                         ),
                         SizedBox(height: 4.h),
                         Text(
-                          'Review details, then download the PDF template.',
+                          'Review the scannable barcode and product details.',
                           style: TextStyle(
                             fontSize: 12.sp,
                             color: AllColor.grey500,
@@ -623,45 +760,7 @@ class _BarcodeLabelPreviewDialog extends StatelessWidget {
               ),
               SizedBox(height: 18.h),
               if (d.barcode.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  alignment: Alignment.center,
-                  padding: EdgeInsets.symmetric(
-                    vertical: 12.h,
-                    horizontal: 8.w,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12.r),
-                    border: Border.all(color: AllColor.grey200),
-                  ),
-                  child: BarcodeWidget(
-                    barcode: Barcode.code128(),
-                    data: d.barcode,
-                    drawText: true,
-                    color: Colors.black,
-                    backgroundColor: Colors.white,
-                    width: 280.w,
-                    height: 112.h,
-                    padding: EdgeInsets.all(8.w),
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                    textPadding: 6,
-                    errorBuilder: (ctx, err) => Padding(
-                      padding: EdgeInsets.all(8.w),
-                      child: SelectableText(
-                        d.barcode,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 13.sp,
-                        ),
-                      ),
-                    ),
-                  ),
-                )
+                _BarcodePreviewWidget(barcode: d.barcode)
               else
                 Container(
                   width: double.infinity,
@@ -767,7 +866,7 @@ class _BarcodeLabelPreviewDialog extends StatelessWidget {
                 ),
                 icon: Icon(Icons.picture_as_pdf_rounded, size: 22.sp),
                 label: Text(
-                  'Download PDF template',
+                  'Download PDF',
                   style: TextStyle(
                     fontSize: 15.sp,
                     fontWeight: FontWeight.w700,

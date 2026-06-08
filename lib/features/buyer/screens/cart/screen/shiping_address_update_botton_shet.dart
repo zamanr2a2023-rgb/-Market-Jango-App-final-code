@@ -185,7 +185,7 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
                           style: TextStyle(color: Colors.red, fontSize: 12.sp),
                         ),
                         data: (zones) => DropdownButtonFormField<String>(
-                          value: _selectedZone != null && zones.contains(_selectedZone)
+                          initialValue: _selectedZone != null && zones.contains(_selectedZone)
                               ? _selectedZone
                               : null,
                           decoration: _dec('Select zone'),
@@ -234,7 +234,7 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
                       SizedBox(height: 6.h),
                       (_selectedZone ?? '').trim().isEmpty
                           ? DropdownButtonFormField<String>(
-                              value: null,
+                              initialValue: null,
                               decoration: _dec('Select town'),
                               items: const [],
                               onChanged: null,
@@ -255,7 +255,7 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
                                   ),
                                 ),
                                 data: (towns) => DropdownButtonFormField<String>(
-                                  value: _selectedTown != null &&
+                                  initialValue: _selectedTown != null &&
                                           towns.contains(_selectedTown)
                                       ? _selectedTown
                                       : null,

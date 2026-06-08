@@ -11,8 +11,7 @@ import 'package:market_jango/features/vendor/screens/vendor_order_management/wid
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_order_document_local_save.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_marketplace_line_product_card.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_order_assign_rules.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_invoice_print_data.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_invoice_print_sheet.dart';
+import 'package:market_jango/features/vendor/screens/vendor_barcode/util/vendor_barcode_label_print_flow.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_order_document_download_row.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
@@ -41,6 +40,7 @@ class _VendorMarketplaceOrderDetailScreenState
   bool _assignmentLoadFailed = false;
   bool _unassignBusy = false;
   String? _docLoadingKey;
+  bool _printBusy = false;
 
   static final _fieldShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(8),
@@ -333,18 +333,91 @@ class _VendorMarketplaceOrderDetailScreenState
   Future<void> _openPrintInvoice() async {
     final d = _detail;
     if (d == null) return;
-    final pathId = _orderDocumentPathId(d);
-    if (pathId <= 0) {
+
+    final lines = d.lineItems.isNotEmpty
+        ? d.lineItems
+        : <VendorMarketplaceLine>[d];
+
+    final productId = await _pickProductForLabelPrint(lines);
+    if (productId == null || !mounted) return;
+
+    final count = await VendorBarcodeLabelPrintFlow.promptLabelCount(context);
+    if (count == null || !mounted) return;
+
+    setState(() => _printBusy = true);
+    try {
+      await VendorBarcodeLabelPrintFlow.printWithLabelCount(
+        context,
+        productId: productId,
+        labelCount: count,
+      );
+    } finally {
+      if (mounted) setState(() => _printBusy = false);
+    }
+  }
+
+  Future<int?> _pickProductForLabelPrint(
+    List<VendorMarketplaceLine> lines,
+  ) async {
+    if (lines.isEmpty) {
       GlobalSnackbar.show(
         context,
-        title: 'Unavailable',
-        message: 'Could not resolve order id for printing.',
+        title: 'No products',
+        message: 'No line items to print labels for.',
         type: CustomSnackType.error,
       );
-      return;
+      return null;
     }
-    final data = VendorInvoicePrintData.fromMarketplaceDetail(d, pathId);
-    await VendorInvoicePrintSheet.show(context, data);
+
+    if (lines.length == 1) {
+      final id = lines.first.productId;
+      if (id <= 0) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Unavailable',
+          message: 'Could not resolve product id for printing.',
+          type: CustomSnackType.error,
+        );
+        return null;
+      }
+      return id;
+    }
+
+    return showModalBottomSheet<int>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 8.h),
+              child: Text(
+                'Print label for',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            ...lines.map((line) {
+              final name = line.product.name.trim().isNotEmpty
+                  ? line.product.name.trim()
+                  : 'Product #${line.productId}';
+              return ListTile(
+                title: Text(name),
+                subtitle: Text('Qty ${line.quantity}'),
+                onTap: () => Navigator.pop(ctx, line.productId),
+              );
+            }),
+            SizedBox(height: 8.h),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openOrderDocument(bool deliveryLabel) async {
@@ -619,6 +692,7 @@ class _VendorMarketplaceOrderDetailScreenState
               onInvoiceTap: () => _openOrderDocument(false),
               onDeliveryTap: () => _openOrderDocument(true),
               onPrintInvoiceTap: _openPrintInvoice,
+              printBusy: _printBusy,
             ),
           ),
           SizedBox(height: 12.h),

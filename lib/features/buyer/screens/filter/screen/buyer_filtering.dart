@@ -83,7 +83,7 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                           style: TextStyle(color: Colors.red, fontSize: 12.sp),
                         ),
                         data: (zones) => DropdownButtonFormField<String>(
-                          value: _selectedZone != null &&
+                          initialValue: _selectedZone != null &&
                                   zones.contains(_selectedZone)
                               ? _selectedZone
                               : null,
@@ -151,7 +151,7 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                           ),
                         ),
                         data: (towns) => DropdownButtonFormField<String>(
-                          value: _selectedTown != null &&
+                          initialValue: _selectedTown != null &&
                                   towns.contains(_selectedTown)
                               ? _selectedTown
                               : null,

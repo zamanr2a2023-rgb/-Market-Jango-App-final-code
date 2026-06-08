@@ -144,7 +144,11 @@ class BuyerWalletScreen extends ConsumerWidget {
                                 context: context,
                                 builder: (_) => const _BuyerTopupDialog(),
                               );
-                              if (!context.mounted || init == null) return;
+                              if (!context.mounted ||
+                                  init == null ||
+                                  init.paymentUrl.trim().isEmpty) {
+                                return;
+                              }
                               final payResult =
                                   await Navigator.of(context).push<
                                       PaymentStatusResult>(
@@ -668,7 +672,7 @@ class _BuyerTopupDialogState extends State<_BuyerTopupDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         FilledButton(

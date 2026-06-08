@@ -5,15 +5,55 @@ import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
 import 'package:market_jango/features/vendor/screens/vendor_sale_platform/model/vendor_sale_model.dart';
 
 final selectedIncomeDaysProvider = StateProvider<int>((ref) => 7);
+final selectedSellingModeProvider = StateProvider<String?>((ref) => null);
+final selectedPaymentTypeProvider = StateProvider<String?>((ref) => null);
 
-final vendorIncomeProvider = FutureProvider.family<VendorIncomeData, int>((
+class VendorIncomeFilter {
+  final int days;
+  final String? sellingMode;
+  final String? paymentType;
+
+  const VendorIncomeFilter({
+    required this.days,
+    this.sellingMode,
+    this.paymentType,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VendorIncomeFilter &&
+          days == other.days &&
+          sellingMode == other.sellingMode &&
+          paymentType == other.paymentType;
+
+  @override
+  int get hashCode => Object.hash(days, sellingMode, paymentType);
+}
+
+final vendorIncomeFilterProvider = Provider<VendorIncomeFilter>((ref) {
+  return VendorIncomeFilter(
+    days: ref.watch(selectedIncomeDaysProvider),
+    sellingMode: ref.watch(selectedSellingModeProvider),
+    paymentType: ref.watch(selectedPaymentTypeProvider),
+  );
+});
+
+final vendorIncomeProvider =
+    FutureProvider.family<VendorIncomeData, VendorIncomeFilter>((
   ref,
-  int days,
+  filter,
 ) async {
   final token = await ref.read(authTokenProvider.future);
   if (token == null) throw Exception('Token not found');
 
-  final uri = Uri.parse(VendorAPIController.vendor_income_update(days));
+  final uri = Uri.parse(
+    VendorAPIController.vendor_income_update(
+      days: filter.days,
+      sellingMode: filter.sellingMode,
+      paymentType: filter.paymentType,
+    ),
+  );
 
   final res = await http.get(
     uri,

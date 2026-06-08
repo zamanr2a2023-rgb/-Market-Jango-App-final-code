@@ -59,10 +59,10 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
 
   TableRow _deliveryTableHeader(String col2, String col3) {
     TextStyle headerStyle() => TextStyle(
-          fontSize: 12.sp,
-          fontWeight: FontWeight.w700,
-          color: Colors.black87,
-        );
+      fontSize: 12.sp,
+      fontWeight: FontWeight.w700,
+      color: Colors.black87,
+    );
     return TableRow(
       children: [
         TableCell(
@@ -80,11 +80,7 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
         TableCell(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
-            child: Text(
-              col3,
-              textAlign: TextAlign.right,
-              style: headerStyle(),
-            ),
+            child: Text(col3, textAlign: TextAlign.right, style: headerStyle()),
           ),
         ),
       ],
@@ -184,8 +180,7 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
         if (s.weightBased != 0) {
           detailParts.add('Weight ${_fmtMoney(currency, s.weightBased)}');
         }
-        final detail =
-            detailParts.isEmpty ? null : detailParts.join(' · ');
+        final detail = detailParts.isEmpty ? null : detailParts.join(' · ');
         routeRows.add(
           _deliveryTableDataRow(
             '$n',
@@ -280,11 +275,7 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
         'Platform fees',
         _fmtMoney(currency, resp.platformFee),
       ),
-      _deliveryTableDataRow(
-        '1',
-        'Tax',
-        _fmtMoney(currency, resp.tax),
-      ),
+      _deliveryTableDataRow('1', 'Tax', _fmtMoney(currency, resp.tax)),
       _deliveryTableDataRow('', ' ', ' '),
     ];
 
@@ -339,9 +330,9 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                     resp.grandTotal > 0
                         ? resp.grandTotal
                         : (resp.merchandiseSubtotal +
-                            resp.cartTotalDeliveryCharge +
-                            resp.platformFee +
-                            resp.tax),
+                              resp.cartTotalDeliveryCharge +
+                              resp.platformFee +
+                              resp.tax),
                   ),
                   textAlign: TextAlign.right,
                   style: TextStyle(
@@ -427,10 +418,10 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final args = GoRouterState.of(context).extra as PaymentPageData?;
-    
+
     // Watch cart provider to get updated buyer data after address update
     final cartAsync = ref.watch(cartProvider);
-    
+
     // Get updated buyer from cart if available, otherwise use args
     // Priority: cart data (updated) > args (initial)
     final buyer = cartAsync.when(
@@ -483,7 +474,9 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
               }
             }
 
-            return lines.isEmpty ? const ['No shipping address provided'] : lines;
+            return lines.isEmpty
+                ? const ['No shipping address provided']
+                : lines;
           }();
 
     final contactLines = buyer == null
@@ -545,10 +538,9 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
         checkoutTotal = fullPayable;
       } else {
         // Own pickup: no delivery component (merchandise + platform + tax).
-        checkoutTotal = (charges.merchandiseSubtotal +
-                charges.platformFee +
-                charges.tax)
-            .toDouble();
+        checkoutTotal =
+            (charges.merchandiseSubtotal + charges.platformFee + charges.tax)
+                .toDouble();
       }
     } else {
       checkoutTotal = args?.grandTotal ?? 0;
@@ -572,11 +564,17 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                     onEdit: () {
                       // Get updated buyer from cart if available, otherwise use args
                       final updatedBuyer = cartAsync.maybeWhen(
-                        data: (cart) => cart.items.isNotEmpty ? cart.items.first.buyer : null,
+                        data: (cart) => cart.items.isNotEmpty
+                            ? cart.items.first.buyer
+                            : null,
                         orElse: () => null,
                       );
                       final buyerToUse = updatedBuyer ?? args?.buyer;
-                      showShippingAddressBottomSheet(context, ref, buyer: buyerToUse);
+                      showShippingAddressBottomSheet(
+                        context,
+                        ref,
+                        buyer: buyerToUse,
+                      );
                     },
                   ),
                   SizedBox(height: 20.h),
@@ -599,8 +597,8 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                     },
                     currency: '\$',
                     onShippingDetails: deliveryChargesAsync.maybeWhen(
-                      data: (resp) => () =>
-                          _showDeliveryChargeDetails(context, resp, '\$'),
+                      data: (resp) =>
+                          () => _showDeliveryChargeDetails(context, resp, '\$'),
                       orElse: () => null,
                     ),
                   ),

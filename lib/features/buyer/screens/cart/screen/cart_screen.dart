@@ -14,6 +14,40 @@ import 'package:market_jango/features/buyer/screens/cart/model/cart_model.dart';
 import 'package:market_jango/features/buyer/screens/cart/screen/shiping_address_update_botton_shet.dart';
 import 'package:market_jango/features/buyer/screens/prement/model/prement_page_data_model.dart';
 import 'package:market_jango/features/buyer/screens/prement/screen/buyer_payment_screen.dart';
+import 'package:market_jango/features/navbar/provider/shell_tab_index_providers.dart';
+import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
+
+void _handleCartBack(BuildContext context, WidgetRef ref) {
+  final routePath = GoRouterState.of(context).uri.path;
+
+  if (routePath == CartScreen.routeName) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      ref.read(buyerShellTabIndexProvider.notifier).state = 0;
+      context.go(BuyerBottomNavBar.routeName);
+    }
+    return;
+  }
+
+  ref.read(buyerShellTabIndexProvider.notifier).state = 0;
+}
+
+Widget _buildCartBackButton(BuildContext context, WidgetRef ref) {
+  return InkWell(
+    onTap: () => _handleCartBack(context, ref),
+    borderRadius: BorderRadius.circular(20.r),
+    child: CircleAvatar(
+      radius: 15.r,
+      backgroundColor: AllColor.grey300,
+      child: Icon(
+        Icons.arrow_back_ios,
+        size: 8.sp,
+        color: AllColor.black,
+      ),
+    ),
+  );
+}
 
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
@@ -40,19 +74,34 @@ class CartScreen extends ConsumerWidget {
       appBar: AppBar(
         elevation: 0,
         centerTitle: false,
+        automaticallyImplyLeading: false,
         title: cartAsync.when(
-          loading: () => Text(
-            ref.t(BKeys.cart),
-            style: theme.titleLarge!.copyWith(fontSize: 22.sp),
+          loading: () => Row(
+            children: [
+              _buildCartBackButton(context, ref),
+              SizedBox(width: 12.w),
+              Text(
+                ref.t(BKeys.cart),
+                style: theme.titleLarge!.copyWith(fontSize: 22.sp),
+              ),
+            ],
           ),
-          error: (e, _) => Text(
-            "Error $e",
-            style: theme.titleLarge!.copyWith(fontSize: 22.sp),
+          error: (e, _) => Row(
+            children: [
+              _buildCartBackButton(context, ref),
+              SizedBox(width: 12.w),
+              Text(
+                "Error $e",
+                style: theme.titleLarge!.copyWith(fontSize: 22.sp),
+              ),
+            ],
           ),
           data: (item) {
             final items = item.items;
             return Row(
               children: [
+                _buildCartBackButton(context, ref),
+                SizedBox(width: 12.w),
                 Text(
                   ref.t(BKeys.cart),
                   style: theme.titleLarge!.copyWith(fontSize: 22.sp),

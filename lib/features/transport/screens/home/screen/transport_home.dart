@@ -641,7 +641,7 @@ class _TransportHomeScreenState extends ConsumerState<TransportHomeScreen> {
 
                   /// Transport / Shipping type select (nica / below)
                   Text(
-                    ref.t(BKeys.transport_type),
+                    ref.t(BKeys.delivery_type, fallback: 'Delivery Type'),
                     style: TextStyle(
                       fontSize: 12.sp,
                       color: const Color(0xFF6B7280),
@@ -895,7 +895,7 @@ class _TransportHomeScreenState extends ConsumerState<TransportHomeScreen> {
             SizedBox(width: 8.w),
           ],
           Text(
-            ref.t(BKeys.transport_type),
+            ref.t(BKeys.delivery_type, fallback: 'Delivery Type'),
             style: TextStyle(fontSize: 14.sp, color: const Color(0xFF9BA0A6)),
           ),
         ],

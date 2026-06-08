@@ -7,12 +7,10 @@ import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
-import 'package:market_jango/features/buyer/screens/prement/model/prement_line_items.dart';
-import 'package:market_jango/features/buyer/screens/prement/screen/web_view_screen.dart';
 import 'package:market_jango/features/transport/screens/booking_confirm/data/create_shipment_data.dart';
 import 'package:market_jango/features/transport/screens/booking_confirm/data/transport_shipment_document_api.dart';
+import 'package:market_jango/features/transport/screens/booking_confirm/logic/shipment_payment_logic.dart';
 import 'package:market_jango/features/transport/screens/my_booking/data/transport_booking_data.dart';
-import 'package:market_jango/features/transport/screens/my_booking/screen/transport_booking.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_order_document_local_save.dart';
 
 /// Arguments for the shipment details screen. Either [result] (from create flow) or [shipmentId] (from list tap).
@@ -45,45 +43,38 @@ class _TransportShipmentDetailsScreenState
         _shipmentIdFromMap(widget.args.result?.shipment);
     if (id == null) return;
 
+    Map<String, dynamic>? shipment;
+    Map<String, dynamic>? detailRoot;
+
+    final result = widget.args.result;
+    if (result?.shipment != null) {
+      shipment = result!.shipment;
+    } else if (widget.args.shipmentId != null) {
+      final data =
+          ref.read(shipmentDetailProvider(widget.args.shipmentId!)).valueOrNull;
+      if (data != null) {
+        detailRoot = data;
+        shipment = data['shipment'] as Map<String, dynamic>? ?? data;
+      }
+    }
+
+    if (shipment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shipment details not loaded yet')),
+      );
+      return;
+    }
+
+    final payable = shipmentPayableTotal(shipment, detailRoot);
+
     setState(() => _isPaying = true);
     try {
-      final token = await ref.read(authTokenProvider.future) ?? '';
-      final init = await initiateShipmentPayment(token: token, shipmentId: id);
-      if (!mounted) return;
-      if (init.paymentUrl.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment URL not found')),
-        );
-        return;
-      }
-
-      final result = await Navigator.of(context).push<PaymentStatusResult>(
-        MaterialPageRoute(
-          builder: (_) => PaymentWebView(url: init.paymentUrl),
-        ),
+      await startShipmentPayment(
+        context,
+        ref: ref,
+        shipmentId: id,
+        payableTotal: payable,
       );
-
-      if (!mounted) return;
-      if (result?.success == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${ref.t(BKeys.pay, fallback: 'Pay')} success'),
-          ),
-        );
-        // After successful payment, send user to "My bookings" (shipment list).
-        context.go(TransportBooking.routeName);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment not completed')),
-        );
-        // Stay on this screen so user can try again.
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      }
     } finally {
       if (mounted) setState(() => _isPaying = false);
     }
@@ -204,6 +195,41 @@ class _TransportShipmentDetailsScreenState
     }
   }
 
+  Map<String, dynamic>? _pricingFromShipment(
+    Map<String, dynamic> shipment, [
+    Map<String, dynamic>? detailRoot,
+  ]) {
+    final fromRoot = detailRoot?['pricing'];
+    if (fromRoot is Map<String, dynamic>) return fromRoot;
+    final fromShipment = shipment['pricing'];
+    if (fromShipment is Map<String, dynamic>) return fromShipment;
+    return null;
+  }
+
+  String _pricingMoney(
+    Map<String, dynamic>? pricing,
+    String key,
+    String currency,
+  ) {
+    if (pricing == null) return _money(null, currency);
+    final v = pricing[key];
+    if (v == null) return _money(null, currency);
+    if (v is num) return '${v.toStringAsFixed(2)} $currency';
+    return _money(v, currency);
+  }
+
+  String _amountFromPricingOrShipment({
+    required Map<String, dynamic>? pricing,
+    required String pricingKey,
+    required dynamic shipmentFallback,
+    required String currency,
+  }) {
+    if (pricing != null && pricing.containsKey(pricingKey)) {
+      return _pricingMoney(pricing, pricingKey, currency);
+    }
+    return _money(shipmentFallback, currency);
+  }
+
   PreferredSizeWidget _shipmentAppBar(Color textPrimary, Color cardBg) {
     return AppBar(
       backgroundColor: cardBg,
@@ -248,6 +274,7 @@ class _TransportShipmentDetailsScreenState
           textPrimary,
           textSecondary,
           str,
+          detailRoot: null,
         ),
       );
     }
@@ -272,6 +299,7 @@ class _TransportShipmentDetailsScreenState
             textPrimary,
             textSecondary,
             str,
+            detailRoot: data,
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -285,10 +313,12 @@ class _TransportShipmentDetailsScreenState
     CreateShipmentResult result,
     Color textPrimary,
     Color textSecondary,
-    String Function(dynamic) str,
-  ) {
+    String Function(dynamic) str, {
+    Map<String, dynamic>? detailRoot,
+  }) {
     final shipment = result.shipment ?? {};
     String v(dynamic key) => str(shipment[key]);
+    final pricing = _pricingFromShipment(shipment, detailRoot);
     final statusDisplay = _humanizeSnake(v('status'));
     final paymentStatusDisplay = _humanizeSnake(v('payment_status'));
     final paymentStatusRaw = v('payment_status').toLowerCase();
@@ -521,8 +551,33 @@ class _TransportShipmentDetailsScreenState
                 Text('AMOUNTS', style: overline),
                 SizedBox(height: 12.h),
                 _amountRow('Declared value', _money(shipment['declared_value'], cur)),
-                _amountRow('Estimated price', _money(shipment['estimated_price'], cur)),
-                _amountRow('Final price', _money(shipment['final_price'], cur), emphasize: true),
+                _amountRow(
+                  'Estimated price',
+                  _amountFromPricingOrShipment(
+                    pricing: pricing,
+                    pricingKey: 'transport_base_price',
+                    shipmentFallback: shipment['estimated_price'],
+                    currency: cur,
+                  ),
+                ),
+                _amountRow(
+                  ref.t(BKeys.platformFees, fallback: 'Platform fee'),
+                  _pricingMoney(pricing, 'platform_fee', cur),
+                ),
+                _amountRow(
+                  ref.t(BKeys.tax, fallback: 'Tax'),
+                  _pricingMoney(pricing, 'tax', cur),
+                ),
+                _amountRow(
+                  'Final price',
+                  _amountFromPricingOrShipment(
+                    pricing: pricing,
+                    pricingKey: 'total_with_fees',
+                    shipmentFallback: shipment['final_price'],
+                    currency: cur,
+                  ),
+                  emphasize: true,
+                ),
               ],
             ),
           ),

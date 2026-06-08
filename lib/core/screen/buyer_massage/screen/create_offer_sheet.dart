@@ -65,10 +65,21 @@ class _CreateOfferSheetState extends ConsumerState<CreateOfferSheet> {
   String? _selectedSize;
   bool _useCustomColor = false;
   bool _useCustomSize = false;
+  String? _stockBannerMessage;
+
+  int? get _availableStock => widget.product.stock;
+
+  bool get _isOutOfStock {
+    final stock = _availableStock;
+    return stock == null || stock <= 0;
+  }
 
   @override
   void initState() {
     super.initState();
+    if (_isOutOfStock) {
+      _stockBannerMessage = 'This product is not available in stock';
+    }
     // Pre-fill defaults
     final sellPrice = double.tryParse(widget.product.sellPrice) ?? 0.0;
     _salePriceController.text = sellPrice.toStringAsFixed(2);
@@ -104,35 +115,25 @@ class _CreateOfferSheetState extends ConsumerState<CreateOfferSheet> {
     }
 
     // Check stock availability
-    final stock = widget.product.stock;
+    final stock = _availableStock;
     if (stock == null || stock <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This product is not available in stock'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
+      setState(() {
+        _stockBannerMessage = 'This product is not available in stock';
+      });
       return;
     }
 
     // Check if requested quantity exceeds available stock
     final requestedQuantity = int.tryParse(_quantityController.text) ?? 0;
     if (requestedQuantity > stock) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Only $stock item(s) available in stock. Please adjust your quantity.'),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      setState(() {
+        _stockBannerMessage =
+            'Only $stock item(s) available in stock. Please adjust your quantity.';
+      });
       return;
     }
 
+    setState(() => _stockBannerMessage = null);
     setState(() => _isLoading = true);
 
     try {
@@ -249,6 +250,10 @@ class _CreateOfferSheetState extends ConsumerState<CreateOfferSheet> {
                   ),
                 ],
               ),
+              if (_stockBannerMessage != null) ...[
+                SizedBox(height: 16.h),
+                _StockBanner(message: _stockBannerMessage!),
+              ],
               SizedBox(height: 24.h),
               Text(
                 'Create Offer',
@@ -482,7 +487,7 @@ class _CreateOfferSheetState extends ConsumerState<CreateOfferSheet> {
                     flex: 2,
                     child: CustomAuthButton(
                       buttonText: _isLoading ? 'Creating...' : 'Create Offer',
-                      onTap: _isLoading ? () {} : _createOffer,
+                      onTap: (_isLoading || _isOutOfStock) ? () {} : _createOffer,
                     ),
                   ),
                 ],
@@ -491,6 +496,43 @@ class _CreateOfferSheetState extends ConsumerState<CreateOfferSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _StockBanner extends StatelessWidget {
+  const _StockBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+      decoration: BoxDecoration(
+        color: AllColor.red.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AllColor.red.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, color: AllColor.red, size: 20.sp),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w600,
+                color: AllColor.red,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
