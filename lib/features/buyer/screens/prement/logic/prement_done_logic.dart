@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/buyer_api.dart';
 import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/cart_data.dart';
+import 'package:market_jango/features/buyer/screens/prement/data/delivery_charges_data.dart';
 import 'package:market_jango/features/buyer/screens/prement/logic/global_logger.dart';
 import 'package:market_jango/features/buyer/screens/prement/logic/prement_reverpod.dart';
 import 'package:market_jango/features/buyer/screens/prement/model/prement_line_items.dart';
@@ -36,6 +37,19 @@ double _payableFromRouterExtra(BuildContext context) {
   return 0;
 }
 
+double _resolvePayableTotal(ProviderContainer container, BuildContext context) {
+  final charges = container.read(cartDeliveryChargesProvider).valueOrNull;
+  final selectedIndex = container.read(shippingMethodIndexProvider);
+  if (charges != null) {
+    if (selectedIndex == 0) {
+      return charges.grandTotal.toDouble();
+    }
+    return (charges.merchandiseSubtotal + charges.platformFee + charges.tax)
+        .toDouble();
+  }
+  return _payableFromRouterExtra(context);
+}
+
 enum _CheckoutPaymentChoice { wallet, gateway }
 
 Future<void> _showMessagePopup(BuildContext context, String message) {
@@ -55,6 +69,39 @@ Future<void> _showMessagePopup(BuildContext context, String message) {
 }
 
 Future<void> startCheckout(BuildContext context) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final selectedIndex = container.read(shippingMethodIndexProvider);
+
+  // Own pick up: only place order after explicit Checkout + confirm (no gateway dialog).
+  if (selectedIndex == 1) {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm own pick up'),
+        content: const Text(
+          'Place this order for own pick up?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Place order'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || ok != true) return;
+    await _executeInvoiceCheckout(
+      context,
+      paymentMethod: 'OPU',
+      shippingPaymentMethod: 'OPU',
+    );
+    return;
+  }
+
   final choice = await showDialog<_CheckoutPaymentChoice>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -101,17 +148,8 @@ Future<void> startCheckout(BuildContext context) async {
 /// Wallet: GET `/api/wallet` then POST `/api/invoice/create` with `Wallet` if balance covers total.
 Future<void> _checkoutWithWallet(BuildContext context) async {
   final container = ProviderScope.containerOf(context, listen: false);
-  final payableTotal = _payableFromRouterExtra(context);
-  final selectedIndex = container.read(shippingMethodIndexProvider);
-  final String shippingPaymentMethod = selectedIndex == 0 ? 'FW' : 'OPU';
-
-  if (shippingPaymentMethod != 'FW') {
-    await _showMessagePopup(
-      context,
-      'Wallet payment is only available when delivery charge is selected.',
-    );
-    return;
-  }
+  final payableTotal = _resolvePayableTotal(container, context);
+  const String shippingPaymentMethod = 'FW';
 
   if (payableTotal <= 0) {
     await _showMessagePopup(context, 'Invalid order total.');
@@ -193,16 +231,12 @@ Future<void> _checkoutWithWallet(BuildContext context) async {
   }
 }
 
-/// Bank / mobile (Flutterwave) or own pick-up — never auto-selects wallet.
+/// Bank / mobile (Flutterwave) for delivery orders only.
 Future<void> _checkoutWithGateway(BuildContext context) async {
-  final container = ProviderScope.containerOf(context, listen: false);
-  final selectedIndex = container.read(shippingMethodIndexProvider);
-  final String shippingPaymentMethod = selectedIndex == 0 ? 'FW' : 'OPU';
-
   await _executeInvoiceCheckout(
     context,
-    paymentMethod: shippingPaymentMethod,
-    shippingPaymentMethod: shippingPaymentMethod,
+    paymentMethod: 'FW',
+    shippingPaymentMethod: 'FW',
   );
 }
 
@@ -235,7 +269,7 @@ Future<void> _executeInvoiceCheckout(
 
   try {
     final container = ProviderScope.containerOf(context, listen: false);
-    final payableTotal = _payableFromRouterExtra(context);
+    final payableTotal = _resolvePayableTotal(container, context);
     final token = await container.read(authTokenProvider.future);
 
     final uri = Uri.parse(BuyerAPIController.invoice_createate);

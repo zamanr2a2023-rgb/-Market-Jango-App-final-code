@@ -203,7 +203,9 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
                       await context.push(
                         GlobalChatScreen.routeName,
                         extra: ChatArgs(
-                          partnerId: product.vendor.user.id ?? product.vendorId,
+                          partnerId: product.vendor.userId > 0
+                              ? product.vendor.userId
+                              : product.vendor.user.id,
                           partnerName:
                               product.vendor.user.name ??
                               product.vendor.businessName ??

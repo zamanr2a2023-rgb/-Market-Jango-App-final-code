@@ -5,7 +5,7 @@ import 'package:market_jango/core/screen/buyer_massage/model/chat_history_model.
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 
 /// Fetcher
-Future<List<ChatMessage>> _fetchChatHistory(int partnerId) async {
+Future<List<ChatMessage>> fetchChatHistory(int partnerId) async {
   final authStorage = AuthLocalStorage();
   final token = await authStorage.getToken();
 
@@ -20,13 +20,17 @@ Future<List<ChatMessage>> _fetchChatHistory(int partnerId) async {
   throw Exception('Failed to fetch chat history: ${res.statusCode}');
 }
 
+/// Polls only while the chat screen is open (autoDispose + cancellable loop).
 final chatHistoryStreamProvider = StreamProvider.autoDispose
     .family<List<ChatMessage>, int>((ref, partnerId) async* {
-      // প্রথমবার তৎক্ষণাৎ লোড
-      yield await _fetchChatHistory(partnerId);
+  var cancelled = false;
+  ref.onDispose(() => cancelled = true);
 
-      // এরপর প্রতি 3 সেকেন্ডে রিফ্রেশ
-      yield* Stream.periodic(
-        const Duration(seconds: 3),
-      ).asyncMap((_) => _fetchChatHistory(partnerId));
-    });
+  yield await fetchChatHistory(partnerId);
+
+  while (!cancelled) {
+    await Future<void>.delayed(const Duration(seconds: 3));
+    if (cancelled) break;
+    yield await fetchChatHistory(partnerId);
+  }
+});

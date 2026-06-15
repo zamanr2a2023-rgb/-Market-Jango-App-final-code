@@ -592,7 +592,7 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                     options: options,
                     selectedIndex: selectedShippingIndex,
                     onShippingChanged: (i) {
-                      // ⬇️ user নতুন যেটা select করবে সেটা riverpod এ save করলাম
+                      // Shipping selection only — order starts on Checkout tap.
                       ref.read(shippingMethodIndexProvider.notifier).state = i;
                     },
                     currency: '\$',
@@ -813,8 +813,16 @@ class _CustomItemShowState extends State<CustomItemShow> {
 
   @override
   void initState() {
-    _selected = widget.selectedIndex;
     super.initState();
+    _selected = widget.selectedIndex;
+  }
+
+  @override
+  void didUpdateWidget(CustomItemShow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      _selected = widget.selectedIndex;
+    }
   }
 
   @override

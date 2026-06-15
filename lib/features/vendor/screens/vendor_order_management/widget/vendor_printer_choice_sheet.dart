@@ -42,6 +42,7 @@ class VendorPrinterChoiceSheet extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
       ),
@@ -64,23 +65,80 @@ class VendorPrinterChoiceSheet extends StatefulWidget {
 
 class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
   bool _busy = false;
+  bool _loadingBt = true;
   String? _savedMac;
   String? _savedName;
+  List<BluetoothInfo> _pairedDevices = [];
+  BluetoothInfo? _activePrinter;
 
   @override
   void initState() {
     super.initState();
-    _loadSaved();
+    _refreshBluetoothState();
   }
 
-  Future<void> _loadSaved() async {
-    final s = await VendorPrinterPrefs.saved58Printer();
-    if (mounted) {
+  Future<void> _refreshBluetoothState() async {
+    setState(() => _loadingBt = true);
+    try {
+      final saved = await VendorPrinterPrefs.saved58Printer();
+      List<BluetoothInfo> paired = [];
+      try {
+        paired = await VendorInvoicePrinterService.listPairedPrinters();
+      } catch (_) {}
+
+      BluetoothInfo? active;
+      if (saved.mac != null || saved.name != null) {
+        active = await VendorInvoicePrinterService.findPairedPrinter(
+          mac: saved.mac,
+          name: saved.name,
+        );
+      }
+      active ??= paired.isEmpty
+          ? null
+          : () {
+              final likely =
+                  VendorInvoicePrinterService.likelyPrinters(paired);
+              return likely.isNotEmpty ? likely.first : paired.first;
+            }();
+
+      if (!mounted) return;
       setState(() {
-        _savedMac = s.mac;
-        _savedName = s.name;
+        _savedMac = saved.mac;
+        _savedName = saved.name;
+        _pairedDevices = paired;
+        _activePrinter = active;
+        _loadingBt = false;
       });
+    } catch (_) {
+      if (mounted) setState(() => _loadingBt = false);
     }
+  }
+
+  String get _btTitle {
+    if (_activePrinter != null && _activePrinter!.name.trim().isNotEmpty) {
+      return _activePrinter!.name.trim();
+    }
+    if (_savedName != null && _savedName!.trim().isNotEmpty) {
+      return _savedName!.trim();
+    }
+    return '58mm Bluetooth';
+  }
+
+  String get _btSubtitle {
+    if (widget.subtitle58 != null && widget.subtitle58!.trim().isNotEmpty) {
+      return widget.subtitle58!.trim();
+    }
+    if (_activePrinter != null) {
+      return 'Paired · ${_activePrinter!.macAdress}';
+    }
+    if (_pairedDevices.isEmpty) {
+      return 'No paired devices — pair your printer in phone Bluetooth settings';
+    }
+    final count = VendorInvoicePrinterService.likelyPrinters(_pairedDevices).length;
+    if (count > 0) {
+      return '$count printer(s) detected · tap to choose';
+    }
+    return '${_pairedDevices.length} paired device(s) · tap to choose';
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -120,13 +178,70 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
   }
 
   Future<void> _print58Saved() async {
+    final block = await VendorInvoicePrinterService.ensureBluetoothReady();
+    if (block != null) {
+      if (mounted) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Bluetooth',
+          message: block,
+          type: CustomSnackType.error,
+        );
+      }
+      return;
+    }
+
     final mac = _savedMac;
-    final name = _savedName ?? 'Printer';
-    if (mac == null || mac.isEmpty) {
+    final name = _savedName ?? _activePrinter?.name ?? 'Printer';
+    if ((mac == null || mac.isEmpty) && _activePrinter == null) {
       await _pickBluetoothPrinter();
       return;
     }
-    await _run(() => _print58(mac, name));
+
+    final paired = _activePrinter ??
+        await VendorInvoicePrinterService.findPairedPrinter(
+          mac: mac,
+          name: name,
+        );
+    if (paired == null) {
+      if (mounted) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Printer not found',
+          message:
+              'Saved printer "$name" is not paired on this phone. Select your printer (e.g. B1-H828033545).',
+          type: CustomSnackType.error,
+        );
+      }
+      await _pickBluetoothPrinter();
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      await _print58(paired.macAdress, paired.name);
+      if (mounted) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Printed',
+          message: 'Sent to printer successfully.',
+          type: CustomSnackType.success,
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Print failed',
+          message: e.toString().replaceFirst('Exception: ', ''),
+          type: CustomSnackType.error,
+        );
+        await _pickBluetoothPrinter();
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _pickBluetoothPrinter() async {
@@ -170,42 +285,77 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
       return;
     }
 
+    final likely = VendorInvoicePrinterService.likelyPrinters(devices);
+    final others = devices
+        .where((d) => !likely.any((p) => p.macAdress == d.macAdress))
+        .toList();
+
     final picked = await showModalBottomSheet<BluetoothInfo>(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: EdgeInsets.all(16.w),
-              child: Text(
-                'Select Bluetooth printer',
-                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
-              ),
-            ),
-            ...devices.map(
-              (d) => ListTile(
-                leading: const Icon(Icons.print_outlined),
-                title: Text(d.name),
-                subtitle: Text(d.macAdress),
-                onTap: () => Navigator.pop(ctx, d),
-              ),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      useRootNavigator: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
       ),
+      builder: (ctx) {
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.72;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 8.h),
+                  child: Text(
+                    'Select Bluetooth printer',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      if (likely.isNotEmpty) ...[
+                        _PickerSectionHeader(title: 'Detected printers'),
+                        ...likely.map((d) => _PrinterListTile(device: d, ctx: ctx)),
+                      ],
+                      if (others.isNotEmpty) ...[
+                        _PickerSectionHeader(
+                          title: likely.isEmpty
+                              ? 'Paired devices'
+                              : 'Other paired devices',
+                        ),
+                        ...others.map((d) => _PrinterListTile(device: d, ctx: ctx)),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
 
     if (picked == null || !mounted) return;
+    await VendorPrinterPrefs.save58Printer(
+      mac: picked.macAdress,
+      name: picked.name,
+    );
+    setState(() {
+      _activePrinter = picked;
+      _savedMac = picked.macAdress;
+      _savedName = picked.name;
+    });
     await _run(() => _print58(picked.macAdress, picked.name));
   }
 
   @override
   Widget build(BuildContext context) {
-    final s58 = widget.subtitle58 ??
-        (_savedName != null
-            ? 'OEM (XPrinter, Goojprt, HSPOS) · Last: $_savedName'
-            : 'Chinese OEM · pair in Bluetooth settings');
     final s80 = widget.subtitle80 ??
         'Epson / Star · system print dialog';
 
@@ -265,12 +415,22 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
             ),
           ],
           SizedBox(height: 16.h),
-          if (_busy) const Center(child: CircularProgressIndicator()),
-          if (!_busy) ...[
+          if (_busy || _loadingBt)
+            const Center(child: CircularProgressIndicator()),
+          if (!_busy && !_loadingBt) ...[
+            TextButton(
+              onPressed: _pickBluetoothPrinter,
+              child: Text(
+                _activePrinter != null
+                    ? 'Change Bluetooth printer'
+                    : 'Select Bluetooth printer',
+              ),
+            ),
+            SizedBox(height: 4.h),
             _PrintOptionTile(
               icon: Icons.bluetooth,
-              title: '58mm Bluetooth',
-              subtitle: s58,
+              title: _btTitle,
+              subtitle: _btSubtitle,
               onTap: _print58Saved,
             ),
             SizedBox(height: 10.h),
@@ -286,16 +446,51 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
                 );
               }),
             ),
-            if (_savedMac != null) ...[
-              SizedBox(height: 8.h),
-              TextButton(
-                onPressed: _pickBluetoothPrinter,
-                child: const Text('Change Bluetooth printer'),
-              ),
-            ],
           ],
         ],
       ),
+    );
+  }
+}
+
+class _PickerSectionHeader extends StatelessWidget {
+  const _PickerSectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 4.h),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 12.sp,
+          fontWeight: FontWeight.w700,
+          color: AllColor.grey500,
+        ),
+      ),
+    );
+  }
+}
+
+class _PrinterListTile extends StatelessWidget {
+  const _PrinterListTile({required this.device, required this.ctx});
+
+  final BluetoothInfo device;
+  final BuildContext ctx;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPrinter = VendorInvoicePrinterService.looksLikePrinter(device);
+    return ListTile(
+      leading: Icon(
+        isPrinter ? Icons.print_outlined : Icons.bluetooth,
+        color: isPrinter ? AllColor.loginButtomColor : AllColor.grey500,
+      ),
+      title: Text(device.name),
+      subtitle: Text(device.macAdress),
+      onTap: () => Navigator.pop(ctx, device),
     );
   }
 }

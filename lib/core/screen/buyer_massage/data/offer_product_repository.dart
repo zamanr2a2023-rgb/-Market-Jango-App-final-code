@@ -72,9 +72,20 @@ class OfferProductRepository {
       },
     );
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to accept offer: ${response.statusCode}');
-    }
+    if (response.statusCode == 200) return;
+
+    String message = 'Failed to accept offer: ${response.statusCode}';
+    try {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      message = json['message']?.toString() ?? message;
+      final lower = message.toLowerCase();
+      if (response.statusCode == 400 &&
+          (lower.contains('already accepted') || lower.contains('already added'))) {
+        return;
+      }
+    } catch (_) {}
+
+    throw Exception(message);
   }
 
   /// Create a product offer and send it as a chat message

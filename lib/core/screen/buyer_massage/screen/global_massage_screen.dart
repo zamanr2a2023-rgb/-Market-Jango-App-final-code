@@ -9,6 +9,7 @@ import 'package:market_jango/core/localization/Keys/vendor_kay.dart';
 
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/buyer_massage/data/chat_block_data.dart';
+import 'package:market_jango/core/screen/buyer_massage/data/chat_read_data.dart';
 import 'package:market_jango/core/screen/buyer_massage/data/meassage_data.dart'; // chatListProvider
 import 'package:market_jango/core/screen/buyer_massage/model/chat_history_route_model.dart';
 import 'package:market_jango/core/screen/buyer_massage/model/massage_list_model.dart';
@@ -124,6 +125,9 @@ class _GlobalMassageScreenState extends ConsumerState<GlobalMassageScreen> {
         _searchQuery = _searchController.text.toLowerCase();
       });
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) refreshChatInbox(ref);
+    });
   }
 
   @override
@@ -144,12 +148,42 @@ class _GlobalMassageScreenState extends ConsumerState<GlobalMassageScreen> {
     }).toList();
   }
 
+  Future<void> _refreshMessages() async {
+    await refreshChatInbox(ref);
+    try {
+      await ref.read(blockedChatUserIdsProvider.future);
+    } catch (_) {}
+  }
+
+  Future<void> _markAllRead() async {
+    try {
+      await ref.read(chatListProvider.notifier).markAllRead();
+      ref.invalidate(chatUnreadCountProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All messages marked as read')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context).textTheme;
     final chatState = ref.watch(chatListProvider);
+    final unreadAsync = ref.watch(chatUnreadCountProvider);
     // Preload blocked-user ids (same API for every role) so long-press actions work immediately.
     ref.watch(blockedChatUserIdsProvider);
+
+    final totalUnread = unreadAsync.valueOrNull?.totalUnread ?? 0;
+    final hasAnyUnread = chatState.valueOrNull?.any((c) => c.isUnread) == true ||
+        totalUnread > 0;
 
     return Scaffold(
       body: SafeArea(
@@ -158,8 +192,42 @@ class _GlobalMassageScreenState extends ConsumerState<GlobalMassageScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-              Text(ref.t(BKeys.messages), style: theme.titleLarge),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(ref.t(BKeys.messages), style: theme.titleLarge),
+                  ),
+                  if (totalUnread > 0)
+                    Container(
+                      margin: EdgeInsets.only(right: 8.w),
+                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: AllColor.blue500,
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      child: Text(
+                        totalUnread > 99 ? '99+' : '$totalUnread',
+                        style: TextStyle(
+                          color: AllColor.white,
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  if (hasAnyUnread)
+                    TextButton(
+                      onPressed: _markAllRead,
+                      child: Text(
+                        'Mark all read',
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AllColor.loginButtomColor,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               SizedBox(height: 16.h),
               CustomTextFromField(
                 hintText: ref.t(BKeys.search),
@@ -167,17 +235,30 @@ class _GlobalMassageScreenState extends ConsumerState<GlobalMassageScreen> {
                 controller: _searchController,
               ),
               SizedBox(height: 16.h),
-
-              chatState.when(
-                data: (list) {
-                  Logger().i(list);
-                  final filteredList = _filterChatList(list);
-                  return Expanded(child: ChatListView(chatData: filteredList));
-                },
-                loading: () =>
-                    Expanded(child: Center(child: Text(ref.t(VKeys.loding)))),
-                error: (e, _) =>
-                    Expanded(child: Center(child: Text('Error: $e'))),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _refreshMessages,
+                  child: chatState.when(
+                    data: (list) {
+                      final filteredList = _filterChatList(list);
+                      return ChatListView(chatData: filteredList);
+                    },
+                    loading: () => ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(height: 120.h),
+                        Center(child: Text(ref.t(VKeys.loding))),
+                      ],
+                    ),
+                    error: (e, _) => ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(height: 120.h),
+                        Center(child: Text('Error: $e')),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -194,13 +275,29 @@ class ChatListView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (chatData.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(height: 80.h),
+          Center(
+            child: Text(
+              'No messages yet',
+              style: TextStyle(color: AllColor.grey500, fontSize: 14.sp),
+            ),
+          ),
+        ],
+      );
+    }
+
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: chatData.length,
       separatorBuilder: (_, __) =>
           Divider(height: 22.h, color: AllColor.grey500),
       itemBuilder: (_, i) {
         final chat = chatData[i];
-        final bool isUnread = (chat.isRead == 0);
+        final isUnread = chat.isUnread;
 
         return ListTile(
           contentPadding: EdgeInsets.zero,
@@ -216,6 +313,24 @@ class ChatListView extends ConsumerWidget {
                     color: AllColor.blue500,
                   ),
                 ),
+              if (isUnread && chat.unreadCount > 0) ...[
+                SizedBox(width: 4.w),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 2.h),
+                  decoration: BoxDecoration(
+                    color: AllColor.blue500,
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  child: Text(
+                    chat.unreadCount > 9 ? '9+' : '${chat.unreadCount}',
+                    style: TextStyle(
+                      color: AllColor.white,
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
               SizedBox(width: 6.w),
               ClipOval(
                 child: FirstTimeShimmerImage(
@@ -232,7 +347,9 @@ class ChatListView extends ConsumerWidget {
               Expanded(
                 child: Text(
                   chat.partnerName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: isUnread ? FontWeight.w800 : FontWeight.bold,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -258,7 +375,10 @@ class ChatListView extends ConsumerWidget {
             chat.lastMessage,
             overflow: TextOverflow.ellipsis,
             maxLines: 2,
-            style: TextStyle(color: isUnread ? AllColor.grey : AllColor.black),
+            style: TextStyle(
+              color: isUnread ? AllColor.black87 : AllColor.grey,
+              fontWeight: isUnread ? FontWeight.w600 : FontWeight.normal,
+            ),
           ),
           onLongPress: () => _openChatBlockActionForThread(context, ref, chat),
           onTap: () async {
@@ -290,10 +410,27 @@ class ChatListView extends ConsumerWidget {
                 return;
               }
 
-              ref.read(chatListProvider.notifier).markAsRead(chat.chatId);
+              if (chat.partnerId <= 0) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Cannot open chat: partner not found. Pull to refresh and try again.',
+                      ),
+                    ),
+                  );
+                }
+                ref.invalidate(chatListProvider);
+                return;
+              }
 
               if (context.mounted) {
-                context.push(
+                await ref
+                    .read(chatListProvider.notifier)
+                    .markConversationRead(chat.partnerId);
+                ref.invalidate(chatUnreadCountProvider);
+
+                await context.push(
                   GlobalChatScreen.routeName,
                   extra: ChatArgs(
                     partnerId: chat.partnerId,
@@ -302,6 +439,9 @@ class ChatListView extends ConsumerWidget {
                     myUserId: myUserIdInt,
                   ),
                 );
+                if (context.mounted) {
+                  await refreshChatInbox(ref);
+                }
               }
             } catch (e) {
               Logger().e('Error navigating to chat: $e');

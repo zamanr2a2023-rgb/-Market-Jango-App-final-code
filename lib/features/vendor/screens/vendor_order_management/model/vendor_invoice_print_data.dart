@@ -14,6 +14,9 @@ class VendorInvoicePrintData {
     this.shipAddress,
     this.total,
     this.createdAt,
+    this.customerPaid,
+    this.change,
+    this.walkInReceipt = false,
   });
 
   final int orderDocumentPathId;
@@ -26,6 +29,9 @@ class VendorInvoicePrintData {
   final String? paymentMethod;
   final String? shipAddress;
   final DateTime? createdAt;
+  final String? customerPaid;
+  final String? change;
+  final bool walkInReceipt;
   final List<VendorInvoicePrintLine> lines;
 
   factory VendorInvoicePrintData.fromMarketplaceDetail(
@@ -113,6 +119,9 @@ class VendorInvoicePrintData {
           ? inv.summary.payable
           : inv.summary.total,
       total: inv.summary.total.isNotEmpty ? inv.summary.total : null,
+      customerPaid: inv.summary.customerPaid,
+      change: inv.summary.change,
+      walkInReceipt: true,
     );
   }
 

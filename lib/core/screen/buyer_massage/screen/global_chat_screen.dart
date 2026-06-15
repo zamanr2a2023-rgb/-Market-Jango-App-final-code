@@ -10,6 +10,8 @@ import 'package:market_jango/core/localization/Keys/vendor_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/buyer_massage/data/chat_block_data.dart';
 import 'package:market_jango/core/screen/buyer_massage/data/chat_history_data.dart';
+import 'package:market_jango/core/screen/buyer_massage/data/chat_read_data.dart';
+import 'package:market_jango/core/screen/buyer_massage/data/meassage_data.dart';
 import 'package:market_jango/core/screen/buyer_massage/logic/message_send_riverpod.dart';
 import 'package:market_jango/core/screen/buyer_massage/model/chat_history_model.dart';
 import 'package:market_jango/core/screen/buyer_massage/model/chat_offer_model.dart';
@@ -20,6 +22,7 @@ import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/features/vendor/screens/vendor_home/model/vendor_product_model.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:market_jango/core/screen/buyer_massage/widget/custom_textfromfield.dart';
+import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/core/utils/get_user_type.dart';
 import 'package:market_jango/core/screen/profile_screen/data/profile_data.dart';
 
@@ -44,10 +47,87 @@ class GlobalChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
+  int? _myUserId;
+
+  int get _effectiveMyUserId => _myUserId ?? widget.myUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyUserId();
+    debugPrint(
+      "CHAT args → partnerId=${widget.partnerId}, myUserId=${widget.myUserId}, name=${widget.partnerName}, image = ${widget.partnerImage}",
+    );
+    _textController.addListener(() {
+      setState(() {});
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markConversationReadOnOpen();
+    });
+  }
+
+  Future<void> _markConversationReadOnOpen() async {
+    if (widget.partnerId <= 0) return;
+    try {
+      await ChatReadApi.markConversationRead(widget.partnerId);
+      if (mounted) {
+        ref.invalidate(chatUnreadCountProvider);
+        ref
+            .read(chatListProvider.notifier)
+            .applyConversationReadLocally(widget.partnerId);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void didUpdateWidget(GlobalChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.partnerId != widget.partnerId ||
+        oldWidget.myUserId != widget.myUserId) {
+      _messages = [];
+      _seeded = false;
+      _localImageMap.clear();
+      _loadMyUserId();
+    }
+  }
+
+  Future<void> _loadMyUserId() async {
+    final authStorage = AuthLocalStorage();
+    final idStr = await authStorage.getUserId();
+    final parsed = int.tryParse(idStr ?? '');
+    if (!mounted) return;
+    if (parsed != null && parsed > 0) {
+      setState(() => _myUserId = parsed);
+    }
+  }
+
+  bool get _invalidPartner => widget.partnerId <= 0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context).textTheme;
+
+    if (_invalidPartner) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios, color: AllColor.black, size: 17.sp),
+            onPressed: context.pop,
+          ),
+          title: Text(widget.partnerName),
+        ),
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24.w),
+            child: Text(
+              'Unable to open this chat. Please go back and open the conversation again from Messages.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14.sp, color: AllColor.grey500),
+            ),
+          ),
+        ),
+      );
+    }
 
     // Fetch history
     final history = ref.watch(chatHistoryStreamProvider(widget.partnerId));
@@ -144,7 +224,7 @@ class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
                   itemCount: _messages.length,
                   itemBuilder: (_, i) {
                     final m = _messages[i];
-                    final mine = m.senderId == widget.myUserId;
+                    final mine = m.senderId == _effectiveMyUserId;
                     final isLocal = m.id < 0 && m.image == 'local';
                     final file = isLocal ? _localImageMap[m.id] : null;
 
@@ -166,7 +246,7 @@ class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
                       uploading: isLocal, // show spinner on local images
                       time: _prettyTime(m.createdAt),
                       isSender: mine,
-                      myUserId: widget.myUserId,
+                      myUserId: _effectiveMyUserId,
                       partnerId: widget.partnerId,
                       onOfferAccepted: (offerId) {
                         // Refresh chat history after offer acceptance
@@ -277,18 +357,6 @@ class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
   // temp local image map: tempId -> File
   final Map<int, File> _localImageMap = {};
 
-  @override
-  void initState() {
-    super.initState();
-    debugPrint(
-      "CHAT args → partnerId=${widget.partnerId}, myUserId=${widget.myUserId}, name=${widget.partnerName}, image = ${widget.partnerImage}",
-    );
-    // Listen to text changes to update Send button state
-    _textController.addListener(() {
-      setState(() {}); // Rebuild to update Send button state
-    });
-  }
-  
   void _askImageSource() {
     showModalBottomSheet(
       context: context,
@@ -396,7 +464,7 @@ class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
         0,
         ChatMessage(
           id: tempId, // negative => local/temporary
-          senderId: widget.myUserId,
+          senderId: _effectiveMyUserId,
           receiverId: widget.partnerId,
           message: '', // no text
           image: 'local', // marker
@@ -459,7 +527,7 @@ class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
           0,
           ChatMessage(
             id: -DateTime.now().millisecondsSinceEpoch,
-            senderId: widget.myUserId,
+            senderId: _effectiveMyUserId,
             receiverId: widget.partnerId,
             message: text,
             image: null,
@@ -829,6 +897,32 @@ class _OfferCardState extends ConsumerState<_OfferCard> {
     _isAccepted = widget.offer.isAccepted == 1;
   }
 
+  @override
+  void didUpdateWidget(_OfferCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.offer.isAccepted != widget.offer.isAccepted ||
+        oldWidget.offer.status != widget.offer.status) {
+      _isAccepted = widget.offer.isAccepted == 1;
+    }
+  }
+
+  Color _offerStatusColor(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'accepted':
+      case 'completed':
+      case 'approved':
+        return AllColor.green;
+      case 'rejected':
+      case 'declined':
+      case 'cancelled':
+      case 'canceled':
+        return Colors.red;
+      case 'pending':
+      default:
+        return AllColor.loginButtomColor;
+    }
+  }
+
   Future<void> _acceptOffer() async {
     if (_isAccepting || _isAccepted) return;
 
@@ -969,6 +1063,18 @@ class _OfferCardState extends ConsumerState<_OfferCard> {
                         label: 'Delivery',
                         value: '৳${widget.offer.deliveryCharge}',
                       ),
+                      if (widget.isSender) ...[
+                        SizedBox(height: 8.h),
+                        _OfferDetailRow(
+                          label: 'Status',
+                          value: widget.offer.displayStatus,
+                          valueColor: _offerStatusColor(
+                            widget.offer.status.isNotEmpty
+                                ? widget.offer.status
+                                : (_isAccepted ? 'accepted' : 'pending'),
+                          ),
+                        ),
+                      ],
                       if (widget.offer.color != null &&
                           widget.offer.color!.isNotEmpty) ...[
                         SizedBox(height: 8.h),
@@ -1061,10 +1167,12 @@ class _OfferDetailRow extends StatelessWidget {
   const _OfferDetailRow({
     required this.label,
     required this.value,
+    this.valueColor,
   });
 
   final String label;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1083,7 +1191,7 @@ class _OfferDetailRow extends StatelessWidget {
           style: TextStyle(
             fontSize: 13.sp,
             fontWeight: FontWeight.w600,
-            color: AllColor.black87,
+            color: valueColor ?? AllColor.black87,
           ),
         ),
       ],

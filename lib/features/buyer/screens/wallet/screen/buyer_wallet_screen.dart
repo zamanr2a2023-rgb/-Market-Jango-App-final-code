@@ -10,6 +10,15 @@ import 'package:market_jango/features/buyer/screens/wallet/model/buyer_wallet_mo
 import 'package:market_jango/features/buyer/screens/wallet/provider/buyer_wallet_provider.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
+Future<void> _reloadBuyerWallet(WidgetRef ref) async {
+  ref.invalidate(buyerWalletOverviewProvider);
+  ref.invalidate(buyerWalletTransactionsProvider);
+  await Future.wait([
+    ref.read(buyerWalletOverviewProvider.future),
+    ref.read(buyerWalletTransactionsProvider.future),
+  ]);
+}
+
 /// Buyer wallet — `doc/details.md` §D (balance, top-up, withdraw, transactions, payouts).
 class BuyerWalletScreen extends ConsumerWidget {
   const BuyerWalletScreen({super.key});
@@ -142,7 +151,11 @@ class BuyerWalletScreen extends ConsumerWidget {
                               final init =
                                   await showDialog<BuyerWalletTopupInitResult>(
                                 context: context,
-                                builder: (_) => const _BuyerTopupDialog(),
+                                builder: (_) => _BuyerTopupDialog(
+                                  currency: w.currency?.trim().isNotEmpty == true
+                                      ? w.currency!.trim()
+                                      : 'USD',
+                                ),
                               );
                               if (!context.mounted ||
                                   init == null ||
@@ -160,14 +173,13 @@ class BuyerWalletScreen extends ConsumerWidget {
                                 ),
                               );
                               if (!context.mounted) return;
+                              await _reloadBuyerWallet(ref);
+                              if (!context.mounted) return;
                               if (payResult?.success == true) {
-                                ref.invalidate(buyerWalletOverviewProvider);
-                                ref.invalidate(buyerWalletTransactionsProvider);
                                 GlobalSnackbar.show(
                                   context,
                                   title: 'Success',
-                                  message:
-                                      'Wallet topped up. Balance updates shortly.',
+                                  message: 'Wallet topped up successfully.',
                                   type: CustomSnackType.success,
                                 );
                               }
@@ -556,7 +568,9 @@ class BuyerWalletScreen extends ConsumerWidget {
 }
 
 class _BuyerTopupDialog extends StatefulWidget {
-  const _BuyerTopupDialog();
+  const _BuyerTopupDialog({required this.currency});
+
+  final String currency;
 
   @override
   State<_BuyerTopupDialog> createState() => _BuyerTopupDialogState();
@@ -591,6 +605,7 @@ class _BuyerTopupDialogState extends State<_BuyerTopupDialog> {
     try {
       final init = await BuyerWalletApi.instance.initiateTopupPayment(
         amount: amtNum,
+        currency: widget.currency,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
       if (mounted) Navigator.of(context).pop(init);

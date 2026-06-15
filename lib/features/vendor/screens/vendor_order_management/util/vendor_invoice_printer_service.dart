@@ -35,6 +35,79 @@ class VendorInvoicePrinterService {
     return PrintBluetoothThermal.pairedBluetooths;
   }
 
+  static bool _macEquals(String a, String b) =>
+      a.trim().toUpperCase() == b.trim().toUpperCase();
+
+  /// Finds a paired device by saved MAC or display name.
+  static Future<BluetoothInfo?> findPairedPrinter({
+    String? mac,
+    String? name,
+  }) async {
+    final devices = await listPairedPrinters();
+    if (mac != null && mac.trim().isNotEmpty) {
+      for (final d in devices) {
+        if (_macEquals(d.macAdress, mac)) return d;
+      }
+    }
+    if (name != null && name.trim().isNotEmpty) {
+      for (final d in devices) {
+        if (d.name.trim() == name.trim()) return d;
+      }
+    }
+    return null;
+  }
+
+  /// Heuristic for 58mm thermal / label printers among paired devices.
+  static bool looksLikePrinter(BluetoothInfo device) {
+    final n = device.name.trim().toLowerCase();
+    if (n.isEmpty) return false;
+    const keys = [
+      'print',
+      'pos',
+      'thermal',
+      'label',
+      'xprinter',
+      'goojprt',
+      'hspos',
+      'innerprinter',
+      'mtp-',
+      'rp-',
+      'b1-',
+      'jk-',
+      'mp-',
+      '58mm',
+      '80mm',
+    ];
+    return keys.any(n.contains);
+  }
+
+  static List<BluetoothInfo> likelyPrinters(List<BluetoothInfo> paired) {
+    final hits = paired.where(looksLikePrinter).toList();
+    return hits.isNotEmpty ? hits : paired;
+  }
+
+  /// Saved printer if still paired, otherwise first likely printer on the phone.
+  static Future<BluetoothInfo?> resolveActivePrinter() async {
+    final paired = await listPairedPrinters();
+    if (paired.isEmpty) return null;
+
+    final saved = await VendorPrinterPrefs.saved58Printer();
+    final fromSaved = await findPairedPrinter(mac: saved.mac, name: saved.name);
+    if (fromSaved != null) return fromSaved;
+
+    final likely = likelyPrinters(paired);
+    return likely.isNotEmpty ? likely.first : paired.first;
+  }
+
+  static Future<bool> connectPrinter(String macAddress) async {
+    var ok = await PrintBluetoothThermal.connect(macPrinterAddress: macAddress);
+    if (!ok) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      ok = await PrintBluetoothThermal.connect(macPrinterAddress: macAddress);
+    }
+    return ok;
+  }
+
   static Future<void> print58mmBluetooth({
     required VendorInvoicePrintData data,
     required String macAddress,
@@ -55,16 +128,22 @@ class VendorInvoicePrinterService {
     final block = await ensureBluetoothReady();
     if (block != null) throw Exception(block);
 
-    final connected = await PrintBluetoothThermal.connect(
-      macPrinterAddress: macAddress,
-    );
-    if (!connected) {
+    final paired = await findPairedPrinter(mac: macAddress, name: printerName);
+    if (paired == null) {
       throw Exception(
-        'Could not connect to $printerName. Pair the printer in Bluetooth settings first.',
+        '$printerName is not in paired devices. Tap "Change Bluetooth printer" and select it after pairing in phone settings.',
       );
     }
 
-    await VendorPrinterPrefs.save58Printer(mac: macAddress, name: printerName);
+    final mac = paired.macAdress;
+    final connected = await connectPrinter(mac);
+    if (!connected) {
+      throw Exception(
+        'Could not connect to ${paired.name}. Turn the printer on, stay within range, or tap "Change Bluetooth printer" to pick another device.',
+      );
+    }
+
+    await VendorPrinterPrefs.save58Printer(mac: mac, name: paired.name);
 
     final ok = await PrintBluetoothThermal.writeBytes(bytes);
     if (!ok) {

@@ -10,6 +10,15 @@ import 'package:market_jango/features/transport/screens/wallet/data/transport_wa
 import 'package:market_jango/features/transport/screens/wallet/provider/transport_wallet_provider.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
+Future<void> _reloadTransportWallet(WidgetRef ref) async {
+  ref.invalidate(transportWalletOverviewProvider);
+  ref.invalidate(transportWalletTransactionsProvider);
+  await Future.wait([
+    ref.read(transportWalletOverviewProvider.future),
+    ref.read(transportWalletTransactionsProvider.future),
+  ]);
+}
+
 /// Transport wallet — `doc/details.md` (balance, top-up, payout, transactions).
 class TransportWalletScreen extends ConsumerWidget {
   const TransportWalletScreen({super.key});
@@ -142,7 +151,11 @@ class TransportWalletScreen extends ConsumerWidget {
                               final init =
                                   await showDialog<BuyerWalletTopupInitResult>(
                                 context: context,
-                                builder: (_) => const _TransportTopupDialog(),
+                                builder: (_) => _TransportTopupDialog(
+                                  currency: w.currency?.trim().isNotEmpty == true
+                                      ? w.currency!.trim()
+                                      : 'USD',
+                                ),
                               );
                               if (!context.mounted ||
                                   init == null ||
@@ -160,14 +173,13 @@ class TransportWalletScreen extends ConsumerWidget {
                                 ),
                               );
                               if (!context.mounted) return;
+                              await _reloadTransportWallet(ref);
+                              if (!context.mounted) return;
                               if (payResult?.success == true) {
-                                ref.invalidate(transportWalletOverviewProvider);
-                                ref.invalidate(transportWalletTransactionsProvider);
                                 GlobalSnackbar.show(
                                   context,
                                   title: 'Success',
-                                  message:
-                                      'Wallet topped up. Balance updates shortly.',
+                                  message: 'Wallet topped up successfully.',
                                   type: CustomSnackType.success,
                                 );
                               }
@@ -564,7 +576,9 @@ class TransportWalletScreen extends ConsumerWidget {
 }
 
 class _TransportTopupDialog extends StatefulWidget {
-  const _TransportTopupDialog();
+  const _TransportTopupDialog({required this.currency});
+
+  final String currency;
 
   @override
   State<_TransportTopupDialog> createState() => _TransportTopupDialogState();
@@ -599,6 +613,7 @@ class _TransportTopupDialogState extends State<_TransportTopupDialog> {
     try {
       final init = await TransportWalletApi.instance.initiateTopupPayment(
         amount: amtNum,
+        currency: widget.currency,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       );
       if (mounted) Navigator.of(context).pop(init);

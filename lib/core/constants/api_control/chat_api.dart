@@ -16,5 +16,26 @@ class ChatAPIController {
 
   /// GET — list blocked user ids for the current user.
   static String get chatBlocked => "$_base_api/chat/blocked";
+
+  /// GET — total unread + per-conversation counts (`doc/details.md`).
+  static String get chatUnreadCount => "$_base_api/chat/unread-count";
+
+  /// PUT — mark one conversation read.
+  static String chatMarkRead(int partnerId) => "$_base_api/chat/read/$partnerId";
+
+  /// PUT — mark all conversations read.
+  static String get chatMarkAllRead => "$_base_api/chat/read";
+
+  /// PUT — mark one message read.
+  static String chatMessageRead(int messageId) =>
+      "$_base_api/chat/message/$messageId/read";
+
+  /// PUT — mark one message unread.
+  static String chatMessageUnread(int messageId) =>
+      "$_base_api/chat/message/$messageId/unread";
+
+  /// PUT — mark whole conversation unread.
+  static String chatMarkUnread(int partnerId) =>
+      "$_base_api/chat/unread/$partnerId";
 }
  

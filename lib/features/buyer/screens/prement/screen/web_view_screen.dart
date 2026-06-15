@@ -50,6 +50,15 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (req) {
+            if (widget.walletTopupCallback &&
+                _isWalletTopupCallbackUrl(req.url) &&
+                !_finished) {
+              // Let the callback load so the server credits the wallet.
+              setState(() => _showWebView = false);
+              _finishWalletTopupSuccess();
+              return NavigationDecision.navigate;
+            }
+
             // Intercept payment response URLs BEFORE they load
             final uri = Uri.tryParse(req.url);
             final isPaymentResponse = uri != null && 

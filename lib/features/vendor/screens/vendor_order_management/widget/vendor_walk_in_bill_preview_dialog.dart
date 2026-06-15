@@ -16,7 +16,7 @@ class VendorWalkInBillPreviewDialog extends StatelessWidget {
 
   final VendorManualOrderInvoice invoice;
   final String billText;
-  final VoidCallback onPrint;
+  final Future<void> Function() onPrint;
   final VoidCallback onCopy;
   final VoidCallback onClose;
 
@@ -24,7 +24,7 @@ class VendorWalkInBillPreviewDialog extends StatelessWidget {
     BuildContext context, {
     required VendorManualOrderInvoice invoice,
     required String billText,
-    required VoidCallback onPrint,
+    required Future<void> Function() onPrint,
     required VoidCallback onCopy,
   }) {
     return showDialog<void>(
@@ -33,9 +33,9 @@ class VendorWalkInBillPreviewDialog extends StatelessWidget {
       builder: (ctx) => VendorWalkInBillPreviewDialog(
         invoice: invoice,
         billText: billText,
-        onPrint: () {
-          Navigator.pop(ctx);
-          onPrint();
+        onPrint: () async {
+          await onPrint();
+          if (ctx.mounted) Navigator.pop(ctx);
         },
         onCopy: () {
           onCopy();
@@ -501,7 +501,7 @@ class _Actions extends StatelessWidget {
     required this.accent,
   });
 
-  final VoidCallback onPrint;
+  final Future<void> Function() onPrint;
   final VoidCallback onCopy;
   final VoidCallback onClose;
   final Color accent;

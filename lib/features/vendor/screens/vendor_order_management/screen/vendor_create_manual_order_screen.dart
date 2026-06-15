@@ -18,9 +18,8 @@ import 'package:market_jango/features/vendor/screens/vendor_barcode/data/vendor_
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_scan_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_esc_pos_util.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_walk_in_bill_print_flow.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_walk_in_bill_text.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_printer_choice_sheet.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_walk_in_bill_preview_dialog.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/vendor_order_auth.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
@@ -409,27 +408,11 @@ class _VendorCreateManualOrderScreenState
   }
 
   Future<void> _openBillPrint(VendorManualOrderInvoice inv, String billText) async {
-    final pathId = walkInOrderDocumentPathId(inv);
     if (!mounted) return;
-    await VendorPrinterChoiceSheet.show(
+    await VendorWalkInBillPrintFlow.openPrinterSheet(
       context,
-      title: 'Print bill',
-      subtitle: inv.orderNumber,
-      subtitle80: pathId > 0
-          ? 'Epson / Star · invoice PDF'
-          : 'Epson / Star · bill text PDF',
-      pdfJobName: 'bill_${inv.orderNumber}',
-      build58Bytes: () async => VendorEscPosUtil.buildPlainText58mm(billText),
-      build80Pdf: () async {
-        if (pathId > 0) {
-          try {
-            final doc = await VendorOrderApi.instance
-                .fetchVendorAllOrderInvoiceDocument(pathId);
-            if (doc.bytes.isNotEmpty) return doc.bytes;
-          } catch (_) {}
-        }
-        return buildWalkInBillTextPdf(billText);
-      },
+      invoice: inv,
+      billText: billText,
     );
   }
 

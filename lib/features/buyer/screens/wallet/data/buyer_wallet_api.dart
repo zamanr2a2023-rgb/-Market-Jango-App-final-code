@@ -186,11 +186,15 @@ class BuyerWalletApi {
   /// `POST /api/wallet/topup/initiate` — returns hosted `payment_url` (Flutterwave).
   Future<BuyerWalletTopupInitResult> initiateTopupPayment({
     required num amount,
+    String currency = 'USD',
     String? note,
   }) async {
     final headers = await _buyerWalletHeaders();
     final uri = Uri.parse(BuyerAPIController.buyerWalletTopupInitiate);
-    final body = <String, dynamic>{'amount': amount};
+    final body = <String, dynamic>{
+      'amount': amount,
+      'currency': currency.trim().isEmpty ? 'USD' : currency.trim(),
+    };
     final n = note?.trim();
     if (n != null && n.isNotEmpty) body['note'] = n;
     final res = await http.post(

@@ -187,11 +187,15 @@ class TransportWalletApi {
   /// `POST /api/transport/wallet/topup/initiate` — same payload shape as buyer wallet.
   Future<BuyerWalletTopupInitResult> initiateTopupPayment({
     required num amount,
+    String currency = 'USD',
     String? note,
   }) async {
     final headers = await _transportWalletHeaders();
     final uri = Uri.parse(TransportAPIController.transportWalletTopupInitiate);
-    final body = <String, dynamic>{'amount': amount};
+    final body = <String, dynamic>{
+      'amount': amount,
+      'currency': currency.trim().isEmpty ? 'USD' : currency.trim(),
+    };
     final n = note?.trim();
     if (n != null && n.isNotEmpty) body['note'] = n;
     final res = await http.post(

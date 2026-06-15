@@ -87,5 +87,5 @@ final blockedChatUserIdsProvider =
 /// After block/unblock, refresh blocked ids and chat inbox.
 Future<void> refreshChatBlockAndInbox(WidgetRef ref) async {
   await ref.read(blockedChatUserIdsProvider.notifier).reload();
-  await ref.read(chatListProvider.notifier).refresh();
+  await refreshChatInbox(ref);
 }

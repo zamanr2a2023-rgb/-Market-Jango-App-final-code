@@ -27,7 +27,11 @@ class VendorEscPosReceipt {
     }
 
     line('MARKET JANGO', align: AlignPos.center, bold: true, size: FontSize.big);
-    line('INVOICE', align: AlignPos.center, bold: true);
+    line(
+      data.walkInReceipt ? 'WALK-IN RECEIPT' : 'INVOICE',
+      align: AlignPos.center,
+      bold: true,
+    );
     line('--------------------------------');
 
     if (data.vendorName != null && data.vendorName!.trim().isNotEmpty) {
@@ -67,6 +71,14 @@ class VendorEscPosReceipt {
       line('Subtotal: ${data.total}', align: AlignPos.right);
     }
     line('TOTAL: ${data.payable}', align: AlignPos.right, bold: true, size: FontSize.doubleHeight);
+    final paid = data.customerPaid?.trim();
+    if (paid != null && paid.isNotEmpty && paid != '—') {
+      line('Paid: $paid', align: AlignPos.right);
+    }
+    final change = data.change?.trim();
+    if (change != null && change.isNotEmpty && change != '—') {
+      line('Change: $change', align: AlignPos.right, bold: true);
+    }
     line('--------------------------------');
     line('Thank you', align: AlignPos.center);
     line('58mm BT | ESC/POS', align: AlignPos.center, size: FontSize.compressed);

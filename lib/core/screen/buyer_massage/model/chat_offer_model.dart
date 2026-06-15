@@ -7,6 +7,7 @@ class ChatOffer {
   final String deliveryCharge;
   final String? color;
   final String? size;
+  final String status;
   final int isAccepted; // 0 or 1
 
   ChatOffer({
@@ -18,8 +19,17 @@ class ChatOffer {
     required this.deliveryCharge,
     this.color,
     this.size,
+    this.status = '',
     required this.isAccepted,
   });
+
+  String get displayStatus {
+    final raw = status.trim();
+    if (raw.isNotEmpty) {
+      return raw[0].toUpperCase() + raw.substring(1);
+    }
+    return isAccepted == 1 ? 'Accepted' : 'Pending';
+  }
 
   /// Helper to safely convert various types to int
   static int _toInt(dynamic value, {int defaultValue = 0}) {
@@ -34,6 +44,17 @@ class ChatOffer {
       if (value.toLowerCase() == 'false') return 0;
     }
     return defaultValue;
+  }
+
+  static int _parseAcceptedFlag(Map<String, dynamic> json) {
+    final direct = json['is_accepted'] ?? json['isAccepted'];
+    if (direct != null) return _toInt(direct);
+
+    final status = json['status']?.toString().trim().toLowerCase() ?? '';
+    if (status == 'accepted' || status == 'completed' || status == 'approved') {
+      return 1;
+    }
+    return 0;
   }
 
   factory ChatOffer.fromJson(Map<String, dynamic> json) {
@@ -69,7 +90,8 @@ class ChatOffer {
       deliveryCharge: (json['delivery_charge'] ?? json['deliveryCharge'] ?? '0').toString(),
       color: json['color']?.toString(),
       size: json['size']?.toString(),
-      isAccepted: _toInt(json['is_accepted'] ?? json['isAccepted']),
+      status: json['status']?.toString().trim().toLowerCase() ?? '',
+      isAccepted: _parseAcceptedFlag(json),
     );
   }
 }
