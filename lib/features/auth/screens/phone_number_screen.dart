@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 
 import '../../../core/constants/api_control/auth_api.dart';
+import '../../../core/utils/phone_e164_utils.dart';
 import '../../../core/widget/custom_auth_button.dart';
 import '../../../core/widget/global_snackbar.dart';
 import '../../../core/widget/sreeen_brackground.dart';
@@ -20,10 +21,17 @@ class PhoneNumberScreen extends ConsumerStatefulWidget {
 }
 
 class _PhoneNumberScreenState extends ConsumerState<PhoneNumberScreen> {
-  String _phone = '';
+  String _countryCode = '256';
+  String _nationalNumber = '';
+
+  String get _e164Phone => toE164Phone(
+        countryCode: _countryCode,
+        nationalNumber: _nationalNumber,
+      );
 
   Future<void> _submit() async {
-    if (_phone.trim().isEmpty) {
+    final phone = _e164Phone;
+    if (phone.length < 10) {
       GlobalSnackbar.show(
         context,
         title: "Error",
@@ -36,9 +44,9 @@ class _PhoneNumberScreenState extends ConsumerState<PhoneNumberScreen> {
     final notifier = ref.read(postProvider.notifier);
     await notifier.send(
       keyname: 'phone',
-      value: _phone,
+      value: phone,
       url: AuthAPIController.registerPhone,
-      context: context
+      context: context,
     );
 
     final result = ref.read(postProvider);
@@ -56,10 +64,11 @@ class _PhoneNumberScreenState extends ConsumerState<PhoneNumberScreen> {
         }
       },
       error: (e, _) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
         GlobalSnackbar.show(
           context,
           title: "Error",
-          message: e.toString(),
+          message: msg,
           type: CustomSnackType.error,
         );
       },
@@ -96,13 +105,16 @@ class _PhoneNumberScreenState extends ConsumerState<PhoneNumberScreen> {
                 IntlPhoneField(
                   decoration: InputDecoration(
                     labelText: 'Phone Number',
+                    hintText: '757477539',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20.r),
                     ),
                   ),
-                  initialCountryCode: 'BD',
+                  initialCountryCode: 'UG',
+                  disableLengthCheck: false,
                   onChanged: (phone) {
-                    _phone = phone.completeNumber;
+                    _countryCode = phone.countryCode;
+                    _nationalNumber = phone.number;
                   },
                 ),
                 SizedBox(height: 28.h),

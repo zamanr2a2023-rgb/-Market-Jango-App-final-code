@@ -32,6 +32,8 @@ import 'package:market_jango/features/vendor/screens/vendor_delivery_setting/scr
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_orders_hub_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_hub_screen.dart';
 import 'package:market_jango/features/affiliate/screen/affiliate_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_followers/data/vendor_followers_api.dart';
+import 'package:market_jango/features/vendor/screens/vendor_followers/screen/vendor_followers_screen.dart';
 import '../data/vendor_product_category_riverpod.dart';
 import '../data/vendor_product_data.dart';
 import '../logic/vendor_details_riverpod.dart';
@@ -64,6 +66,7 @@ class VendorHomeScreen extends ConsumerWidget {
               onRefresh: () async {
                 ref.invalidate(vendorProvider);
                 ref.invalidate(productNotifierProvider);
+                ref.invalidate(vendorFollowersProvider);
                 ref.invalidate(
                   vendorCategoryProvider(VendorAPIController.vendor_category),
                 );
@@ -654,10 +657,11 @@ Widget buildProfileSection(
   // Check if image is null or empty
   final bool hasImage =
       vendor.image.isNotEmpty && vendor.image.trim().isNotEmpty;
+  final followersAsync = ref.watch(vendorFollowersCountProvider);
 
   return Row(
     children: [
-      Spacer(),
+      const Spacer(),
       Column(
         children: [
           Center(
@@ -733,13 +737,34 @@ Widget buildProfileSection(
             ),
           ),
 
+          SizedBox(height: 6.h),
           Text(
             vendor.name,
-            style: TextStyle(fontSize: 16.sp, color: AllColor.loginButtomColor),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w700,
+              color: AllColor.loginButtomColor,
+            ),
+          ),
+          SizedBox(height: 6.h),
+          followersAsync.when(
+            data: (count) => _HomeFollowersStat(
+              count: count,
+              onTap: () => context.push(VendorFollowersScreen.routeName),
+            ),
+            loading: () => _HomeFollowersStat(
+              count: null,
+              onTap: () => context.push(VendorFollowersScreen.routeName),
+            ),
+            error: (_, __) => _HomeFollowersStat(
+              count: 0,
+              onTap: () => context.push(VendorFollowersScreen.routeName),
+            ),
           ),
         ],
       ),
-      Spacer(),
+      const Spacer(),
       InkWell(
         onTap: () {
           Scaffold.of(context).openEndDrawer();
@@ -748,6 +773,74 @@ Widget buildProfileSection(
       ),
     ],
   );
+}
+
+class _HomeFollowersStat extends StatelessWidget {
+  const _HomeFollowersStat({required this.count, required this.onTap});
+
+  final int? count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count == 1 ? 'Follower' : 'Followers';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20.r),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+          decoration: BoxDecoration(
+            color: AllColor.loginButtomColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20.r),
+            border: Border.all(
+              color: AllColor.loginButtomColor.withValues(alpha: 0.18),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.people_alt_rounded,
+                size: 15.sp,
+                color: AllColor.loginButtomColor,
+              ),
+              SizedBox(width: 6.w),
+              if (count == null)
+                SizedBox(
+                  width: 12.r,
+                  height: 12.r,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: AllColor.loginButtomColor,
+                  ),
+                )
+              else
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w800,
+                    color: AllColor.black,
+                  ),
+                ),
+              SizedBox(width: 4.w),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AllColor.grey500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 Widget buildCoverAndProfileSection(
@@ -839,7 +932,7 @@ Widget buildCoverAndProfileSection(
           child: buildProfileSection(context, ref, vendor),
         ),
       ),
-      SizedBox(height: 20.h), // Add spacing after profile section
+      SizedBox(height: 8.h),
     ],
   );
 }

@@ -30,6 +30,7 @@ import 'package:market_jango/features/buyer/screens/all_categori/screen/category
 import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_cetagory_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
+import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_followers_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/vendor_promotion_screen.dart';
 import 'package:market_jango/features/buyer/screens/cart/screen/cart_screen.dart';
 import 'package:market_jango/features/buyer/screens/filter/screen/filter_product_screen.dart';
@@ -58,6 +59,7 @@ import 'package:market_jango/features/driver/screen/home/screen/driver_home.dart
 import 'package:market_jango/features/driver/screen/deliveries/screen/driver_deliveries_screen.dart';
 import 'package:market_jango/features/driver/screen/deliveries/screen/driver_delivery_detail_screen.dart';
 import 'package:market_jango/features/driver/screen/wallet/screen/driver_wallet_screen.dart';
+import 'package:market_jango/features/driver/screen/followers/screen/driver_followers_screen.dart';
 import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
 import 'package:market_jango/features/navbar/screen/driver_bottom_nav_bar.dart';
 import 'package:market_jango/features/navbar/screen/transport_bottom_nav_bar.dart';
@@ -69,6 +71,7 @@ import 'package:market_jango/features/transport/screens/booking_confirm/transpor
 import 'package:market_jango/features/transport/screens/booking_confirm/transport_shipment_details_screen.dart';
 import 'package:market_jango/features/transport/screens/driver/screen/driver_details_screen.dart';
 import 'package:market_jango/features/transport/screens/driver/screen/driver_promotion_screen.dart';
+import 'package:market_jango/features/transport/screens/driver/screen/public_driver_followers_screen.dart';
 import 'package:market_jango/features/transport/screens/driver/screen/transport_See_all_driver.dart';
 import 'package:market_jango/features/transport/screens/driver/widget/transport_driver_input_data.dart';
 import 'package:market_jango/features/transport/screens/home/screen/transport_home.dart';
@@ -113,6 +116,7 @@ import 'package:market_jango/features/vendor/staff_management/screen/vendor_staf
 import 'package:market_jango/features/vendor/staff_management/screen/vendor_staff_upsert_screen.dart';
 import 'package:market_jango/features/vendor/inventory/screen/vendor_inventory_screen.dart';
 import 'package:market_jango/features/vendor/inventory/screen/vendor_inventory_product_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_followers/screen/vendor_followers_screen.dart';
 
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/login/screen/login_screen.dart';
@@ -606,6 +610,20 @@ final GoRouter router = GoRouter(
       },
     ),
     GoRoute(
+      path: PublicDriverFollowersScreen.routeName,
+      name: 'publicDriverFollowers',
+      builder: (context, state) {
+        final extra = state.extra;
+        final id = extra is int ? extra : int.tryParse('$extra') ?? 0;
+        if (id <= 0) {
+          return const Scaffold(
+            body: Center(child: Text('Invalid driver')),
+          );
+        }
+        return PublicDriverFollowersScreen(driverId: id);
+      },
+    ),
+    GoRoute(
       path: DriverPromotionScreen.routeName,
       name: 'driverPromotion',
       builder: (context, state) {
@@ -688,6 +706,11 @@ final GoRouter router = GoRouter(
       path: DriverWalletScreen.routeName,
       name: 'driverWallet',
       builder: (context, state) => const DriverWalletScreen(),
+    ),
+    GoRoute(
+      path: DriverFollowersScreen.routeName,
+      name: 'driverFollowers',
+      builder: (context, state) => const DriverFollowersScreen(),
     ),
     GoRoute(
       path: DriverDeliveriesScreen.routeName,
@@ -823,6 +846,20 @@ final GoRouter router = GoRouter(
         }
 
         return BuyerVendorProfileScreen(vendorId: vendorId, userId: userId);
+      },
+    ),
+    GoRoute(
+      path: BuyerVendorFollowersScreen.routeName,
+      name: 'buyerVendorFollowers',
+      builder: (context, state) {
+        final extra = state.extra;
+        final id = extra is int ? extra : int.tryParse('$extra') ?? 0;
+        if (id <= 0) {
+          return const Scaffold(
+            body: Center(child: Text('Invalid vendor')),
+          );
+        }
+        return BuyerVendorFollowersScreen(vendorId: id);
       },
     ),
     GoRoute(
@@ -1009,6 +1046,11 @@ final GoRouter router = GoRouter(
       path: VendorStaffListScreen.routeName,
       name: 'vendorStaffList',
       builder: (context, state) => const VendorStaffListScreen(),
+    ),
+    GoRoute(
+      path: VendorFollowersScreen.routeName,
+      name: 'vendorFollowers',
+      builder: (context, state) => const VendorFollowersScreen(),
     ),
     GoRoute(
       path: VendorStaffUpsertScreen.routeName,

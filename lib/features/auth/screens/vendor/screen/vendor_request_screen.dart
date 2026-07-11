@@ -355,37 +355,89 @@ class BusinessTypeDropdown extends ConsumerWidget {
         border: Border.all(color: AllColor.textBorderColor, width: 0.5.sp),
       ),
       child: businessTypesAsync.when(
-        data: (types) => DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            isExpanded: true,
-            hint: Text(
-              "Choose Your Business Type",
-              style: TextStyle(color: AllColor.textHintColor, fontSize: 14.sp),
-            ),
-            value: selectedType,
-            icon: Icon(Icons.arrow_drop_down, size: 24.sp),
-            dropdownColor: Colors.white,
-            borderRadius: BorderRadius.circular(30.r),
-            items: types.map((type) {
-              return DropdownMenuItem<String>(
-                value: type,
-                child: Text(
-                  type,
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    color: AllColor.textHintColor,
-                  ),
+        data: (types) {
+          if (types.isEmpty) {
+            return Center(
+              child: Text(
+                'No business types found',
+                style: TextStyle(
+                  color: AllColor.textHintColor,
+                  fontSize: 14.sp,
                 ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              ref.read(selectedBusinessTypeProvider.notifier).state = value;
-            },
+              ),
+            );
+          }
+
+          final names = types.map((e) => e.name).toList();
+          final value =
+              selectedType != null && names.contains(selectedType)
+                  ? selectedType
+                  : null;
+
+          return DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              hint: Text(
+                'Choose Your Business Type',
+                style: TextStyle(
+                  color: AllColor.textHintColor,
+                  fontSize: 14.sp,
+                ),
+              ),
+              value: value,
+              icon: Icon(Icons.arrow_drop_down, size: 24.sp),
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(16.r),
+              items: types.map((type) {
+                return DropdownMenuItem<String>(
+                  value: type.name,
+                  child: Text(
+                    type.name,
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      color: AllColor.black,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                ref.read(selectedBusinessTypeProvider.notifier).state = value;
+              },
+            ),
+          );
+        },
+        loading: () => Center(
+          child: SizedBox(
+            width: 22.r,
+            height: 22.r,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AllColor.loginButtomColor,
+            ),
           ),
         ),
-        loading: () => const Center(child: Text('Loading...')),
-        error: (err, stack) =>
-            const Center(child: Text("Data is not available")),
+        error: (err, stack) => InkWell(
+          onTap: () => ref.invalidate(businessTypesProvider),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Tap to retry loading types',
+                  style: TextStyle(
+                    color: AllColor.textHintColor,
+                    fontSize: 13.sp,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.refresh,
+                size: 20.sp,
+                color: AllColor.loginButtomColor,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

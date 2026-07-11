@@ -165,6 +165,32 @@ class BuyerAPIController {
         .replace(queryParameters: q)
         .toString();
   }
+
+  // --- Follow vendor (buyer) ---
+  /// `GET /follows/vendor/{vendorId}/followers`
+  static String vendorFollowers(int vendorId, {int page = 1}) =>
+      '$_base_api/follows/vendor/$vendorId/followers?page=$page';
+
+  /// `POST /follows/vendor/{vendorId}` — follow
+  static String followVendor(int vendorId) =>
+      '$_base_api/follows/vendor/$vendorId';
+
+  /// `DELETE /follows/vendor/{vendorId}` — unfollow
+  static String unfollowVendor(int vendorId) =>
+      '$_base_api/follows/vendor/$vendorId';
+
+  // --- Follow driver ---
+  /// `GET /follows/driver/{driverId}/followers`
+  static String driverFollowers(int driverId, {int page = 1}) =>
+      '$_base_api/follows/driver/$driverId/followers?page=$page';
+
+  /// `POST /follows/driver/{driverId}` — follow
+  static String followDriver(int driverId) =>
+      '$_base_api/follows/driver/$driverId';
+
+  /// `DELETE /follows/driver/{driverId}` — unfollow
+  static String unfollowDriver(int driverId) =>
+      '$_base_api/follows/driver/$driverId';
 }
 
 // lib/core/constants/api_control/buyer_api.dart

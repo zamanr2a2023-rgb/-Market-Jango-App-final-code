@@ -281,6 +281,10 @@ class VendorAPIController {
   static String vendorProductBarcodeLabels(int productId) =>
       '$_base_api/vendor/products/$productId/barcode/labels';
 
+  /// Paginated vendor followers — `GET /vendor/followers?page=`.
+  static String vendorFollowers({int page = 1}) =>
+      '$_base_api/vendor/followers?page=$page';
+
   // --- Vendor Staff (Moderators) + Inventory (see doc/details.md) ---
   static String get vendorModerators => '$_base_api/vendor/moderators';
   static String vendorModerator(int id) => '$_base_api/vendor/moderators/$id';

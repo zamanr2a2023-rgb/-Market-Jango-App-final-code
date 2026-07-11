@@ -30,6 +30,7 @@ class VendorEscPosUtil {
     final d = result.printData;
     final p = result.product;
     final n = copies ?? d.copies;
+    final barcodeValue = (d.barcode.isNotEmpty ? d.barcode : d.barcodeText).trim();
     final out = <int>[];
 
     void line(
@@ -51,19 +52,85 @@ class VendorEscPosUtil {
     for (var c = 0; c < n; c++) {
       if (c > 0) line('---');
       line('MARKET JANGO', align: AlignPos.center, bold: true);
-      line(_fit(p.name.isEmpty ? 'Product #${p.id}' : p.name, _chars58),
-          bold: true);
-      if (p.sku.isNotEmpty) line('SKU: ${p.sku}');
-      line('Price: ${p.regularPrice}');
-      if (d.barcode.isNotEmpty) {
-        out.addAll(PostCode.barcode(barcodeData: d.barcode));
-        line(d.barcode, align: AlignPos.center, size: FontSize.compressed);
+      line(
+        _fit(p.name.isEmpty ? 'Product #${p.id}' : p.name, _chars58),
+        align: AlignPos.center,
+        bold: true,
+      );
+      if (p.regularPrice > 0) {
+        line('Price: ${p.regularPrice}', align: AlignPos.center);
       }
-      line('', align: AlignPos.center);
+      if (barcodeValue.isNotEmpty) {
+        out.addAll(_barcodeEscPos(barcodeValue));
+        line(barcodeValue, align: AlignPos.center, size: FontSize.compressed);
+      }
+      out.addAll(PostCode.enter(nEnter: 4));
     }
 
-    out.addAll(PostCode.cut());
     return out;
+  }
+
+  /// ESC/POS barcode bytes — fixes broken length in [PostCode.barcode].
+  static List<int> _barcodeEscPos(String data) {
+    final trimmed = data.trim();
+    if (trimmed.isEmpty) return [];
+
+    final upper = trimmed.toUpperCase();
+    if (_isCode39Safe(upper)) {
+      return _code39(upper);
+    }
+    return _code128(trimmed);
+  }
+
+  static bool _isCode39Safe(String value) {
+    return RegExp(r'^[0-9A-Z\-\.\ \$\/\+\%]+$').hasMatch(value);
+  }
+
+  static List<int> _code128(String data) {
+    final payload = data.codeUnits;
+    if (payload.length > 255) {
+      throw Exception('Barcode is too long to print (${payload.length} chars).');
+    }
+    final out = <int>[];
+    _addCmd(out, '\x1B@');
+    _addCmd(out, '\x1Ba\x01');
+    _addCmd(out, '\x1D\x68\x50');
+    _addCmd(out, '\x1D\x77\x02');
+    _addCmd(out, '\x1D\x48\x02');
+    out
+      ..add(0x1D)
+      ..add(0x6B)
+      ..add(0x49)
+      ..add(payload.length)
+      ..addAll(payload)
+      ..add(0x0A);
+    return out;
+  }
+
+  static List<int> _code39(String data) {
+    final payload = data.codeUnits;
+    if (payload.length > 255) {
+      throw Exception('Barcode is too long to print (${payload.length} chars).');
+    }
+    final out = <int>[];
+    _addCmd(out, '\x1B@');
+    _addCmd(out, '\x1Ba\x01');
+    _addCmd(out, '\x1D\x68\x50');
+    _addCmd(out, '\x1D\x77\x02');
+    _addCmd(out, '\x1D\x48\x02');
+    out
+      ..add(0x1D)
+      ..add(0x6B)
+      ..add(0x04)
+      ..add(payload.length)
+      ..addAll(payload)
+      ..add(0x00)
+      ..add(0x0A);
+    return out;
+  }
+
+  static void _addCmd(List<int> out, String cmd) {
+    out.addAll(cmd.codeUnits);
   }
 
   static VendorBarcodeLabelsResult labelsFromProduct(

@@ -10,11 +10,12 @@ import 'package:market_jango/core/constants/api_control/vendor_api.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/vendor_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
-import 'package:market_jango/core/models/global_search_model.dart';
+import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/global_search_bar.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
-import 'package:market_jango/features/vendor/screens/vendor_home/data/global_search_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/data/vendor_barcode_api.dart';
+import 'package:market_jango/features/vendor/screens/vendor_barcode/model/vendor_barcode_models.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/data/walk_in_barcode_search_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_scan_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
@@ -230,6 +231,24 @@ class _VendorCreateManualOrderScreenState
     } catch (_) {
       return null;
     }
+  }
+
+  _PosProduct _posFromBarcode(VendorBarcodeProduct b) => _PosProduct(
+        id: b.id,
+        name: b.name,
+        sellPrice: b.sellPrice,
+        stock: b.stock,
+      );
+
+  void _cacheProduct(_PosProduct p) {
+    if (_findInCatalog(p.id) != null) return;
+    _catalog = [..._catalog, p];
+  }
+
+  void _addProductFromBarcode(VendorBarcodeProduct b) {
+    final p = _posFromBarcode(b);
+    _cacheProduct(p);
+    _addOrIncrementLine(p);
   }
 
   Future<void> _addProductById(int id) async {
@@ -554,15 +573,15 @@ class _VendorCreateManualOrderScreenState
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    child: GlobalSearchBar<GlobalSearchResponse,
-                        GlobalSearchProduct>(
-                      provider: searchProvider,
-                      itemsSelector: (res) => res.products,
+                    child: GlobalSearchBar<VendorBarcodeListPage,
+                        VendorBarcodeProduct>(
+                      provider: walkInBarcodeSearchProvider,
+                      itemsSelector: (res) => res.items,
                       itemBuilder: (context, p) =>
-                          ProductSuggestionTile(p: p),
-                      onItemSelected: (p) => _addProductById(p.id),
+                          _WalkInBarcodeSuggestionTile(product: p),
+                      onItemSelected: _addProductFromBarcode,
                       hintText: ref.t(VKeys.searchProducts),
-                      debounce: const Duration(seconds: 1),
+                      debounce: const Duration(milliseconds: 400),
                       minChars: 1,
                       showResults: true,
                       resultsMaxHeight: 380,
@@ -587,7 +606,7 @@ class _VendorCreateManualOrderScreenState
           Padding(
             padding: EdgeInsets.only(top: 6.h),
             child: Text(
-              'Same search as vendor home — type, then tap a product to add.',
+              'Search by product name or barcode, then tap to add.',
               style: TextStyle(
                 fontSize: 11.sp,
                 color: AllColor.grey500,
@@ -1215,6 +1234,97 @@ class _VendorCreateManualOrderScreenState
               ],
             );
           }),
+        ],
+      ),
+    );
+  }
+}
+
+class _WalkInBarcodeSuggestionTile extends StatelessWidget {
+  const _WalkInBarcodeSuggestionTile({required this.product});
+
+  final VendorBarcodeProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    final sell = product.sellPrice.toStringAsFixed(2);
+    final regular = product.regularPrice.toStringAsFixed(2);
+    final showRegular = product.regularPrice > 0 && regular != sell;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10.r),
+            child: FirstTimeShimmerImage(
+              imageUrl: product.image,
+              height: 56.h,
+              width: 56.w,
+              fit: BoxFit.cover,
+            ),
+          ),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (product.barcode.isNotEmpty) ...[
+                  SizedBox(height: 2.h),
+                  Text(
+                    product.barcode,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      color: AllColor.grey500,
+                    ),
+                  ),
+                ],
+                SizedBox(height: 6.h),
+                Row(
+                  children: [
+                    Text(
+                      'USD $sell',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (showRegular) ...[
+                      SizedBox(width: 8.w),
+                      Text(
+                        'USD $regular',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          decoration: TextDecoration.lineThrough,
+                          color: AllColor.grey500,
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    Text(
+                      'Stock ${product.stock}',
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: AllColor.grey500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: Colors.grey.shade500),
         ],
       ),
     );

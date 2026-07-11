@@ -66,7 +66,6 @@ class VendorPrinterChoiceSheet extends StatefulWidget {
 class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
   bool _busy = false;
   bool _loadingBt = true;
-  String? _savedMac;
   String? _savedName;
   List<BluetoothInfo> _pairedDevices = [];
   BluetoothInfo? _activePrinter;
@@ -93,17 +92,14 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
           name: saved.name,
         );
       }
-      active ??= paired.isEmpty
-          ? null
-          : () {
-              final likely =
-                  VendorInvoicePrinterService.likelyPrinters(paired);
-              return likely.isNotEmpty ? likely.first : paired.first;
-            }();
+      active ??= () {
+        final likely = VendorInvoicePrinterService.likelyPrinters(paired);
+        if (likely.length == 1) return likely.first;
+        return null;
+      }();
 
       if (!mounted) return;
       setState(() {
-        _savedMac = saved.mac;
         _savedName = saved.name;
         _pairedDevices = paired;
         _activePrinter = active;
@@ -130,6 +126,9 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
     }
     if (_activePrinter != null) {
       return 'Paired · ${_activePrinter!.macAdress}';
+    }
+    if (_savedName != null && _savedName!.trim().isNotEmpty) {
+      return 'Saved as $_savedName — not paired. Tap to select printer.';
     }
     if (_pairedDevices.isEmpty) {
       return 'No paired devices — pair your printer in phone Bluetooth settings';
@@ -191,28 +190,8 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
       return;
     }
 
-    final mac = _savedMac;
-    final name = _savedName ?? _activePrinter?.name ?? 'Printer';
-    if ((mac == null || mac.isEmpty) && _activePrinter == null) {
-      await _pickBluetoothPrinter();
-      return;
-    }
-
-    final paired = _activePrinter ??
-        await VendorInvoicePrinterService.findPairedPrinter(
-          mac: mac,
-          name: name,
-        );
+    final paired = _activePrinter;
     if (paired == null) {
-      if (mounted) {
-        GlobalSnackbar.show(
-          context,
-          title: 'Printer not found',
-          message:
-              'Saved printer "$name" is not paired on this phone. Select your printer (e.g. B1-H828033545).',
-          type: CustomSnackType.error,
-        );
-      }
       await _pickBluetoothPrinter();
       return;
     }
@@ -237,7 +216,6 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
           message: e.toString().replaceFirst('Exception: ', ''),
           type: CustomSnackType.error,
         );
-        await _pickBluetoothPrinter();
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -287,8 +265,23 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
 
     final likely = VendorInvoicePrinterService.likelyPrinters(devices);
     final others = devices
-        .where((d) => !likely.any((p) => p.macAdress == d.macAdress))
+        .where(
+          (d) =>
+              !likely.any((p) => p.macAdress == d.macAdress) &&
+              !VendorInvoicePrinterService.looksLikeScanner(d),
+        )
         .toList();
+
+    if (likely.isEmpty && others.isEmpty) {
+      GlobalSnackbar.show(
+        context,
+        title: 'No printer',
+        message:
+            'Pair your 58mm label printer (e.g. B1-H828033545) in phone Bluetooth settings, then try again.',
+        type: CustomSnackType.error,
+      );
+      return;
+    }
 
     final picked = await showModalBottomSheet<BluetoothInfo>(
       context: context,
@@ -348,7 +341,6 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
     );
     setState(() {
       _activePrinter = picked;
-      _savedMac = picked.macAdress;
       _savedName = picked.name;
     });
     await _run(() => _print58(picked.macAdress, picked.name));

@@ -8,8 +8,12 @@ import 'package:market_jango/core/screen/buyer_massage/model/chat_history_route_
 import 'package:market_jango/core/screen/buyer_massage/screen/global_chat_screen.dart';
 import 'package:market_jango/core/screen/profile_screen/data/profile_data.dart';
 import 'package:market_jango/features/transport/screens/driver/screen/driver_promotion_screen.dart';
+import 'package:market_jango/features/transport/screens/driver/data/public_driver_follow_api.dart';
+import 'package:market_jango/features/transport/screens/driver/screen/public_driver_followers_screen.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/custom_auth_button.dart';
+import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 
 class DriverDetailsScreen extends ConsumerWidget {
@@ -143,7 +147,10 @@ class DriverDetailsScreen extends ConsumerWidget {
                           verifiedSinceText,
                           style: TextStyle(fontSize: 12.sp, color: Colors.blue),
                         ),
-                        SizedBox(height: 10.h),
+                        SizedBox(height: 12.h),
+                        if ((d?.id ?? 0) > 0)
+                          _DriverFollowActions(driverId: d!.id),
+                        if ((d?.id ?? 0) > 0) SizedBox(height: 10.h),
                       ],
                     ),
                   ),
@@ -448,6 +455,174 @@ class DriverDetailsScreen extends ConsumerWidget {
     // keep original sentence style; only value dynamic
     final role = userType.toLowerCase() == "driver" ? "Driver" : userType;
     return "Verified $role Since $when";
+  }
+}
+
+class _DriverFollowActions extends ConsumerWidget {
+  const _DriverFollowActions({required this.driverId});
+
+  final int driverId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final follow = ref.watch(publicDriverFollowProvider(driverId));
+    final notifier = ref.read(publicDriverFollowProvider(driverId).notifier);
+    final countLabel =
+        '${follow.count} ${follow.count == 1 ? 'Follower' : 'Followers'}';
+
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => context.push(
+              PublicDriverFollowersScreen.routeName,
+              extra: driverId,
+            ),
+            borderRadius: BorderRadius.circular(20.r),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 7.h),
+              decoration: BoxDecoration(
+                color: AllColor.loginButtomColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(20.r),
+                border: Border.all(
+                  color: AllColor.loginButtomColor.withValues(alpha: 0.18),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.people_alt_rounded,
+                    size: 15.sp,
+                    color: AllColor.loginButtomColor,
+                  ),
+                  SizedBox(width: 6.w),
+                  if (follow.loading)
+                    SizedBox(
+                      width: 12.r,
+                      height: 12.r,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: AllColor.loginButtomColor,
+                      ),
+                    )
+                  else
+                    Text(
+                      countLabel,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AllColor.black,
+                      ),
+                    ),
+                  SizedBox(width: 2.w),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 16.sp,
+                    color: AllColor.grey500,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(24.r),
+          child: InkWell(
+            onTap: follow.actionLoading
+                ? null
+                : () async {
+                    try {
+                      final wasFollowing = follow.isFollowing;
+                      await notifier.toggle();
+                      if (!context.mounted) return;
+                      GlobalSnackbar.show(
+                        context,
+                        title: wasFollowing ? 'Unfollowed' : 'Following',
+                        message: wasFollowing
+                            ? 'You unfollowed this driver'
+                            : 'You are now following this driver',
+                        type: CustomSnackType.success,
+                      );
+                      ref.invalidate(publicDriverFollowersProvider(driverId));
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      GlobalSnackbar.show(
+                        context,
+                        title: 'Follow',
+                        message: e.toString(),
+                        type: CustomSnackType.error,
+                      );
+                    }
+                  },
+            borderRadius: BorderRadius.circular(24.r),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 11.h),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24.r),
+                color: follow.isFollowing
+                    ? Colors.white
+                    : AllColor.loginButtomColor,
+                border: Border.all(
+                  color: follow.isFollowing
+                      ? AllColor.loginButtomColor.withValues(alpha: 0.45)
+                      : AllColor.loginButtomColor,
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AllColor.loginButtomColor.withValues(alpha: 0.18),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: follow.actionLoading
+                  ? SizedBox(
+                      width: 18.r,
+                      height: 18.r,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: follow.isFollowing
+                            ? AllColor.loginButtomColor
+                            : Colors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          follow.isFollowing
+                              ? Icons.check_rounded
+                              : Icons.person_add_alt_1_rounded,
+                          size: 18.r,
+                          color: follow.isFollowing
+                              ? AllColor.loginButtomColor
+                              : Colors.white,
+                        ),
+                        SizedBox(width: 8.w),
+                        Text(
+                          follow.isFollowing ? 'Following' : 'Follow',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
+                            color: follow.isFollowing
+                                ? AllColor.loginButtomColor
+                                : Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

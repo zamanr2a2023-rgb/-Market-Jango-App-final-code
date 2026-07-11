@@ -10,6 +10,7 @@ import 'package:market_jango/features/auth/screens/email_screen.dart';
 import 'package:market_jango/features/auth/screens/forget_otp_verification_screen.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 
+import '../logic/otp_screen_snack_provider.dart';
 import '../logic/phone_otp_riverpod.dart';
 
 class CodeScreen extends ConsumerStatefulWidget {
@@ -22,6 +23,29 @@ class CodeScreen extends ConsumerStatefulWidget {
 
 class _CodeScreenState extends ConsumerState<CodeScreen> {
   String _otp = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showPendingSnack());
+  }
+
+  void _showPendingSnack() {
+    if (!mounted) return;
+    final pending = ref.read(otpScreenSnackProvider);
+    if (pending == null) return;
+
+    GlobalSnackbar.show(
+      context,
+      title: pending.title,
+      message: pending.message,
+      type: pending.message.toLowerCase().contains('otp')
+          ? CustomSnackType.info
+          : CustomSnackType.success,
+      duration: pending.duration,
+    );
+    ref.read(otpScreenSnackProvider.notifier).state = null;
+  }
 
   Future<void> _submit() async {
     if (_otp.length != 6) {

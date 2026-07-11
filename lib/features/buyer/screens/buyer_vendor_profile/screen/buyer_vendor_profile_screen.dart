@@ -13,6 +13,7 @@ import 'package:market_jango/core/widget/see_more_button.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/data/buyer_vendor_categori_data.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/data/buyer_vendor_propuler_product_data.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/data/buyer_vendor_product_data.dart';
+import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/data/buyer_vendor_follow_api.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/data/user_id_by_vendor_data.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/model/buyer_vendor_category_model.dart';
 import 'package:market_jango/features/buyer/screens/product/product_details.dart';
@@ -22,8 +23,11 @@ import 'package:market_jango/features/buyer/widgets/custom_discunt_card.dart';
 import 'package:market_jango/core/screen/buyer_massage/model/chat_history_route_model.dart';
 import 'package:market_jango/core/screen/buyer_massage/screen/global_chat_screen.dart';
 import 'package:market_jango/core/utils/get_user_type.dart';
+import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/core/constants/color_control/all_color.dart';
 
 import 'buyer_vendor_cetagory_screen.dart';
+import 'buyer_vendor_followers_screen.dart';
 import 'vendor_promotion_screen.dart';
 
 /// First 4 products from GET api/product/vendor/{id} (see doc/API_PRODUCT_VENDOR.md). Shown above Popular.
@@ -597,7 +601,9 @@ class CustomVendorUpperSection extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      SizedBox(height: 12.h),
+                      SizedBox(height: 14.h),
+                      _VendorFollowActions(vendorId: vendorId),
+                      SizedBox(height: 14.h),
                       // Opening time
                       Container(
                         padding: EdgeInsets.symmetric(
@@ -761,6 +767,174 @@ class CustomVendorUpperSection extends ConsumerWidget {
         SnackBar(content: Text('Failed to open chat: ${e.toString()}')),
       );
     }
+  }
+}
+
+class _VendorFollowActions extends ConsumerWidget {
+  const _VendorFollowActions({required this.vendorId});
+
+  final int vendorId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final follow = ref.watch(vendorFollowProvider(vendorId));
+    final notifier = ref.read(vendorFollowProvider(vendorId).notifier);
+    final countLabel =
+        '${follow.count} ${follow.count == 1 ? 'Follower' : 'Followers'}';
+
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => context.push(
+              BuyerVendorFollowersScreen.routeName,
+              extra: vendorId,
+            ),
+            borderRadius: BorderRadius.circular(20.r),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 7.h),
+              decoration: BoxDecoration(
+                color: AllColor.loginButtomColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(20.r),
+                border: Border.all(
+                  color: AllColor.loginButtomColor.withValues(alpha: 0.18),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.people_alt_rounded,
+                    size: 15.sp,
+                    color: AllColor.loginButtomColor,
+                  ),
+                  SizedBox(width: 6.w),
+                  if (follow.loading)
+                    SizedBox(
+                      width: 12.r,
+                      height: 12.r,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: AllColor.loginButtomColor,
+                      ),
+                    )
+                  else
+                    Text(
+                      countLabel,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AllColor.black,
+                      ),
+                    ),
+                  SizedBox(width: 2.w),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 16.sp,
+                    color: AllColor.grey500,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(24.r),
+          child: InkWell(
+            onTap: follow.actionLoading
+                ? null
+                : () async {
+                    try {
+                      final wasFollowing = follow.isFollowing;
+                      await notifier.toggle();
+                      if (!context.mounted) return;
+                      GlobalSnackbar.show(
+                        context,
+                        title: wasFollowing ? 'Unfollowed' : 'Following',
+                        message: wasFollowing
+                            ? 'You unfollowed this vendor'
+                            : 'You are now following this vendor',
+                        type: CustomSnackType.success,
+                      );
+                      ref.invalidate(publicVendorFollowersProvider(vendorId));
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      GlobalSnackbar.show(
+                        context,
+                        title: 'Follow',
+                        message: e.toString(),
+                        type: CustomSnackType.error,
+                      );
+                    }
+                  },
+            borderRadius: BorderRadius.circular(24.r),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 11.h),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24.r),
+                color: follow.isFollowing
+                    ? Colors.white
+                    : AllColor.loginButtomColor,
+                border: Border.all(
+                  color: follow.isFollowing
+                      ? AllColor.loginButtomColor.withValues(alpha: 0.45)
+                      : AllColor.loginButtomColor,
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AllColor.loginButtomColor.withValues(alpha: 0.18),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: follow.actionLoading
+                  ? SizedBox(
+                      width: 18.r,
+                      height: 18.r,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: follow.isFollowing
+                            ? AllColor.loginButtomColor
+                            : Colors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          follow.isFollowing
+                              ? Icons.check_rounded
+                              : Icons.person_add_alt_1_rounded,
+                          size: 18.r,
+                          color: follow.isFollowing
+                              ? AllColor.loginButtomColor
+                              : Colors.white,
+                        ),
+                        SizedBox(width: 8.w),
+                        Text(
+                          follow.isFollowing ? 'Following' : 'Follow',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
+                            color: follow.isFollowing
+                                ? AllColor.loginButtomColor
+                                : Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

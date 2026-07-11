@@ -25,6 +25,8 @@ import 'package:market_jango/features/buyer/screens/billing/screen/buyer_billing
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_history_screen.dart';
 import 'package:market_jango/features/driver/screen/deliveries/screen/driver_deliveries_screen.dart';
 import 'package:market_jango/features/driver/screen/wallet/screen/driver_wallet_screen.dart';
+import 'package:market_jango/features/driver/screen/followers/data/driver_followers_api.dart';
+import 'package:market_jango/features/driver/screen/followers/screen/driver_followers_screen.dart';
 import 'package:market_jango/features/transport/screens/billing/screen/transport_billing_screen.dart';
 import 'package:market_jango/features/transport/screens/wallet/screen/transport_wallet_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_page.dart';
@@ -34,6 +36,8 @@ import 'package:market_jango/features/vendor/screens/wallet/screen/vendor_wallet
 import 'package:market_jango/features/navbar/provider/shell_tab_index_providers.dart';
 import '../../../../features/vendor/screens/vendor_my_product_screen.dart/screen/vendor_my_product_screen.dart';
 import '../../../../features/vendor/screens/vendor_delivery_setting/screen/vendor_delivery_setting_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_followers/data/vendor_followers_api.dart';
+import 'package:market_jango/features/vendor/screens/vendor_followers/screen/vendor_followers_screen.dart';
 import 'package:market_jango/features/vendor/staff_management/screen/vendor_staff_list_screen.dart';
 import 'package:market_jango/features/vendor/inventory/screen/vendor_inventory_screen.dart';
 import 'package:market_jango/core/utils/get_user_type.dart';
@@ -96,6 +100,10 @@ class GlobalSettingScreen extends ConsumerWidget {
                           imageUrl: user.image,
                           userType: user,
                         ),
+                        if (userTypeAsync.value == 'vendor') ...[
+                          SizedBox(height: 12.h),
+                          const _VendorFollowersEntry(),
+                        ],
                         SizedBox(height: 20.h),
                         _buildSettingsContent(
                           context,
@@ -550,7 +558,9 @@ class GlobalSettingScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                SizedBox(height: 20.h),
+                SizedBox(height: 10.h),
+                const _DriverFollowersStat(),
+                SizedBox(height: 12.h),
               ],
             ),
           ),
@@ -894,6 +904,169 @@ class ProfileSection extends ConsumerWidget {
           icon: Icon(Icons.edit_outlined, color: AllColor.black, size: 18.sp),
         ),
       ],
+    );
+  }
+}
+
+class _DriverFollowersStat extends ConsumerWidget {
+  const _DriverFollowersStat();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countAsync = ref.watch(driverFollowersCountProvider);
+
+    return countAsync.when(
+      data: (count) => _FollowersPill(
+        count: count,
+        onTap: () => context.push(DriverFollowersScreen.routeName),
+      ),
+      loading: () => _FollowersPill(
+        count: null,
+        onTap: () => context.push(DriverFollowersScreen.routeName),
+      ),
+      error: (_, __) => _FollowersPill(
+        count: 0,
+        onTap: () => context.push(DriverFollowersScreen.routeName),
+      ),
+    );
+  }
+}
+
+class _FollowersPill extends StatelessWidget {
+  const _FollowersPill({required this.count, required this.onTap});
+
+  final int? count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count == 1 ? 'Follower' : 'Followers';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20.r),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 7.h),
+          decoration: BoxDecoration(
+            color: AllColor.loginButtomColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20.r),
+            border: Border.all(
+              color: AllColor.loginButtomColor.withValues(alpha: 0.18),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.people_alt_rounded,
+                size: 15.sp,
+                color: AllColor.loginButtomColor,
+              ),
+              SizedBox(width: 6.w),
+              if (count == null)
+                SizedBox(
+                  width: 12.r,
+                  height: 12.r,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: AllColor.loginButtomColor,
+                  ),
+                )
+              else
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w800,
+                    color: AllColor.black,
+                  ),
+                ),
+              SizedBox(width: 4.w),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AllColor.grey500,
+                ),
+              ),
+              SizedBox(width: 2.w),
+              Icon(
+                Icons.chevron_right,
+                size: 16.sp,
+                color: AllColor.grey500,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VendorFollowersEntry extends ConsumerWidget {
+  const _VendorFollowersEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countAsync = ref.watch(vendorFollowersCountProvider);
+
+    return InkWell(
+      onTap: () => context.push(VendorFollowersScreen.routeName),
+      borderRadius: BorderRadius.circular(10.r),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+        decoration: BoxDecoration(
+          color: AllColor.grey200.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(10.r),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.people_outline,
+              size: 20.sp,
+              color: AllColor.loginButtomColor,
+            ),
+            SizedBox(width: 10.w),
+            Expanded(
+              child: countAsync.when(
+                data: (count) => Text(
+                  '$count ${count == 1 ? 'Follower' : 'Followers'}',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.black,
+                  ),
+                ),
+                loading: () => Text(
+                  'Followers',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.black,
+                  ),
+                ),
+                error: (_, __) => Text(
+                  'Followers',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.black,
+                  ),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 20.sp,
+              color: AllColor.grey500,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

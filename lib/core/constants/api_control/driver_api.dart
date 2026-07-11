@@ -76,4 +76,8 @@ class DriverAPIController {
 
   static String driverDeliveryLocation(int id) =>
       '$_base_api/driver/deliveries/$id/location';
+
+  /// Paginated driver followers — `GET /driver/followers?page=`.
+  static String driverFollowers({int page = 1}) =>
+      '$_base_api/driver/followers?page=$page';
 }
