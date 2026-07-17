@@ -27,6 +27,7 @@ import 'package:market_jango/features/driver/screen/deliveries/screen/driver_del
 import 'package:market_jango/features/driver/screen/wallet/screen/driver_wallet_screen.dart';
 import 'package:market_jango/features/driver/screen/followers/data/driver_followers_api.dart';
 import 'package:market_jango/features/driver/screen/followers/screen/driver_followers_screen.dart';
+import 'package:market_jango/features/driver/screen/outlets/screen/driver_outlets_screen.dart';
 import 'package:market_jango/features/transport/screens/billing/screen/transport_billing_screen.dart';
 import 'package:market_jango/features/transport/screens/wallet/screen/transport_wallet_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_page.dart';
@@ -40,6 +41,7 @@ import 'package:market_jango/features/vendor/screens/vendor_followers/data/vendo
 import 'package:market_jango/features/vendor/screens/vendor_followers/screen/vendor_followers_screen.dart';
 import 'package:market_jango/features/vendor/staff_management/screen/vendor_staff_list_screen.dart';
 import 'package:market_jango/features/vendor/inventory/screen/vendor_inventory_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_business_types/screen/vendor_business_types_screen.dart';
 import 'package:market_jango/core/utils/get_user_type.dart';
 import '../data/profile_data.dart';
 import '../model/profile_model.dart';
@@ -189,6 +191,12 @@ class GlobalSettingScreen extends ConsumerWidget {
             title: ref.t(BKeys.my_deliveries, fallback: 'My deliveries'),
             onTap: () => context.push(DriverDeliveriesScreen.routeName),
           ),
+          _DividerLine(),
+          _SettingsTile(
+            leadingIcon: Icons.storefront_outlined,
+            title: 'Available outlets',
+            onTap: () => context.push(DriverOutletsScreen.routeName),
+          ),
         ],
         if (userTypeAsync.value == "vendor")
           Consumer(
@@ -240,6 +248,13 @@ class GlobalSettingScreen extends ConsumerWidget {
             leadingIcon: Icons.inventory_2_outlined,
             title: ref.t(BKeys.inventory, fallback: 'Inventory'),
             onTap: () => context.push(VendorInventoryScreen.routeName),
+          ),
+        if (userTypeAsync.value == "vendor") _DividerLine(),
+        if (userTypeAsync.value == "vendor")
+          _SettingsTile(
+            leadingIcon: Icons.storefront_outlined,
+            title: ref.t(BKeys.businessType, fallback: 'Business Types'),
+            onTap: () => context.push(VendorBusinessTypesScreen.routeName),
           ),
         _DividerLine(),
         if (userTypeAsync.value == "buyer")

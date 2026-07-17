@@ -60,6 +60,8 @@ import 'package:market_jango/features/driver/screen/deliveries/screen/driver_del
 import 'package:market_jango/features/driver/screen/deliveries/screen/driver_delivery_detail_screen.dart';
 import 'package:market_jango/features/driver/screen/wallet/screen/driver_wallet_screen.dart';
 import 'package:market_jango/features/driver/screen/followers/screen/driver_followers_screen.dart';
+import 'package:market_jango/features/driver/screen/outlets/screen/driver_outlet_bin_screen.dart';
+import 'package:market_jango/features/driver/screen/outlets/screen/driver_outlets_screen.dart';
 import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
 import 'package:market_jango/features/navbar/screen/driver_bottom_nav_bar.dart';
 import 'package:market_jango/features/navbar/screen/transport_bottom_nav_bar.dart';
@@ -86,6 +88,7 @@ import 'package:market_jango/features/vendor/screens/my_product_color/screen/my_
 import 'package:market_jango/features/vendor/screens/product_edit/screen/attribute_values_screen.dart';
 import 'package:market_jango/features/vendor/screens/product_edit/screen/product_edit_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_asign_to_order_driver/screen/asign_to_order_driver.dart';
+import 'package:market_jango/features/vendor/screens/vendor_outlets/screen/assign_to_order_outlet.dart';
 import 'package:market_jango/features/vendor/screens/vendor_assigned_order/screen/vendor_assigned_order.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_create_manual_order_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_manual_order_detail_screen.dart';
@@ -116,6 +119,7 @@ import 'package:market_jango/features/vendor/staff_management/screen/vendor_staf
 import 'package:market_jango/features/vendor/staff_management/screen/vendor_staff_upsert_screen.dart';
 import 'package:market_jango/features/vendor/inventory/screen/vendor_inventory_screen.dart';
 import 'package:market_jango/features/vendor/inventory/screen/vendor_inventory_product_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_business_types/screen/vendor_business_types_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_followers/screen/vendor_followers_screen.dart';
 
 import '../features/auth/screens/forgot_password_screen.dart';
@@ -253,6 +257,26 @@ final GoRouter router = GoRouter(
         }
         if (extra is int) {
           return AssignToOrderDriver(driverId: extra);
+        }
+        return const Scaffold(
+          body: Center(child: Text('Invalid assign screen arguments')),
+        );
+      },
+    ),
+
+    GoRoute(
+      path: AssignToOrderOutlet.routeName,
+      name: 'assign_order_outlet',
+      builder: (context, state) {
+        final extra = state.extra;
+        if (extra is AssignToOrderOutletArgs) {
+          return AssignToOrderOutlet(
+            outletId: extra.outletId,
+            outletName: extra.outletName,
+          );
+        }
+        if (extra is int) {
+          return AssignToOrderOutlet(outletId: extra);
         }
         return const Scaffold(
           body: Center(child: Text('Invalid assign screen arguments')),
@@ -718,6 +742,27 @@ final GoRouter router = GoRouter(
       builder: (context, state) => const DriverDeliveriesScreen(),
     ),
     GoRoute(
+      path: DriverOutletsScreen.routeName,
+      name: 'driverOutlets',
+      builder: (context, state) => const DriverOutletsScreen(),
+    ),
+    GoRoute(
+      path: DriverOutletBinScreen.routeName,
+      name: 'driverOutletBin',
+      builder: (context, state) {
+        final extra = state.extra;
+        if (extra is DriverOutletBinArgs) {
+          return DriverOutletBinScreen(
+            outletId: extra.outletId,
+            outletName: extra.outletName,
+          );
+        }
+        return const Scaffold(
+          body: Center(child: Text('Invalid outlet arguments')),
+        );
+      },
+    ),
+    GoRoute(
       path: '/driver/deliveries/:assignmentId',
       name: 'driverDeliveryDetail',
       builder: (context, state) {
@@ -1065,6 +1110,11 @@ final GoRouter router = GoRouter(
       path: VendorInventoryScreen.routeName,
       name: 'vendorInventory',
       builder: (context, state) => const VendorInventoryScreen(),
+    ),
+    GoRoute(
+      path: VendorBusinessTypesScreen.routeName,
+      name: 'vendorBusinessTypes',
+      builder: (context, state) => const VendorBusinessTypesScreen(),
     ),
     GoRoute(
       path: VendorInventoryProductScreen.routeName,

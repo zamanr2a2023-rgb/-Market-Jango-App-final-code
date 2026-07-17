@@ -24,7 +24,8 @@ class VendorAssignDriverSheet extends StatefulWidget {
   final Future<void> Function() onAssignFailed;
 
   @override
-  State<VendorAssignDriverSheet> createState() => _VendorAssignDriverSheetState();
+  State<VendorAssignDriverSheet> createState() =>
+      _VendorAssignDriverSheetState();
 }
 
 class _VendorAssignDriverSheetState extends State<VendorAssignDriverSheet> {
@@ -81,8 +82,7 @@ class _VendorAssignDriverSheetState extends State<VendorAssignDriverSheet> {
       GlobalSnackbar.show(
         context,
         title: 'Cannot assign driver',
-        message:
-            'This line must be Pending or Processing to assign a driver.',
+        message: 'This line must be Pending or Processing to assign a driver.',
         type: CustomSnackType.error,
       );
       return;

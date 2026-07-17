@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:market_jango/core/constants/api_control/vendor_api.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
@@ -13,9 +12,9 @@ import 'package:market_jango/core/widget/TupperTextAndBackButton.dart';
 import 'package:market_jango/core/widget/global_save_botton.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/vendor/screens/product_edit/logic/update_product_riverpod.dart';
-import 'package:market_jango/features/vendor/screens/vendor_home/data/vendor_product_category_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/vendor_home/data/vendor_product_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/selecd_color_size_list.dart';
+import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/vendor_product_create_categories.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/logic/creat_product_provider.dart';
 
 import '../../product_edit/data/product_attribute_data.dart';
@@ -104,7 +103,8 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
 
   );
 
-  String? selectedCategory; // Will be set when categories load
+  int? selectedBusinessTypeId; // Will be set when business types load
+  int? selectedCategoryId; // Will be set when categories load
 
   // colors tuned to the mock
   final _lblColor = const Color(0xFF436AA0); // label text
@@ -126,7 +126,7 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
     );
 
 
-    final categoryAsync = ref.watch(vendorCategoryProvider(VendorAPIController.vendor_category));
+    final categoryAsync = ref.watch(vendorProductCreateCategoriesProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -151,102 +151,148 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
 
         SizedBox(height: 16.h),
 
-        _Label(
-           'Category',
-        
-            color: _lblColor),
-        SizedBox(height: 6.h),
-        /// Category Dropdown
+        /// Business Type + Category (from `GET /vendor/product-categories`)
         categoryAsync.when(
-          data: (categories) {
-            if (categories.isEmpty) {
+          data: (result) {
+            if (result.categories.isEmpty) {
               return const Text('No categories available');
             }
-            
-            // Get unique category names (handle duplicates)
-            final categoryNames = categories.map((e) => e.name).toSet().toList();
-            
-            // Ensure selectedCategory is valid - must be in the list or null
-            // Reset if invalid to prevent DropdownButton assertion errors
-            String? validSelectedCategory;
-            if (categoryNames.isEmpty) {
-              validSelectedCategory = null;
-            } else if (selectedCategory == null || !categoryNames.contains(selectedCategory)) {
-              // If invalid, set to first category synchronously for this build
-              validSelectedCategory = categoryNames.first;
-              // Update state asynchronously to avoid build-time state changes
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && selectedCategory != validSelectedCategory) {
-                  setState(() {
-                    selectedCategory = validSelectedCategory;
-                  });
-                  try {
-                    final selected = categories.firstWhere((e) => e.name == validSelectedCategory);
-                    ref.read(productCategoryProvider.notifier).state = selected.id;
-                  } catch (e) {
-                    // If category not found, use first one
-                    if (categories.isNotEmpty) {
-                      ref.read(productCategoryProvider.notifier).state = categories.first.id;
-                    }
-                  }
-                }
-              });
-            } else {
-              // selectedCategory is valid, use it
-              validSelectedCategory = selectedCategory;
+
+            final businessTypes = result.businessTypes;
+
+            // Keep the selected business type valid.
+            int? validTypeId = selectedBusinessTypeId;
+            if (businessTypes.isNotEmpty &&
+                (validTypeId == null ||
+                    !businessTypes.any((t) => t.id == validTypeId))) {
+              validTypeId = businessTypes.first.id;
             }
-            
-            // Only show dropdown if we have a valid value or can use null with hint
-            return Theme(
-              data: dropTheme,
-              child: Container(
-                height: 56.h,
-                padding: EdgeInsets.symmetric(horizontal: 16.w),
-                decoration: BoxDecoration(
-                  color: AllColor.white,
-                  borderRadius: BorderRadius.circular(5.r),
-                  border: Border.all(color: AllColor.grey),
-                  boxShadow: [
-                    BoxShadow(
-                      blurRadius: 14.r,
-                      offset: Offset(0, 6.h),
-                      color: Colors.black.withOpacity(0.06),
+
+            // Categories shown depend on the selected business type.
+            final visibleCategories = validTypeId == null
+                ? result.categories
+                : result.categories
+                    .where((c) => c.businessTypeId == validTypeId)
+                    .toList();
+
+            // Keep the selected category valid within the visible list.
+            int? validCategoryId = selectedCategoryId;
+            if (visibleCategories.isEmpty) {
+              validCategoryId = null;
+            } else if (validCategoryId == null ||
+                !visibleCategories.any((c) => c.id == validCategoryId)) {
+              validCategoryId = visibleCategories.first.id;
+            }
+
+            // Sync widget/provider state after build if defaults changed.
+            if (validTypeId != selectedBusinessTypeId ||
+                validCategoryId != selectedCategoryId) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() {
+                  selectedBusinessTypeId = validTypeId;
+                  selectedCategoryId = validCategoryId;
+                });
+                ref.read(productCategoryProvider.notifier).state =
+                    validCategoryId;
+              });
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (businessTypes.isNotEmpty) ...[
+                  _Label('Business Type', color: _lblColor),
+                  SizedBox(height: 6.h),
+                  _DropdownShell(
+                    dropTheme: dropTheme,
+                    child: DropdownButton<int>(
+                      isExpanded: true,
+                      value: validTypeId,
+                      hint: Text('Select Business Type',
+                          style:
+                              TextStyle(fontSize: 15.sp, color: _hintText)),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(16.r),
+                      style:
+                          TextStyle(fontSize: 15.sp, color: Colors.black87),
+                      items: businessTypes.map((t) {
+                        return DropdownMenuItem(
+                          value: t.id,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12.h),
+                            child: Text(t.name),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        final firstCat = result.categories
+                            .where((c) => c.businessTypeId == v)
+                            .toList();
+                        setState(() {
+                          selectedBusinessTypeId = v;
+                          selectedCategoryId =
+                              firstCat.isEmpty ? null : firstCat.first.id;
+                        });
+                        ref.read(productCategoryProvider.notifier).state =
+                            firstCat.isEmpty ? null : firstCat.first.id;
+                      },
                     ),
-                  ],
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    value: validSelectedCategory, // This will be null or a valid value from the list
-                    hint: validSelectedCategory == null 
-                        ? Text('Select Category', style: TextStyle(fontSize: 15.sp, color: _hintText))
-                        : null,
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                    dropdownColor: Colors.white,
-                    borderRadius: BorderRadius.circular(16.r),
-                    style: TextStyle(fontSize: 15.sp, color: Colors.black87),
-                    items: categoryNames.map((e) {
-                      return DropdownMenuItem(
-                        value: e,
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          child: Text(e),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => selectedCategory = v);
-                      final selected = categories.firstWhere((e) => e.name == v);
-                      ref.read(productCategoryProvider.notifier).state = selected.id;
-                    },
                   ),
-                ),
-              ),
+                  SizedBox(height: 16.h),
+                ],
+                _Label('Category', color: _lblColor),
+                SizedBox(height: 6.h),
+                if (visibleCategories.isEmpty)
+                  const Text('No categories for this business type')
+                else
+                  _DropdownShell(
+                    dropTheme: dropTheme,
+                    child: DropdownButton<int>(
+                      isExpanded: true,
+                      value: validCategoryId,
+                      hint: Text('Select Category',
+                          style:
+                              TextStyle(fontSize: 15.sp, color: _hintText)),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(16.r),
+                      style:
+                          TextStyle(fontSize: 15.sp, color: Colors.black87),
+                      items: visibleCategories.map((c) {
+                        return DropdownMenuItem(
+                          value: c.id,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12.h),
+                            child: Text(c.name),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() => selectedCategoryId = v);
+                        ref.read(productCategoryProvider.notifier).state = v;
+                      },
+                    ),
+                  ),
+              ],
             );
           },
           loading: () => const Center(child: Text('Loading...')),
-          error: (err, _) => Center(child: Text('Error: $err')),
+          error: (err, _) => Center(
+            child: Column(
+              children: [
+                Text('Error: $err'),
+                TextButton(
+                  onPressed: () =>
+                      ref.invalidate(vendorProductCreateCategoriesProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
         ),
 
         SizedBox(height: 16.h),
@@ -291,6 +337,37 @@ class _Label extends StatelessWidget {
         fontSize: 14.sp,
         fontWeight: FontWeight.w600,
         color: color,
+      ),
+    );
+  }
+}
+
+/// Bordered white container used by the business type / category dropdowns.
+class _DropdownShell extends StatelessWidget {
+  const _DropdownShell({required this.dropTheme, required this.child});
+  final ThemeData dropTheme;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: dropTheme,
+      child: Container(
+        height: 56.h,
+        padding: EdgeInsets.symmetric(horizontal: 16.w),
+        decoration: BoxDecoration(
+          color: AllColor.white,
+          borderRadius: BorderRadius.circular(5.r),
+          border: Border.all(color: AllColor.grey),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 14.r,
+              offset: Offset(0, 6.h),
+              color: Colors.black.withOpacity(0.06),
+            ),
+          ],
+        ),
+        child: DropdownButtonHideUnderline(child: child),
       ),
     );
   }

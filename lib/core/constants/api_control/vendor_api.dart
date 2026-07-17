@@ -144,6 +144,13 @@ class VendorAPIController {
   static String vendorOrderAssignDriver(int invoiceItemId) =>
       '$_base_api/vendor/orders/$invoiceItemId/assign-driver';
 
+  /// `GET /vendor/outlets` — active outlets of this vendor.
+  static String get vendorOutlets => '$_base_api/vendor/outlets';
+
+  /// `POST /vendor/orders/{order_item_id}/assign-outlet` — body `outlet_id`.
+  static String vendorOrderAssignOutlet(int invoiceItemId) =>
+      '$_base_api/vendor/orders/$invoiceItemId/assign-outlet';
+
   static String vendorOrderUnassignDriver(int invoiceItemId) =>
       '$_base_api/vendor/orders/$invoiceItemId/unassign-driver';
 
@@ -284,6 +291,18 @@ class VendorAPIController {
   /// Paginated vendor followers — `GET /vendor/followers?page=`.
   static String vendorFollowers({int page = 1}) =>
       '$_base_api/vendor/followers?page=$page';
+
+  // --- Vendor business types ---
+  /// `GET`/`POST /vendor/business-types` — list (selected/available/usage) or add.
+  static String get vendorBusinessTypes => '$_base_api/vendor/business-types';
+
+  /// `GET /vendor/product-categories` — categories (with business type) for product create.
+  static String get vendorProductCategories =>
+      '$_base_api/vendor/product-categories';
+
+  /// `DELETE /vendor/business-types/{id}` — remove a selected type.
+  static String vendorBusinessTypeDelete(int businessTypeId) =>
+      '$_base_api/vendor/business-types/$businessTypeId';
 
   // --- Vendor Staff (Moderators) + Inventory (see doc/details.md) ---
   static String get vendorModerators => '$_base_api/vendor/moderators';

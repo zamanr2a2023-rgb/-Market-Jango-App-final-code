@@ -77,6 +77,18 @@ class DriverAPIController {
   static String driverDeliveryLocation(int id) =>
       '$_base_api/driver/deliveries/$id/location';
 
+  // --- Driver outlet membership and bin orders ---
+  static String get driverOutlets => '$_base_api/driver/outlets';
+
+  static String driverOutletJoin(int outletId) =>
+      '$_base_api/driver/outlets/$outletId/join';
+
+  static String driverOutletBinOrders(int outletId, {int page = 1}) =>
+      '$_base_api/driver/outlet-bin/$outletId/orders?page=$page';
+
+  static String driverOutletBinClaim(int orderItemId) =>
+      '$_base_api/driver/outlet-bin/orders/$orderItemId/claim';
+
   /// Paginated driver followers — `GET /driver/followers?page=`.
   static String driverFollowers({int page = 1}) =>
       '$_base_api/driver/followers?page=$page';

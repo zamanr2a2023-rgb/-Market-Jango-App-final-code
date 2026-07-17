@@ -397,10 +397,7 @@ class _VendorMarketplaceOrderDetailScreenState
               padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 8.h),
               child: Text(
                 'Print label for',
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
               ),
             ),
             ...lines.map((line) {
@@ -438,9 +435,10 @@ class _VendorMarketplaceOrderDetailScreenState
     try {
       final doc = deliveryLabel
           ? await VendorOrderApi.instance
-              .fetchVendorAllOrderDeliveryLabelDocument(pathId)
-          : await VendorOrderApi.instance
-              .fetchVendorAllOrderInvoiceDocument(pathId);
+                .fetchVendorAllOrderDeliveryLabelDocument(pathId)
+          : await VendorOrderApi.instance.fetchVendorAllOrderInvoiceDocument(
+              pathId,
+            );
       if (!mounted) return;
       final orderNo = d.invoice.orderNumber.trim().isEmpty
           ? '$pathId'

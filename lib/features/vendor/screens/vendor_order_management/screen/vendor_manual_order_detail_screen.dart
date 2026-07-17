@@ -433,10 +433,7 @@ class _VendorManualOrderDetailScreenState
               padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 8.h),
               child: Text(
                 'Print label for',
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
               ),
             ),
             ...items.map((item) {
@@ -475,9 +472,10 @@ class _VendorManualOrderDetailScreenState
     try {
       final doc = deliveryLabel
           ? await VendorOrderApi.instance
-              .fetchVendorAllOrderDeliveryLabelDocument(pathId)
-          : await VendorOrderApi.instance
-              .fetchVendorAllOrderInvoiceDocument(pathId);
+                .fetchVendorAllOrderDeliveryLabelDocument(pathId)
+          : await VendorOrderApi.instance.fetchVendorAllOrderInvoiceDocument(
+              pathId,
+            );
       if (!mounted) return;
       final orderNo = inv.orderNumber.trim().isEmpty
           ? '$pathId'
@@ -951,11 +949,7 @@ class _VendorManualOrderDetailScreenState
                   ),
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                color: AllColor.grey500,
-                size: 22.sp,
-              ),
+              Icon(Icons.chevron_right, color: AllColor.grey500, size: 22.sp),
             ],
           ),
           SizedBox(height: 10.h),
@@ -969,24 +963,20 @@ class _VendorManualOrderDetailScreenState
               decoration: _inputDecoration(),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: _nextStatus != null &&
+                  value:
+                      _nextStatus != null &&
                           d.allowedNextStatuses.contains(_nextStatus)
                       ? _nextStatus
                       : d.allowedNextStatuses.first,
                   isExpanded: true,
                   hint: Text(
                     'Select status',
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      color: AllColor.grey500,
-                    ),
+                    style: TextStyle(fontSize: 14.sp, color: AllColor.grey500),
                   ),
                   items: d.allowedNextStatuses
                       .map(
-                        (s) => DropdownMenuItem<String>(
-                          value: s,
-                          child: Text(s),
-                        ),
+                        (s) =>
+                            DropdownMenuItem<String>(value: s, child: Text(s)),
                       )
                       .toList(),
                   onChanged: (v) => setState(() => _nextStatus = v),
@@ -1042,8 +1032,7 @@ class _VendorManualOrderDetailScreenState
     final showUpdateStatus =
         _focusLineDetail != null &&
         _focusLineDetail!.allowedNextStatuses.isNotEmpty;
-    final bottomCount =
-        (showDeliver ? 1 : 0) + (showUpdateStatus ? 1 : 0);
+    final bottomCount = (showDeliver ? 1 : 0) + (showUpdateStatus ? 1 : 0);
     final listBottomPad = bottomCount == 2
         ? 200.h
         : bottomCount == 1
@@ -1056,199 +1045,200 @@ class _VendorManualOrderDetailScreenState
           child: RefreshIndicator(
             onRefresh: _load,
             child: ListView(
-            padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, listBottomPad),
-            children: [
-              _section(
-                children: [
-                  _kv('Customer name', _customer(inv)),
-                  _kv(
-                    'Order number',
-                    inv.orderNumber.isEmpty ? '—' : inv.orderNumber,
-                  ),
-                  _kv(
-                    'Invoice status',
-                    inv.status.isEmpty ? '—' : inv.status,
-                  ),
-                  _kv('Payment', _payment(inv)),
-                  _kv('Mode', _modeFromItems(inv)),
-                  _kv('Destination', '—'),
-                ],
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(2.w, 4.h, 2.w, 0),
-                child: VendorOrderDocumentDownloadRow(
-                  loadingKey: _docLoadingKey,
-                  onInvoiceTap: () => _openOrderDocument(inv, false),
-                  onDeliveryTap: () => _openOrderDocument(inv, true),
-                  onPrintInvoiceTap: () => _openPrintInvoice(inv),
+              padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, listBottomPad),
+              children: [
+                _section(
+                  children: [
+                    _kv('Customer name', _customer(inv)),
+                    _kv(
+                      'Order number',
+                      inv.orderNumber.isEmpty ? '—' : inv.orderNumber,
+                    ),
+                    _kv(
+                      'Invoice status',
+                      inv.status.isEmpty ? '—' : inv.status,
+                    ),
+                    _kv('Payment', _payment(inv)),
+                    _kv('Mode', _modeFromItems(inv)),
+                    _kv('Destination', '—'),
+                  ],
                 ),
-              ),
-              SizedBox(height: 12.h),
-              if (inv.items.isNotEmpty) ...[
                 Padding(
-                  padding: EdgeInsets.only(left: 4.w, bottom: 10.h),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Line items',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF374151),
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        'Each product on this invoice.',
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          color: AllColor.grey500,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
+                  padding: EdgeInsets.fromLTRB(2.w, 4.h, 2.w, 0),
+                  child: VendorOrderDocumentDownloadRow(
+                    loadingKey: _docLoadingKey,
+                    onInvoiceTap: () => _openOrderDocument(inv, false),
+                    onDeliveryTap: () => _openOrderDocument(inv, true),
+                    onPrintInvoiceTap: () => _openPrintInvoice(inv),
                   ),
                 ),
-                ...inv.items.asMap().entries.map(
-                  (e) => Padding(
-                    padding: EdgeInsets.only(bottom: 12.h),
-                    child: VendorMarketplaceLineProductCard(
-                      line: vendorMarketplaceLineFromManualItem(e.value, inv),
-                      indexOneBased: e.key + 1,
-                      screenLineId: _noPrimaryLineId,
-                      onRefresh: _load,
+                SizedBox(height: 12.h),
+                if (inv.items.isNotEmpty) ...[
+                  Padding(
+                    padding: EdgeInsets.only(left: 4.w, bottom: 10.h),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Line items',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF374151),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        SizedBox(height: 4.h),
+                        Text(
+                          'Each product on this invoice.',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: AllColor.grey500,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                if (inv.items.length > 1) ...[
+                  ...inv.items.asMap().entries.map(
+                    (e) => Padding(
+                      padding: EdgeInsets.only(bottom: 12.h),
+                      child: VendorMarketplaceLineProductCard(
+                        line: vendorMarketplaceLineFromManualItem(e.value, inv),
+                        indexOneBased: e.key + 1,
+                        screenLineId: _noPrimaryLineId,
+                        onRefresh: _load,
+                      ),
+                    ),
+                  ),
+                  if (inv.items.length > 1) ...[
+                    SizedBox(height: 4.h),
+                    _section(
+                      children: [
+                        Text(
+                          'Line for driver & status',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14.sp,
+                            color: const Color(0xFF111827),
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        InputDecorator(
+                          decoration: _inputDecoration(
+                            label: 'Invoice line',
+                            hint: null,
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<int>(
+                              value:
+                                  _focusLineItemId != null &&
+                                      inv.items.any(
+                                        (it) => it.id == _focusLineItemId,
+                                      )
+                                  ? _focusLineItemId
+                                  : inv.items.first.id,
+                              isExpanded: true,
+                              items: inv.items
+                                  .map(
+                                    (it) => DropdownMenuItem<int>(
+                                      value: it.id,
+                                      child: Text(
+                                        'Line #${it.id} · ${(it.productName ?? 'Product').trim().isEmpty ? 'Product #${it.productId}' : (it.productName ?? '').trim()}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) async {
+                                if (v == null) return;
+                                setState(() => _focusLineItemId = v);
+                                await _loadFocusLineDetail();
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  ..._buildFulfillmentSections(inv),
+                ],
+                if (hasPending && allowEdits) ...[
                   SizedBox(height: 4.h),
                   _section(
                     children: [
                       Text(
-                        'Line for driver & status',
+                        'Add line',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 14.sp,
                           color: const Color(0xFF111827),
                         ),
                       ),
-                      SizedBox(height: 8.h),
-                      InputDecorator(
-                        decoration: _inputDecoration(
-                          label: 'Invoice line',
-                          hint: null,
+                      SizedBox(height: 4.h),
+                      Text(
+                        'Merge by product ID adds to existing quantity.',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: AllColor.grey500,
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int>(
-                            value: _focusLineItemId != null &&
-                                    inv.items.any(
-                                      (it) => it.id == _focusLineItemId,
-                                    )
-                                ? _focusLineItemId
-                                : inv.items.first.id,
-                            isExpanded: true,
-                            items: inv.items
-                                .map(
-                                  (it) => DropdownMenuItem<int>(
-                                    value: it.id,
-                                    child: Text(
-                                      'Line #${it.id} · ${(it.productName ?? 'Product').trim().isEmpty ? 'Product #${it.productId}' : (it.productName ?? '').trim()}',
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) async {
-                              if (v == null) return;
-                              setState(() => _focusLineItemId = v);
-                              await _loadFocusLineDetail();
-                            },
+                      ),
+                      SizedBox(height: 12.h),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _addProductId,
+                              enabled: !_busy,
+                              keyboardType: TextInputType.number,
+                              decoration: _inputDecoration(
+                                label: 'Product ID',
+                                hint: 'e.g. 34',
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 10.w),
+                          SizedBox(
+                            width: 88.w,
+                            child: TextField(
+                              controller: _addQty,
+                              enabled: !_busy,
+                              keyboardType: TextInputType.number,
+                              decoration: _inputDecoration(
+                                label: 'Qty',
+                                hint: '1',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12.h),
+                      OutlinedButton(
+                        onPressed: _busy ? null : _addLine,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AllColor.loginButtomColor,
+                          side: BorderSide(
+                            color: AllColor.loginButtomColor,
+                            width: 1.2,
+                          ),
+                          minimumSize: Size(double.infinity, 44.h),
+                          shape: _fieldShape,
+                        ),
+                        child: Text(
+                          'Add / merge line',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ],
-                ..._buildFulfillmentSections(inv),
               ],
-              if (hasPending && allowEdits) ...[
-                SizedBox(height: 4.h),
-                _section(
-                  children: [
-                    Text(
-                      'Add line',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14.sp,
-                        color: const Color(0xFF111827),
-                      ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      'Merge by product ID adds to existing quantity.',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        color: AllColor.grey500,
-                      ),
-                    ),
-                    SizedBox(height: 12.h),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _addProductId,
-                            enabled: !_busy,
-                            keyboardType: TextInputType.number,
-                            decoration: _inputDecoration(
-                              label: 'Product ID',
-                              hint: 'e.g. 34',
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 10.w),
-                        SizedBox(
-                          width: 88.w,
-                          child: TextField(
-                            controller: _addQty,
-                            enabled: !_busy,
-                            keyboardType: TextInputType.number,
-                            decoration: _inputDecoration(
-                              label: 'Qty',
-                              hint: '1',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 12.h),
-                    OutlinedButton(
-                      onPressed: _busy ? null : _addLine,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AllColor.loginButtomColor,
-                        side: BorderSide(
-                          color: AllColor.loginButtomColor,
-                          width: 1.2,
-                        ),
-                        minimumSize: Size(double.infinity, 44.h),
-                        shape: _fieldShape,
-                      ),
-                      child: Text(
-                        'Add / merge line',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
         ),
         if (bottomCount > 0)
           Positioned(
@@ -1262,7 +1252,9 @@ class _VendorManualOrderDetailScreenState
                 children: [
                   if (showUpdateStatus)
                     FilledButton(
-                      onPressed: (_savingStatus || _busy) ? null : _saveLineStatus,
+                      onPressed: (_savingStatus || _busy)
+                          ? null
+                          : _saveLineStatus,
                       style: FilledButton.styleFrom(
                         backgroundColor: AllColor.loginButtomColor,
                         foregroundColor: Colors.white,

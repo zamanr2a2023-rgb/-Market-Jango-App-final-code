@@ -14,6 +14,8 @@ import 'package:market_jango/features/vendor/screens/vendor_asign_to_order_drive
 import 'package:market_jango/features/navbar/provider/shell_tab_index_providers.dart';
 import 'package:market_jango/features/vendor/screens/vendor_driver_list/data/driver_list_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_driver_list/model/driver_list_model.dart';
+import 'package:market_jango/features/vendor/screens/vendor_outlets/data/vendor_outlets_api.dart';
+import 'package:market_jango/features/vendor/screens/vendor_outlets/screen/assign_to_order_outlet.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
@@ -27,6 +29,7 @@ class VendorDriverList extends ConsumerStatefulWidget {
 
 class _VendorDriverListState extends ConsumerState<VendorDriverList> {
   final _search = TextEditingController();
+  bool _showOutlets = false;
 
   @override
   void dispose() {
@@ -62,7 +65,9 @@ class _VendorDriverListState extends ConsumerState<VendorDriverList> {
                 onChanged: (_) => setState(() {}),
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  hintText: ref.t(BKeys.searchYourTransporter),
+                  hintText: _showOutlets
+                      ? 'Search your outlet'
+                      : ref.t(BKeys.searchYourTransporter),
                   hintStyle: TextStyle(color: AllColor.textHintColor),
                   prefixIcon: Icon(
                     Icons.search_rounded,
@@ -81,6 +86,35 @@ class _VendorDriverListState extends ConsumerState<VendorDriverList> {
               ),
             ),
             SizedBox(height: 12.h),
+            // Drivers / Outlets tabs
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.w),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ListTabButton(
+                      label: 'Drivers',
+                      icon: Icons.local_shipping_outlined,
+                      selected: !_showOutlets,
+                      onTap: () => setState(() => _showOutlets = false),
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: _ListTabButton(
+                      label: 'Outlets',
+                      icon: Icons.storefront_outlined,
+                      selected: _showOutlets,
+                      onTap: () => setState(() => _showOutlets = true),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 12.h),
+            if (_showOutlets)
+              Expanded(child: _OutletsList(searchQuery: searchQuery))
+            else
             Expanded(
               child: driverAsync.when(
                 data: (data) {
@@ -262,6 +296,256 @@ class _VendorDriverListState extends ConsumerState<VendorDriverList> {
 //     online: true,
 //   ),
 // ];
+
+/* ===================== TAB BUTTON ===================== */
+
+class _ListTabButton extends StatelessWidget {
+  const _ListTabButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AllColor.loginButtomColor : AllColor.grey100,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 10.h),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18.sp,
+                color: selected ? AllColor.white : AllColor.black54,
+              ),
+              SizedBox(width: 6.w),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? AllColor.white : AllColor.black,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.sp,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/* ===================== OUTLETS LIST ===================== */
+
+class _OutletsList extends ConsumerWidget {
+  const _OutletsList({required this.searchQuery});
+
+  final String searchQuery;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final outletsAsync = ref.watch(vendorOutletsProvider);
+
+    return outletsAsync.when(
+      data: (outlets) {
+        final filtered = outlets.where((o) {
+          if (searchQuery.isEmpty) return true;
+          return o.name.toLowerCase().contains(searchQuery) ||
+              o.phone.toLowerCase().contains(searchQuery);
+        }).toList();
+
+        if (filtered.isEmpty) {
+          return Center(
+            child: Text(
+              searchQuery.isEmpty ? 'No outlets found' : ref.t(BKeys.no_data),
+              style: TextStyle(color: AllColor.black54),
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(vendorOutletsProvider);
+            await ref.read(vendorOutletsProvider.future);
+          },
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            itemCount: filtered.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (_, i) {
+              final outlet = filtered[i];
+              return _OutletCard(
+                data: outlet,
+                onAssign: () {
+                  context.push(
+                    AssignToOrderOutlet.routeName,
+                    extra: AssignToOrderOutletArgs(
+                      outletId: outlet.id,
+                      outletName: outlet.name,
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+      loading: () => Center(child: Text(ref.t(BKeys.loading))),
+      error: (error, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              error.toString().replaceFirst('Exception: ', ''),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AllColor.black54),
+            ),
+            TextButton(
+              onPressed: () => ref.invalidate(vendorOutletsProvider),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Same card design as [_DriverCard], without the chat/message icon.
+class _OutletCard extends ConsumerWidget {
+  const _OutletCard({required this.data, required this.onAssign});
+
+  final VendorOutlet data;
+  final VoidCallback onAssign;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeColor = Colors.green;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AllColor.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AllColor.grey200),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Avatar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  height: 60.h,
+                  width: 60.w,
+                  color: AllColor.grey100,
+                  child: Icon(Icons.storefront, color: AllColor.grey),
+                ),
+              ),
+              SizedBox(width: 10.h),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            data.name,
+                            style: TextStyle(
+                              color: AllColor.black,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10.h,
+                            vertical: 5.w,
+                          ),
+                          decoration: BoxDecoration(
+                            color: activeColor.withOpacity(.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: activeColor),
+                          ),
+                          child: Text(
+                            'Active',
+                            style: TextStyle(
+                              color: activeColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.sp,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 6.h),
+                    Text(
+                      data.phone,
+                      style: TextStyle(color: AllColor.black54),
+                    ),
+                    Text(
+                      'Max concurrent orders: ${data.defaultMaxConcurrentOrders}',
+                      style: TextStyle(color: AllColor.black54),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 10.h),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              SizedBox(
+                height: 36.h,
+                child: ElevatedButton(
+                  onPressed: onAssign,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AllColor.loginButtomColor,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: EdgeInsets.symmetric(horizontal: 16.h),
+                  ),
+                  child: Text(
+                    ref.t(BKeys.assignedOrder),
+                    style: TextStyle(
+                      color: AllColor.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /* ===================== CARD WIDGET ===================== */
 

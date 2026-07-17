@@ -25,7 +25,6 @@ import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 import 'package:market_jango/features/vendor/widgets/edit_widget.dart';
 import 'package:market_jango/features/buyer/screens/review/review_screen.dart';
 
-import '../../../../../core/constants/api_control/vendor_api.dart';
 import '../../vendor_product_add_page/screen/product_add_page.dart';
 import '../../visibility/screen/visibility_management_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_delivery_setting/screen/vendor_delivery_setting_screen.dart';
@@ -34,7 +33,7 @@ import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendo
 import 'package:market_jango/features/affiliate/screen/affiliate_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_followers/data/vendor_followers_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_followers/screen/vendor_followers_screen.dart';
-import '../data/vendor_product_category_riverpod.dart';
+import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/vendor_product_create_categories.dart';
 import '../data/vendor_product_data.dart';
 import '../logic/vendor_details_riverpod.dart';
 import '../model/user_details_model.dart';
@@ -67,9 +66,7 @@ class VendorHomeScreen extends ConsumerWidget {
                 ref.invalidate(vendorProvider);
                 ref.invalidate(productNotifierProvider);
                 ref.invalidate(vendorFollowersProvider);
-                ref.invalidate(
-                  vendorCategoryProvider(VendorAPIController.vendor_category),
-                );
+                ref.invalidate(vendorProductCreateCategoriesProvider);
                 await ref.read(vendorProvider.future);
                 await ref.read(productNotifierProvider.future);
               },
@@ -119,7 +116,6 @@ class VendorHomeScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 15.h),
                     CategoryBar(
-                      endpoint: VendorAPIController.vendor_category,
                       onCategorySelected: (categoryId) {
                         productNotifier.changeCategory(categoryId);
                       },
@@ -1441,11 +1437,9 @@ class _DocumentUploadSectionState extends ConsumerState<DocumentUploadSection> {
 class CategoryBar extends ConsumerStatefulWidget {
   const CategoryBar({
     super.key,
-    required this.endpoint,
     required this.onCategorySelected,
   });
 
-  final String endpoint;
   final Function(int categoryId) onCategorySelected;
 
   @override
@@ -1457,10 +1451,11 @@ class _CategoryBarState extends ConsumerState<CategoryBar> {
 
   @override
   Widget build(BuildContext context) {
-    final categoryAsync = ref.watch(vendorCategoryProvider(widget.endpoint));
+    final categoryAsync = ref.watch(vendorProductCreateCategoriesProvider);
 
     return categoryAsync.when(
-      data: (categories) {
+      data: (result) {
+        final categories = result.categories;
         final names = ['All', ...categories.map((e) => e.name)];
 
         return SingleChildScrollView(

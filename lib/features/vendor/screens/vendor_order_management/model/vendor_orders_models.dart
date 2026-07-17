@@ -261,6 +261,10 @@ class VendorMarketplaceLine {
   /// Parent order `status` when API puts `order` on the invoice_item (or merged from detail wrapper).
   final String? parentOrderStatus;
 
+  /// Outlet fields — null when the line is not assigned to any outlet.
+  final int? outletId;
+  final String? outletStatus;
+
   VendorMarketplaceLine({
     required this.id,
     required this.quantity,
@@ -281,6 +285,8 @@ class VendorMarketplaceLine {
     this.lineNote,
     this.vendorName,
     this.parentOrderStatus,
+    this.outletId,
+    this.outletStatus,
   });
 
   factory VendorMarketplaceLine.fromJson(Map<String, dynamic> j) {
@@ -333,6 +339,11 @@ class VendorMarketplaceLine {
           ? vn.trim()
           : vendorFromNested,
       parentOrderStatus: parentOrderStatus,
+      outletId: j['outlet_id'] == null ? null : _toInt(j['outlet_id']),
+      outletStatus: (j['outlet_status'] == null ||
+              j['outlet_status'].toString().trim().isEmpty)
+          ? null
+          : j['outlet_status'].toString(),
     );
   }
 }
@@ -363,6 +374,8 @@ class VendorMarketplaceLineDetail extends VendorMarketplaceLine {
     super.lineNote,
     super.vendorName,
     super.parentOrderStatus,
+    super.outletId,
+    super.outletStatus,
     required this.allowedNextStatuses,
     this.lineItems = const [],
   });
@@ -402,6 +415,8 @@ class VendorMarketplaceLineDetail extends VendorMarketplaceLine {
       lineNote: base.lineNote,
       vendorName: base.vendorName,
       parentOrderStatus: base.parentOrderStatus,
+      outletId: base.outletId,
+      outletStatus: base.outletStatus,
       allowedNextStatuses: next,
       lineItems: lineItems,
     );
