@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
 import 'package:market_jango/features/buyer/data/new_items_data.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
@@ -33,9 +34,14 @@ class CustomNewItemsShow extends ConsumerWidget {
                     CustomNewProduct(
                       width: 130,
                       height: 140,
-                      productPrices: products[index].sellPrice.isNotEmpty
-                          ? products[index].sellPrice
-                          : products[index].regularPrice,
+                      productPrices: formatProductPriceLabel(
+                        sellPriceDisplayRaw: products[index].sellPriceDisplay,
+                        sellPriceRaw: products[index].sellPrice.isNotEmpty
+                            ? products[index].sellPrice
+                            : products[index].regularPrice,
+                        displayCurrency: products[index].displayCurrency,
+                        currency: products[index].currency,
+                      ),
                       productName: products[index].name.toString(),
                       imageHeight: 130,
                       image: products[index].image,
@@ -69,9 +75,14 @@ class CustomNewItemsShow extends ConsumerWidget {
                 child: CustomNewProduct(
                   width: 130,
                   height: 140,
-                  productPrices: product.sellPrice.isNotEmpty
-                      ? product.sellPrice
-                      : product.regularPrice,
+                  productPrices: formatProductPriceLabel(
+                    sellPriceDisplayRaw: product.sellPriceDisplay,
+                    sellPriceRaw: product.sellPrice.isNotEmpty
+                        ? product.sellPrice
+                        : product.regularPrice,
+                    displayCurrency: product.displayCurrency,
+                    currency: product.currency,
+                  ),
                   productName: product.name.toString(),
                   imageHeight: 130,
                   image: product.image,

@@ -73,6 +73,10 @@ class ProductLite {
   final String name;
   final double regularPrice; // "233.00" -> 233.0
   final double sellPrice; // "761.00" -> 761.0
+  final double regularPriceDisplay;
+  final double sellPriceDisplay;
+  final String currency;
+  final String displayCurrency;
   final String image;
 
   ProductLite({
@@ -81,6 +85,10 @@ class ProductLite {
     required this.name,
     required this.regularPrice,
     required this.sellPrice,
+    this.regularPriceDisplay = 0,
+    this.sellPriceDisplay = 0,
+    this.currency = 'UGX',
+    this.displayCurrency = 'UGX',
     required this.image,
   });
 
@@ -90,6 +98,21 @@ class ProductLite {
     name: json['name']?.toString() ?? '',
     regularPrice: _toDouble(json['regular_price']),
     sellPrice: _toDouble(json['sell_price']),
+    regularPriceDisplay: _toDouble(
+      json['regular_price_display'] ?? json['regular_price'],
+    ),
+    sellPriceDisplay: _toDouble(
+      json['sell_price_display'] ?? json['sell_price'],
+    ),
+    currency: json['currency']?.toString().trim().isNotEmpty == true
+        ? json['currency'].toString().trim()
+        : 'UGX',
+    displayCurrency:
+        json['display_currency']?.toString().trim().isNotEmpty == true
+            ? json['display_currency'].toString().trim()
+            : (json['currency']?.toString().trim().isNotEmpty == true
+                ? json['currency'].toString().trim()
+                : 'UGX'),
     image: _primaryProductImage(json),
   );
 }

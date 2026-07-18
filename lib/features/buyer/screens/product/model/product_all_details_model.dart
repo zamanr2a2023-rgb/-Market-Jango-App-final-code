@@ -29,6 +29,12 @@ class DetailItem {
   final String description;
   final double regularPrice;
   final double sellPrice;
+  /// Display companions from multi-currency API (preferred over ledger UGX).
+  final double regularPriceDisplay;
+  final double sellPriceDisplay;
+  final String currency;
+  final String displayCurrency;
+  final double exchangeRate;
   final int discount;
   final String publicId;
   final double star;
@@ -61,6 +67,11 @@ class DetailItem {
     required this.description,
     required this.regularPrice,
     required this.sellPrice,
+    this.regularPriceDisplay = 0,
+    this.sellPriceDisplay = 0,
+    this.currency = 'UGX',
+    this.displayCurrency = 'UGX',
+    this.exchangeRate = 1,
     required this.discount,
     required this.publicId,
     required this.star,
@@ -107,6 +118,22 @@ class DetailItem {
       description: data['description']?.toString() ?? '',
       regularPrice: _toDouble(data['regular_price']),
       sellPrice: _toDouble(data['sell_price']),
+      regularPriceDisplay: _toDouble(
+        data['regular_price_display'] ?? data['regular_price'],
+      ),
+      sellPriceDisplay: _toDouble(
+        data['sell_price_display'] ?? data['sell_price'],
+      ),
+      currency: data['currency']?.toString().trim().isNotEmpty == true
+          ? data['currency'].toString().trim()
+          : 'UGX',
+      displayCurrency: data['display_currency']?.toString().trim().isNotEmpty ==
+              true
+          ? data['display_currency'].toString().trim()
+          : (data['currency']?.toString().trim().isNotEmpty == true
+              ? data['currency'].toString().trim()
+              : 'UGX'),
+      exchangeRate: _toDouble(data['exchange_rate'] ?? 1),
       discount: _toInt(data['discount']),
       publicId: data['public_id']?.toString() ?? '',
       star: _toDouble(data['star']),

@@ -13,6 +13,7 @@ import 'package:market_jango/core/localization/Keys/vendor_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/models/global_search_model.dart';
 import 'package:market_jango/core/screen/profile_screen/logic/user_data_update_riverpod.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
 import 'package:market_jango/core/widget/global_pagination.dart';
@@ -458,7 +459,12 @@ class VendorHomeScreen extends ConsumerWidget {
             CustomNewProduct(
               width: 161,
               height: 168,
-              productPrices: prod.sellPrice,
+              productPrices: formatProductPriceLabel(
+                sellPriceDisplayRaw: prod.sellPriceDisplay,
+                sellPriceRaw: prod.sellPrice,
+                displayCurrency: prod.displayCurrency,
+                currency: prod.currency,
+              ),
               productName: prod.name,
               image: prod.image,
               viewCount: prod.viewCount,

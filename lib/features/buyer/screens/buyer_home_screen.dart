@@ -9,6 +9,7 @@ import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/models/global_search_model.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
 import 'package:market_jango/core/widget/global_notification_icon.dart';
@@ -252,9 +253,13 @@ class JustForYouProduct extends ConsumerWidget {
           itemCount: topProducts.length,
           itemBuilder: (context, index) {
             final p = topProducts[index];
-            final price = (p.sellPrice.isNotEmpty
-                ? p.sellPrice
-                : p.regularPrice);
+            final price = formatProductPriceLabel(
+              sellPriceDisplayRaw: p.sellPriceDisplay,
+              sellPriceRaw:
+                  p.sellPrice.isNotEmpty ? p.sellPrice : p.regularPrice,
+              displayCurrency: p.displayCurrency,
+              currency: p.currency,
+            );
 
             return GestureDetector(
               onTap: () {

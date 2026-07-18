@@ -134,7 +134,7 @@ class UserModel {
       expiresAt: json['expires_at']?.toString(),
       createdAt: json['created_at']?.toString(),
       updatedAt: json['updated_at']?.toString(),
-      currency: json['currency']?.toString() ?? 'USD',
+      currency: json['currency']?.toString() ?? 'UGX',
 
       // ==== nested roles (nullable) ====
       vendor: (json['vendor'] != null)

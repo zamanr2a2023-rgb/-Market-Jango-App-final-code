@@ -485,19 +485,28 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Prices row
+          // Prices row — always entered and stored as UGX (ledger currency).
+          Text(
+            'Prices must be entered in UGX. Your display currency does not change the submitted amount.',
+            style: TextStyle(
+              fontSize: 11.sp,
+              color: AllColor.black54,
+              height: 1.3,
+            ),
+          ),
+          SizedBox(height: 8.h),
           Row(
             children: [
               Expanded(
                 child: _Labeled(
-                  label: 'Current price',
+                  label: 'Current price (UGX)',
                   labelColor: labelBlue,
                   child: TextField(
                     controller: _currentC,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       fillColor: AllColor.white,
-                      hintText: 'Current Price',
+                      hintText: 'Current Price (UGX)',
                       enabledBorder: border(),
                       focusedBorder: border(),
                     ),
@@ -507,14 +516,14 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
               SizedBox(width: 14.w),
               Expanded(
                 child: _Labeled(
-                  label: 'Previous price',
+                  label: 'Previous price (UGX)',
                   labelColor: labelBlue,
                   child: TextField(
                     controller: _previousC,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       fillColor: AllColor.white,
-                      hintText: 'Previous Price',
+                      hintText: 'Previous Price (UGX)',
                       enabledBorder: border(),
                       focusedBorder: border(),
                     ),

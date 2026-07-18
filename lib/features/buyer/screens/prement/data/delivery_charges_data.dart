@@ -22,6 +22,8 @@ class DeliveryChargeItem {
   final num effectiveWeightKg;
   /// Per-line delivery from API: `allocated_delivery_charge` (or legacy `final_delivery_charge`).
   final num finalDeliveryCharge;
+  /// Buyer-facing per-line delivery (`allocated_delivery_charge_display`).
+  final num finalDeliveryChargeDisplay;
   /// When charge is zero, API may set e.g. `no_matching_route`.
   final String skipReason;
 
@@ -40,6 +42,7 @@ class DeliveryChargeItem {
     required this.chargesApplied,
     required this.effectiveWeightKg,
     required this.finalDeliveryCharge,
+    required this.finalDeliveryChargeDisplay,
     required this.skipReason,
   });
 
@@ -61,6 +64,9 @@ class DeliveryChargeItem {
     final allocated = json['allocated_delivery_charge'];
     final legacyFinal = json['final_delivery_charge'];
     final lineCharge = allocated != null ? asNum(allocated) : asNum(legacyFinal);
+    final allocatedDisplay = json['allocated_delivery_charge_display'];
+    final lineChargeDisplay =
+        allocatedDisplay != null ? asNum(allocatedDisplay) : lineCharge;
 
     return DeliveryChargeItem(
       cartId: asInt(json['cart_id']),
@@ -77,6 +83,7 @@ class DeliveryChargeItem {
       chargesApplied: charges,
       effectiveWeightKg: asNum(json['effective_weight_kg']),
       finalDeliveryCharge: lineCharge,
+      finalDeliveryChargeDisplay: lineChargeDisplay,
       skipReason: (json['skip_reason'] ?? '').toString(),
     );
   }
@@ -109,6 +116,15 @@ class DeliveryChargesResponse {
   final num tax;
   /// `cart_total_with_delivery_and_fees` — amount customer pays (when provided).
   final num grandTotal;
+
+  /// Buyer-facing `*_display` amounts (never converted client-side).
+  final num cartTotalDeliveryChargeDisplay;
+  final num merchandiseSubtotalDisplay;
+  final num platformFeeDisplay;
+  final num taxDisplay;
+  final num grandTotalDisplay;
+  /// `display_currency` (falls back to ledger `currency`, then UGX).
+  final String displayCurrency;
   /// Merged `charges_applied` from each entry in `data.zones` (zone-level surcharges).
   final Map<String, num> zoneChargesApplied;
   /// Sum of `aggregated_effective_weight_kg` across `data.zones` (informational).
@@ -124,6 +140,12 @@ class DeliveryChargesResponse {
     this.platformFee = 0,
     this.tax = 0,
     this.grandTotal = 0,
+    this.cartTotalDeliveryChargeDisplay = 0,
+    this.merchandiseSubtotalDisplay = 0,
+    this.platformFeeDisplay = 0,
+    this.taxDisplay = 0,
+    this.grandTotalDisplay = 0,
+    this.displayCurrency = 'UGX',
     this.zoneChargesApplied = const <String, num>{},
     this.zonesAggregatedWeightKg = 0,
     this.routeSummaries = const <DeliveryRouteSummary>[],
@@ -207,9 +229,10 @@ class DeliveryChargesResponse {
             z['town_totals'];
         if (ptb is Map<String, dynamic> && ptb.isNotEmpty) {
           void addTown(String town, Map<String, dynamic> m) {
-            final flat = asNum(m['flat']);
-            final wb = asNum(m['weight_based']);
-            final explicit = m['town_total'];
+            // Prefer buyer-facing display amounts when the API sends them.
+            final flat = asNum(m['flat_display'] ?? m['flat']);
+            final wb = asNum(m['weight_based_display'] ?? m['weight_based']);
+            final explicit = m['town_total_display'] ?? m['town_total'];
             final total = explicit != null ? asNum(explicit) : flat + wb;
             routeSummaries.add(
               DeliveryRouteSummary(
@@ -246,12 +269,20 @@ class DeliveryChargesResponse {
       }
     }
 
+    num displayOrLedger(dynamic display, num ledger) =>
+        display != null ? asNum(display) : ledger;
+
     num platformFee = 0;
     num tax = 0;
+    num platformFeeDisplay = 0;
+    num taxDisplay = 0;
     final feesRaw = data['fees'];
     if (feesRaw is Map<String, dynamic>) {
       platformFee = asNum(feesRaw['platform_fee']);
       tax = asNum(feesRaw['tax']);
+      platformFeeDisplay =
+          displayOrLedger(feesRaw['platform_fee_display'], platformFee);
+      taxDisplay = displayOrLedger(feesRaw['tax_display'], tax);
     }
 
     final delivery = asNum(data['cart_total_delivery_charge']);
@@ -262,6 +293,32 @@ class DeliveryChargesResponse {
       grand = merchandise + delivery + platformFee + tax;
     }
 
+    final deliveryDisplay =
+        displayOrLedger(data['cart_total_delivery_charge_display'], delivery);
+    final merchandiseDisplay =
+        displayOrLedger(data['cart_merchandise_subtotal_display'], merchandise);
+    var grandDisplay = displayOrLedger(
+      data['cart_total_with_delivery_and_fees_display'],
+      0,
+    );
+    if (grandDisplay == 0 &&
+        (merchandiseDisplay != 0 ||
+            deliveryDisplay != 0 ||
+            platformFeeDisplay != 0 ||
+            taxDisplay != 0)) {
+      grandDisplay =
+          merchandiseDisplay + deliveryDisplay + platformFeeDisplay + taxDisplay;
+    }
+
+    String pickCurrency(dynamic v, String fallback) {
+      final s = v?.toString().trim() ?? '';
+      return s.isEmpty ? fallback : s.toUpperCase();
+    }
+
+    final ledgerCurrency = pickCurrency(data['currency'], 'UGX');
+    final displayCurrency =
+        pickCurrency(data['display_currency'], ledgerCurrency);
+
     return DeliveryChargesResponse(
       items: items,
       cartTotalDeliveryCharge: delivery,
@@ -269,6 +326,12 @@ class DeliveryChargesResponse {
       platformFee: platformFee,
       tax: tax,
       grandTotal: grand,
+      cartTotalDeliveryChargeDisplay: deliveryDisplay,
+      merchandiseSubtotalDisplay: merchandiseDisplay,
+      platformFeeDisplay: platformFeeDisplay,
+      taxDisplay: taxDisplay,
+      grandTotalDisplay: grandDisplay,
+      displayCurrency: displayCurrency,
       zoneChargesApplied: zoneCharges,
       zonesAggregatedWeightKg: zonesAggWeight,
       routeSummaries: routeSummaries,

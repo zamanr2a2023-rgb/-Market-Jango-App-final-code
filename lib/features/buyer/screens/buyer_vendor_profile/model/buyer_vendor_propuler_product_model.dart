@@ -42,6 +42,10 @@ class PProduct {
   final String description;
   final double regularPrice;
   final double sellPrice;
+  final double regularPriceDisplay;
+  final double sellPriceDisplay;
+  final String currency;
+  final String displayCurrency;
   final int discount;
   final String publicId;
   final int star;
@@ -61,6 +65,10 @@ class PProduct {
     required this.description,
     required this.regularPrice,
     required this.sellPrice,
+    this.regularPriceDisplay = 0,
+    this.sellPriceDisplay = 0,
+    this.currency = 'UGX',
+    this.displayCurrency = 'UGX',
     required this.discount,
     required this.publicId,
     required this.star,
@@ -81,6 +89,18 @@ class PProduct {
     description: (j['description'] ?? '').toString(),
     regularPrice: _toDouble(j['regular_price']),
     sellPrice: _toDouble(j['sell_price']),
+    regularPriceDisplay: _toDouble(
+      j['regular_price_display'] ?? j['regular_price'],
+    ),
+    sellPriceDisplay: _toDouble(j['sell_price_display'] ?? j['sell_price']),
+    currency: j['currency']?.toString().trim().isNotEmpty == true
+        ? j['currency'].toString().trim()
+        : 'UGX',
+    displayCurrency: j['display_currency']?.toString().trim().isNotEmpty == true
+        ? j['display_currency'].toString().trim()
+        : (j['currency']?.toString().trim().isNotEmpty == true
+            ? j['currency'].toString().trim()
+            : 'UGX'),
     discount: _toInt(j['discount']),
     publicId: (j['public_id'] ?? '').toString(),
     star: _toInt(j['star']),

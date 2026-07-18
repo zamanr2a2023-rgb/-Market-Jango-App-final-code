@@ -7,6 +7,7 @@ import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/profile_screen/data/profile_data.dart';
 import 'package:market_jango/core/screen/profile_screen/model/profile_model.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
 import 'package:market_jango/core/widget/see_more_button.dart';
@@ -69,7 +70,12 @@ class VendorFirstFourProductSection extends ConsumerWidget {
                 width: 162.w,
                 height: 175.h,
                 productName: p.name,
-                productPrices: p.sellPrice.toStringAsFixed(2),
+                productPrices: formatProductPriceLabel(
+                  sellPriceDisplay: p.sellPriceDisplay,
+                  sellPrice: p.sellPrice,
+                  displayCurrency: p.displayCurrency,
+                  currency: p.currency,
+                ),
                 image: p.image,
                 imageHeight: 175,
               ),
@@ -970,8 +976,11 @@ class FashionProduct extends StatelessWidget {
                         width: 130,
                         height: 140,
                         productName: items[index].name,
-                        productPrices: items[index].sellPrice.toStringAsFixed(
-                          2,
+                        productPrices: formatProductPriceLabel(
+                          sellPriceDisplay: items[index].sellPriceDisplay,
+                          sellPrice: items[index].sellPrice,
+                          displayCurrency: items[index].displayCurrency,
+                          currency: items[index].currency,
                         ),
                         image: items[index].image,
                         imageHeight: 130,
@@ -999,7 +1008,12 @@ class FashionProduct extends StatelessWidget {
                       width: 130,
                       height: 140,
                       productName: p.name,
-                      productPrices: p.sellPrice.toStringAsFixed(2),
+                      productPrices: formatProductPriceLabel(
+                        sellPriceDisplay: p.sellPriceDisplay,
+                        sellPrice: p.sellPrice,
+                        displayCurrency: p.displayCurrency,
+                        currency: p.currency,
+                      ),
                       image: p.image,
                       imageHeight: 130,
                     ),
@@ -1053,11 +1067,13 @@ class PopularProduct extends ConsumerWidget {
                   CustomNewProduct(
                     width: 162.w,
                     height: 175.h,
-                    // Your widget’s param names are a bit swapped in example,
-                    // keeping exactly as your API expects:
-                    productPrices: p.name,
-                    // title
-                    productName: p.sellPrice.toStringAsFixed(2),
+                    productName: p.name,
+                    productPrices: formatProductPriceLabel(
+                      sellPriceDisplay: p.sellPriceDisplay,
+                      sellPrice: p.sellPrice,
+                      displayCurrency: p.displayCurrency,
+                      currency: p.currency,
+                    ),
                     image: p.image,
                   ),
                   if (p.discount > 0)

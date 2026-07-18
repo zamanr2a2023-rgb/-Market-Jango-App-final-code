@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/global_search_bar.dart';
 import 'package:market_jango/features/buyer/screens/all_categori/data/buyer_catagori_vendor_list_data.dart';
@@ -242,7 +243,12 @@ class ProductGridSection extends ConsumerWidget {
 
             return ProductCard(
               title: p.name, // product name
-              price: p.sellPrice, // product sell price
+              price: formatProductPriceLabel(
+                sellPriceDisplay: p.sellPriceDisplay,
+                sellPrice: p.sellPrice,
+                displayCurrency: p.displayCurrency,
+                currency: p.currency,
+              ),
               imageUrl: p.image, // product image
               storeName: v.businessName.isNotEmpty
                   ? v.businessName
@@ -267,7 +273,7 @@ class ProductGridSection extends ConsumerWidget {
 
 class ProductCard extends StatelessWidget {
   final String title;
-  final double price;
+  final String price;
   final String imageUrl;
   final String storeName;
   final String memberSince;
@@ -372,7 +378,7 @@ class ProductCard extends StatelessWidget {
                   ),
                   SizedBox(height: 4.h),
                   Text(
-                    "\$$price",
+                    price,
                     style: Theme.of(context).textTheme.titleMedium!.copyWith(
                       fontWeight: FontWeight.bold,
                     ),

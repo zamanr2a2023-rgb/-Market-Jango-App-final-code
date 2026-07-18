@@ -15,10 +15,13 @@ class CustomTotalCheckoutSection extends StatelessWidget {
     super.key,
     required this.totalPrice,
     required this.context,
+    this.totalLabel,
     this.onCheckout, // optional external handler
   });
 
   final double totalPrice;
+  /// When set, shown instead of hard-coded `$` + [totalPrice].
+  final String? totalLabel;
   final BuildContext context;
   final VoidCallback? onCheckout;
 
@@ -50,7 +53,7 @@ class CustomTotalCheckoutSection extends StatelessWidget {
                 ),
               ),
               Text(
-                '\$${totalPrice.toStringAsFixed(2)}',
+                totalLabel ?? '\$${totalPrice.toStringAsFixed(2)}',
                 style: TextStyle(
                   fontSize: 16.sp,
                   fontWeight: FontWeight.bold,

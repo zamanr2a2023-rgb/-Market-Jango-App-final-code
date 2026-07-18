@@ -9,18 +9,31 @@ class CurrencyItem {
   final String code;
   final String name;
   final String symbol;
+  final String country;
+  final num rate;
 
   CurrencyItem({
     required this.code,
     required this.name,
     required this.symbol,
+    this.country = '',
+    this.rate = 1,
   });
 
   factory CurrencyItem.fromJson(Map<String, dynamic> json) {
+    final rawRate = json['rate'];
+    num rate = 1;
+    if (rawRate is num) {
+      rate = rawRate;
+    } else {
+      rate = num.tryParse(rawRate?.toString() ?? '') ?? 1;
+    }
     return CurrencyItem(
       code: json['code']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       symbol: json['symbol']?.toString() ?? '',
+      country: json['country']?.toString() ?? '',
+      rate: rate,
     );
   }
 }

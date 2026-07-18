@@ -5,13 +5,23 @@ class CartResponse {
   final String status;
   final String message;
   final Map<String, List<CartItem>> groups; // e.g. {"0":[...]}
+  /// Ledger total in UGX.
   final double total;
+  /// Buyer-facing total from API (`total_display`).
+  final double totalDisplay;
+  final String currency;
+  final String displayCurrency;
+  final double exchangeRate;
 
   CartResponse({
     required this.status,
     required this.message,
     required this.groups,
     required this.total,
+    this.totalDisplay = 0,
+    this.currency = 'UGX',
+    this.displayCurrency = 'UGX',
+    this.exchangeRate = 1,
   });
 
   List<CartItem> get items => groups.values.expand((e) => e).toList();
@@ -19,23 +29,50 @@ class CartResponse {
   factory CartResponse.fromRaw(String str) =>
       CartResponse.fromJson(json.decode(str));
 
+  static const _metaKeys = {
+    'total',
+    'total_display',
+    'currency',
+    'display_currency',
+    'exchange_rate',
+    'cart_merchandise_subtotal',
+    'cart_merchandise_subtotal_display',
+    'cart_total_delivery_charge',
+    'cart_total_delivery_charge_display',
+    'cart_total_with_delivery_and_fees',
+    'cart_total_with_delivery_and_fees_display',
+  };
+
   factory CartResponse.fromJson(Map<String, dynamic> json) {
     final data = json['data'];
     final Map<String, List<CartItem>> parsed = {};
     double total = 0.0;
+    double totalDisplay = 0.0;
+    String currency = 'UGX';
+    String displayCurrency = 'UGX';
+    double exchangeRate = 1;
+
+    num? toNum(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v;
+      return num.tryParse(v.toString());
+    }
 
     if (data is Map<String, dynamic>) {
-      // Parse total as double to handle decimal values like 16.2
-      final totalValue = data['total'];
-      if (totalValue != null) {
-        if (totalValue is num) {
-          total = totalValue.toDouble();
-        } else if (totalValue is String) {
-          total = double.tryParse(totalValue) ?? 0.0;
-        }
-      }
+      total = toNum(data['total'])?.toDouble() ?? 0.0;
+      totalDisplay =
+          toNum(data['total_display'])?.toDouble() ?? total;
+      currency = data['currency']?.toString().trim().isNotEmpty == true
+          ? data['currency'].toString().trim()
+          : 'UGX';
+      displayCurrency =
+          data['display_currency']?.toString().trim().isNotEmpty == true
+              ? data['display_currency'].toString().trim()
+              : currency;
+      exchangeRate = toNum(data['exchange_rate'])?.toDouble() ?? 1;
+
       data.forEach((k, v) {
-        if (k == 'total') return;
+        if (_metaKeys.contains(k)) return;
         if (v is List) {
           parsed[k] = v
               .map((e) => CartItem.fromJson(e as Map<String, dynamic>))
@@ -53,6 +90,10 @@ class CartResponse {
       message: json['message']?.toString() ?? '',
       groups: parsed,
       total: total,
+      totalDisplay: totalDisplay,
+      currency: currency,
+      displayCurrency: displayCurrency,
+      exchangeRate: exchangeRate,
     );
   }
 }
@@ -60,9 +101,14 @@ class CartResponse {
 class CartItem {
   final int quantity;
   final String deliveryCharge;
+  final String deliveryChargeDisplay;
   final String color;
   final String size;
   final String price;
+  final String priceDisplay;
+  final String currency;
+  final String displayCurrency;
+  final double exchangeRate;
   final int productId;
   final int buyerId;
   final int vendorId;
@@ -79,9 +125,14 @@ class CartItem {
   CartItem({
     required this.quantity,
     required this.deliveryCharge,
+    this.deliveryChargeDisplay = '',
     required this.color,
     required this.size,
     required this.price,
+    this.priceDisplay = '',
+    this.currency = 'UGX',
+    this.displayCurrency = 'UGX',
+    this.exchangeRate = 1,
     required this.productId,
     required this.buyerId,
     required this.vendorId,
@@ -103,13 +154,34 @@ class CartItem {
 
     String s(dynamic v) => v?.toString() ?? '';
 
+    num? toNum(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v;
+      return num.tryParse(v.toString());
+    }
+
+    final price = s(json['price']);
+    final currency = s(json['currency']).trim().isNotEmpty
+        ? s(json['currency']).trim()
+        : 'UGX';
+    final displayCurrency = s(json['display_currency']).trim().isNotEmpty
+        ? s(json['display_currency']).trim()
+        : currency;
+
     return CartItem(
       id: json['id'] == null ? null : i(json['id']),
       quantity: i(json['quantity']),
       deliveryCharge: s(json['delivery_charge']),
+      deliveryChargeDisplay: s(
+        json['delivery_charge_display'] ?? json['delivery_charge'],
+      ),
       color: s(json['color']),
       size: s(json['size']),
-      price: s(json['price']),
+      price: price,
+      priceDisplay: s(json['price_display'] ?? json['price']),
+      currency: currency,
+      displayCurrency: displayCurrency,
+      exchangeRate: toNum(json['exchange_rate'])?.toDouble() ?? 1,
       productId: i(json['product_id']),
       buyerId: i(json['buyer_id']),
       vendorId: i(json['vendor_id']),

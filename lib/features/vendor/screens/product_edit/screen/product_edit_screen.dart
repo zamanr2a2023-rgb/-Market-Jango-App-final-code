@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:market_jango/core/constants/api_control/vendor_api.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
@@ -15,9 +14,9 @@ import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/vendor/screens/product_edit/data/product_attribute_data.dart';
 import 'package:market_jango/features/vendor/screens/product_edit/logic/delete_image_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/product_edit/logic/update_product_riverpod.dart';
-import 'package:market_jango/features/vendor/screens/vendor_home/data/vendor_product_category_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/vendor_home/data/vendor_product_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/selecd_color_size_list.dart';
+import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/vendor_product_create_categories.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/generic_attribute_picker.dart';
 
 import '../../../widgets/custom_back_button.dart';
@@ -35,14 +34,13 @@ class ProductEditScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
+  int? _selectedBusinessTypeId;
   int? _selectedCategoryId;
   List<File> _newFiles = [];
 
   @override
   Widget build(BuildContext context) {
-    final categoryAsync = ref.watch(
-      vendorCategoryProvider(VendorAPIController.vendor_category),
-    );
+    final categoryAsync = ref.watch(vendorProductCreateCategoriesProvider);
     final attributeAsync = ref.watch(productAttributesProvider);
     final selectedAttributes = ref.watch(selectedAttributesProvider);
     final saving = ref.watch(updateProductProvider).isLoading;
@@ -102,58 +100,177 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                   ),
                   SizedBox(height: 10.h),
 
-                  /// Category Dropdown
-                  _Label('Category', color: const Color(0xFF436AA0)),
-                  SizedBox(height: 6.h),
-
-                  /// --- state ---
-                  //  int? _selectedCategoryId; // ✅ use id, not name
+                  /// Business Type + Category (from `GET /vendor/product-categories`)
                   categoryAsync.when(
-                    data: (categories) {
-                      if (categories.isEmpty) {
-                        return const Text("No category found");
+                    data: (result) {
+                      if (result.categories.isEmpty) {
+                        return const Text('No categories available');
                       }
 
-                      // ✅ ensure selected id exists
-                      final bool selectedExists =
-                          _selectedCategoryId != null &&
-                          categories.any((c) => c.id == _selectedCategoryId);
+                      final businessTypes = result.businessTypes;
 
-                      // ✅ set default only if null OR not exists
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (!mounted) return;
-                        if (_selectedCategoryId == null || !selectedExists) {
-                          final match = categories
-                              .where(
-                                (c) => c.name == widget.product.categoryName,
-                              )
+                      // Prefer the product's existing category when initializing.
+                      final productCategory = result.categories
+                          .where(
+                            (c) =>
+                                c.id == widget.product.categoryId ||
+                                c.name == widget.product.categoryName,
+                          )
+                          .toList();
+
+                      int? validTypeId = _selectedBusinessTypeId;
+                      if (validTypeId == null && productCategory.isNotEmpty) {
+                        validTypeId = productCategory.first.businessTypeId;
+                      }
+                      if (businessTypes.isNotEmpty &&
+                          (validTypeId == null ||
+                              !businessTypes.any((t) => t.id == validTypeId))) {
+                        validTypeId = businessTypes.first.id;
+                      }
+
+                      final visibleCategories = validTypeId == null
+                          ? result.categories
+                          : result.categories
+                              .where((c) => c.businessTypeId == validTypeId)
                               .toList();
 
-                          setState(() {
-                            _selectedCategoryId = match.isNotEmpty
-                                ? match.first.id
-                                : categories.first.id;
-                          });
-                        }
-                      });
+                      int? validCategoryId = _selectedCategoryId;
+                      if (validCategoryId == null &&
+                          productCategory.isNotEmpty &&
+                          visibleCategories
+                              .any((c) => c.id == productCategory.first.id)) {
+                        validCategoryId = productCategory.first.id;
+                      }
+                      if (visibleCategories.isEmpty) {
+                        validCategoryId = null;
+                      } else if (validCategoryId == null ||
+                          !visibleCategories
+                              .any((c) => c.id == validCategoryId)) {
+                        validCategoryId = visibleCategories.first.id;
+                      }
 
-                      return DropdownButton<int>(
-                        isExpanded: true,
-                        value: selectedExists ? _selectedCategoryId : null,
-                        hint: const Text("Select category"),
-                        items: categories.map((c) {
-                          return DropdownMenuItem<int>(
-                            value: c.id,
-                            child: Text(c.name),
-                          );
-                        }).toList(),
-                        onChanged: (id) {
-                          setState(() => _selectedCategoryId = id);
-                        },
+                      if (validTypeId != _selectedBusinessTypeId ||
+                          validCategoryId != _selectedCategoryId) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) return;
+                          setState(() {
+                            _selectedBusinessTypeId = validTypeId;
+                            _selectedCategoryId = validCategoryId;
+                          });
+                        });
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (businessTypes.isNotEmpty) ...[
+                            _Label('Business Type',
+                                color: const Color(0xFF436AA0)),
+                            SizedBox(height: 6.h),
+                            DropdownButtonFormField<int>(
+                              isExpanded: true,
+                              value: validTypeId,
+                              decoration: InputDecoration(
+                                fillColor: AllColor.white,
+                                filled: true,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: AllColor.grey,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(5.r),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: AllColor.grey,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(5.r),
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12.w,
+                                  vertical: 10.h,
+                                ),
+                              ),
+                              hint: const Text('Select Business Type'),
+                              items: businessTypes.map((t) {
+                                return DropdownMenuItem<int>(
+                                  value: t.id,
+                                  child: Text(t.name),
+                                );
+                              }).toList(),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                final firstCat = result.categories
+                                    .where((c) => c.businessTypeId == v)
+                                    .toList();
+                                setState(() {
+                                  _selectedBusinessTypeId = v;
+                                  _selectedCategoryId = firstCat.isEmpty
+                                      ? null
+                                      : firstCat.first.id;
+                                });
+                              },
+                            ),
+                            SizedBox(height: 12.h),
+                          ],
+                          _Label('Category', color: const Color(0xFF436AA0)),
+                          SizedBox(height: 6.h),
+                          if (visibleCategories.isEmpty)
+                            const Text('No categories for this business type')
+                          else
+                            DropdownButtonFormField<int>(
+                              isExpanded: true,
+                              value: validCategoryId,
+                              decoration: InputDecoration(
+                                fillColor: AllColor.white,
+                                filled: true,
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: AllColor.grey,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(5.r),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: AllColor.grey,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(5.r),
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12.w,
+                                  vertical: 10.h,
+                                ),
+                              ),
+                              hint: const Text('Select Category'),
+                              items: visibleCategories.map((c) {
+                                return DropdownMenuItem<int>(
+                                  value: c.id,
+                                  child: Text(c.name),
+                                );
+                              }).toList(),
+                              onChanged: (id) {
+                                setState(() => _selectedCategoryId = id);
+                              },
+                            ),
+                        ],
                       );
                     },
-                    loading: () => const Text("Loading..."),
-                    error: (e, _) => Text("Error: $e"),
+                    loading: () => const Text('Loading...'),
+                    error: (e, _) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Error: $e'),
+                        TextButton(
+                          onPressed: () => ref.invalidate(
+                            vendorProductCreateCategoriesProvider,
+                          ),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
 
                   SizedBox(height: 10.h),
@@ -226,8 +343,17 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
 
                   SizedBox(height: 15.h),
 
-                  /// Price
-                  _Label('Current price', color: const Color(0xFF2B6CB0)),
+                  /// Price — always entered and stored as UGX (ledger currency).
+                  _Label('Current price (UGX)', color: const Color(0xFF2B6CB0)),
+                  SizedBox(height: 4.h),
+                  Text(
+                    'Enter the UGX amount. Your display currency does not change the submitted price.',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      color: AllColor.black54,
+                      height: 1.3,
+                    ),
+                  ),
                   SizedBox(height: 6.h),
                   TextFormField(
                     controller: priceController,
@@ -395,8 +521,6 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     );
   }
 
-  String? _selectedCategory;
-
   final ImagePicker _picker = ImagePicker();
 
   File? mainImage;
@@ -432,14 +556,16 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     weightController = TextEditingController(
       text: widget.product.weight ?? '',
     );
-    _selectedCategory = widget.product.categoryName;
+    _selectedCategoryId = widget.product.categoryId > 0
+        ? widget.product.categoryId
+        : null;
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Refresh providers to ensure fresh data on first load
       ref.invalidate(productAttributesProvider);
-      ref.invalidate(vendorCategoryProvider(VendorAPIController.vendor_category));
-      
+      ref.invalidate(vendorProductCreateCategoriesProvider);
+
       // Parse attributes from JSON string if available
       Map<String, List<String>> parsedAttributes = {};
       if (widget.product.attributes != null &&

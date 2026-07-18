@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/TupperTextAndBackButton.dart';
 import 'package:market_jango/core/widget/custom_total_checkout_section.dart';
@@ -54,8 +55,9 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
 
   static const Color _deliveryTableBorder = Color(0xFF212121);
 
-  String _fmtMoney(String currency, num v) =>
-      '$currency${v.toStringAsFixed(2)}';
+  /// [currency] is a currency code (e.g. CDF/UGX); amounts come from API
+  /// `*_display` fields — never converted client-side.
+  String _fmtMoney(String currency, num v) => formatApiMoney(v, currency);
 
   TableRow _deliveryTableHeader(String col2, String col3) {
     TextStyle headerStyle() => TextStyle(
@@ -197,7 +199,7 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       for (final it in resp.items) {
         final key = '${it.vendorTown}|${it.buyerTown}';
         final a = byRoute.putIfAbsent(key, _RouteLineAgg.new);
-        a.total += it.finalDeliveryCharge;
+        a.total += it.finalDeliveryChargeDisplay;
         final sub = StringBuffer('${it.productName} ×${it.quantity}');
         if (it.vendorName.isNotEmpty) {
           sub.write(' · ${it.vendorName}');
@@ -273,9 +275,9 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       _deliveryTableDataRow(
         '',
         'Platform fees',
-        _fmtMoney(currency, resp.platformFee),
+        _fmtMoney(currency, resp.platformFeeDisplay),
       ),
-      _deliveryTableDataRow('1', 'Tax', _fmtMoney(currency, resp.tax)),
+      _deliveryTableDataRow('1', 'Tax', _fmtMoney(currency, resp.taxDisplay)),
       _deliveryTableDataRow('', ' ', ' '),
     ];
 
@@ -327,12 +329,12 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                 child: Text(
                   _fmtMoney(
                     currency,
-                    resp.grandTotal > 0
-                        ? resp.grandTotal
-                        : (resp.merchandiseSubtotal +
-                              resp.cartTotalDeliveryCharge +
-                              resp.platformFee +
-                              resp.tax),
+                    resp.grandTotalDisplay > 0
+                        ? resp.grandTotalDisplay
+                        : (resp.merchandiseSubtotalDisplay +
+                              resp.cartTotalDeliveryChargeDisplay +
+                              resp.platformFeeDisplay +
+                              resp.taxDisplay),
                   ),
                   textAlign: TextAlign.right,
                   style: TextStyle(
@@ -346,9 +348,9 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
         ),
         SizedBox(height: 6.h),
         Text(
-          'Merchandise ${_fmtMoney(currency, resp.merchandiseSubtotal)} · '
-          'Delivery ${_fmtMoney(currency, resp.cartTotalDeliveryCharge)} · '
-          'Fees ${_fmtMoney(currency, resp.platformFee + resp.tax)}'
+          'Merchandise ${_fmtMoney(currency, resp.merchandiseSubtotalDisplay)} · '
+          'Delivery ${_fmtMoney(currency, resp.cartTotalDeliveryChargeDisplay)} · '
+          'Fees ${_fmtMoney(currency, resp.platformFeeDisplay + resp.taxDisplay)}'
           '${resp.zonesAggregatedWeightKg > 0 ? ' · Zone weight ${resp.zonesAggregatedWeightKg} kg' : ''}',
           textAlign: TextAlign.right,
           style: TextStyle(fontSize: 10.sp, color: Colors.black54),
@@ -509,7 +511,13 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                   title: it.product.name,
                   imageUrl: it.product.image,
                   qty: it.quantity,
-                  price: double.tryParse(it.price) ?? 0,
+                  // Buyer-facing display price from API (falls back to ledger).
+                  price: double.tryParse(
+                        it.priceDisplay.trim().isNotEmpty
+                            ? it.priceDisplay
+                            : it.price,
+                      ) ??
+                      0,
                 ),
               )
               .toList();
@@ -517,9 +525,15 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
     final deliveryChargesAsync = ref.watch(cartDeliveryChargesProvider);
     final charges = deliveryChargesAsync.valueOrNull;
 
-    /// Authoritative delivery $ from GET /cart/delivery-charges when loaded.
+    final displayCurrency = charges?.displayCurrency ??
+        cartAsync.valueOrNull?.displayCurrency ??
+        (args != null && args.items.isNotEmpty
+            ? args.items.first.displayCurrency
+            : 'UGX');
+
+    /// Buyer-facing delivery amount from GET /cart/delivery-charges when loaded.
     final deliveryCost = charges != null
-        ? charges.cartTotalDeliveryCharge.toDouble()
+        ? charges.cartTotalDeliveryChargeDisplay.toDouble()
         : (args?.deliveryTotal ?? 0).toDouble();
 
     final List<ShippingOption> options = [
@@ -532,18 +546,24 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
 
     /// Payable total: API `cart_total_with_delivery_and_fees` (incl. fees), not cart-only args.
     final double checkoutTotal;
+    final double checkoutTotalDisplay;
     if (charges != null) {
-      final fullPayable = charges.grandTotal.toDouble();
       if (selectedShippingIndex == 0) {
-        checkoutTotal = fullPayable;
+        checkoutTotal = charges.grandTotal.toDouble();
+        checkoutTotalDisplay = charges.grandTotalDisplay.toDouble();
       } else {
         // Own pickup: no delivery component (merchandise + platform + tax).
         checkoutTotal =
             (charges.merchandiseSubtotal + charges.platformFee + charges.tax)
                 .toDouble();
+        checkoutTotalDisplay = (charges.merchandiseSubtotalDisplay +
+                charges.platformFeeDisplay +
+                charges.taxDisplay)
+            .toDouble();
       }
     } else {
       checkoutTotal = args?.grandTotal ?? 0;
+      checkoutTotalDisplay = checkoutTotal;
     }
 
     return Scaffold(
@@ -595,10 +615,13 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                       // Shipping selection only — order starts on Checkout tap.
                       ref.read(shippingMethodIndexProvider.notifier).state = i;
                     },
-                    currency: '\$',
+                    currency: displayCurrency,
                     onShippingDetails: deliveryChargesAsync.maybeWhen(
-                      data: (resp) =>
-                          () => _showDeliveryChargeDetails(context, resp, '\$'),
+                      data: (resp) => () => _showDeliveryChargeDetails(
+                            context,
+                            resp,
+                            resp.displayCurrency,
+                          ),
                       orElse: () => null,
                     ),
                   ),
@@ -620,6 +643,7 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       // Bottom total: args থেকে
       bottomNavigationBar: CustomTotalCheckoutSection(
         totalPrice: checkoutTotal,
+        totalLabel: formatApiMoney(checkoutTotalDisplay, displayCurrency),
         context: context,
         onCheckout: () => startCheckout(context),
       ),
@@ -790,7 +814,7 @@ class CustomItemShow extends StatefulWidget {
     this.selectedIndex = 0,
     this.onShippingChanged,
     this.onShippingDetails,
-    this.currency = '\$',
+    this.currency = 'UGX',
     this.titleItems = 'Items',
     this.titleShipping = 'Shipping Options',
   });
@@ -872,7 +896,7 @@ class _CustomItemShowState extends State<CustomItemShow> {
                   title: op.title,
                   priceLabel: op.cost == 0
                       ? 'Free'
-                      : '${widget.currency}${op.cost.toStringAsFixed(2)}',
+                      : formatApiMoney(op.cost, widget.currency),
                   selected: selected,
                   onTap: () {
                     setState(() => _selected = i);
@@ -977,7 +1001,7 @@ class _CustomItemShowState extends State<CustomItemShow> {
           SizedBox(width: 8.w),
 
           Text(
-            item.price.toStringAsFixed(2),
+            formatApiMoney(item.price, widget.currency),
             style: TextStyle(
               fontSize: 16.sp,
               fontWeight: FontWeight.w700,

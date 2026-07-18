@@ -76,14 +76,17 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                     ),
                   ),
                   SizedBox(height: 5.h),
-                  ref.watch(visibilityZonesProvider).when(
+                  ref
+                      .watch(visibilityZonesProvider)
+                      .when(
                         loading: () => const LinearProgressIndicator(),
                         error: (e, _) => Text(
                           e.toString().replaceFirst('Exception: ', ''),
                           style: TextStyle(color: Colors.red, fontSize: 12.sp),
                         ),
                         data: (zones) => DropdownButtonFormField<String>(
-                          initialValue: _selectedZone != null &&
+                          initialValue:
+                              _selectedZone != null &&
                                   zones.contains(_selectedZone)
                               ? _selectedZone
                               : null,
@@ -151,7 +154,8 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                           ),
                         ),
                         data: (towns) => DropdownButtonFormField<String>(
-                          initialValue: _selectedTown != null &&
+                          initialValue:
+                              _selectedTown != null &&
                                   towns.contains(_selectedTown)
                               ? _selectedTown
                               : null,

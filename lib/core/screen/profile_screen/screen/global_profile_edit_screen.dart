@@ -68,7 +68,7 @@ class _BuyerProfileEditScreenState
 
   /// Dropdown must contain [user.currency] — otherwise Flutter asserts when value is e.g. UGX.
   static const Set<String> _defaultCurrencyCodes = {
-    'USD', 'EUR', 'GBP', 'BDT', 'INR', 'JPY', 'CNY', 'AUD', 'CAD', 'UGX',
+    'UGX', 'KES', 'RWF', 'TZS', 'SSP', 'AED', 'CDF',
   };
 
   List<String> get _currencyMenuItems {
@@ -84,7 +84,7 @@ class _BuyerProfileEditScreenState
   String get _effectiveCurrencyDropdownValue {
     final items = _currencyMenuItems;
     final sel = _selectedCurrency?.trim() ?? '';
-    if (items.isEmpty) return 'USD';
+    if (items.isEmpty) return 'UGX';
     if (items.contains(sel)) return sel;
     return items.first;
   }
@@ -99,7 +99,7 @@ class _BuyerProfileEditScreenState
     phoneC = TextEditingController(text: widget.user.phone ?? '');
     final rawCurrency = widget.user.currency?.trim();
     _selectedCurrency =
-        rawCurrency != null && rawCurrency.isNotEmpty ? rawCurrency : 'USD';
+        rawCurrency != null && rawCurrency.isNotEmpty ? rawCurrency : 'UGX';
 
     // --------- buyer ----------
     ageC = TextEditingController(text: widget.user.buyer?.age ?? '');

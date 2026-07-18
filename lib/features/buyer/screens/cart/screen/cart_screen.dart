@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/custom_total_checkout_section.dart';
 import 'package:market_jango/features/buyer/screens/cart/data/cart_inc_dec_logic.dart';
@@ -189,6 +190,10 @@ class CartScreen extends ConsumerWidget {
             error: (e, _) => const SizedBox.shrink(),
             data: (items) => CustomTotalCheckoutSection(
               totalPrice: items.total,
+              totalLabel: formatApiMoney(
+                items.totalDisplay,
+                items.displayCurrency,
+              ),
               context: context,
               onCheckout: () {
                 final pd = _buildPaymentData(items.items, items.total);
@@ -324,7 +329,16 @@ class CartScreen extends ConsumerWidget {
                   ),
                   SizedBox(height: 8.h),
                   Text(
-                    item.price,
+                    formatApiMoney(
+                      visibleMoneyAmount(
+                        displayAmountRaw: item.priceDisplay,
+                        ugxAmountRaw: item.price,
+                      ),
+                      visibleMoneyCurrency(
+                        displayCurrency: item.displayCurrency,
+                        currency: item.currency,
+                      ),
+                    ),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18.sp,

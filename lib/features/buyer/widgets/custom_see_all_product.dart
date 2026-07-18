@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
 import 'package:market_jango/features/buyer/screens/product/product_details.dart';
 import 'package:market_jango/features/buyer/widgets/custom_discunt_card.dart';
@@ -34,7 +35,13 @@ class CustomSeeAllProduct extends ConsumerWidget {
                 CustomNewProduct(
                   width: 162,
                   height: 150,
-                  productPrices: products.sellPrice.toString(),
+                  productPrices: formatProductPriceLabel(
+                    sellPriceDisplayRaw:
+                        products.sellPriceDisplay?.toString(),
+                    sellPriceRaw: products.sellPrice?.toString(),
+                    displayCurrency: products.displayCurrency?.toString(),
+                    currency: products.currency?.toString(),
+                  ),
                   productName: products.name,
                   image: products.image,
                   imageHeight: 137,

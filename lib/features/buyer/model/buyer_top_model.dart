@@ -164,6 +164,10 @@ class TopProduct {
   final String? description;
   final String regularPrice;
   final String sellPrice;
+  final String regularPriceDisplay;
+  final String sellPriceDisplay;
+  final String currency;
+  final String displayCurrency;
   final String image;
   final int categoryId;
   final List<String>? color;
@@ -192,6 +196,10 @@ class TopProduct {
     this.description,
     required this.regularPrice,
     required this.sellPrice,
+    this.regularPriceDisplay = '',
+    this.sellPriceDisplay = '',
+    this.currency = 'UGX',
+    this.displayCurrency = 'UGX',
     required this.image,
     required this.categoryId,
     this.color,
@@ -223,6 +231,21 @@ class TopProduct {
       description: json['description'],
       regularPrice: json['regular_price']?.toString() ?? '',
       sellPrice: json['sell_price']?.toString() ?? '',
+      regularPriceDisplay:
+          (json['regular_price_display'] ?? json['regular_price'])
+                  ?.toString() ??
+              '',
+      sellPriceDisplay:
+          (json['sell_price_display'] ?? json['sell_price'])?.toString() ?? '',
+      currency: json['currency']?.toString().trim().isNotEmpty == true
+          ? json['currency'].toString().trim()
+          : 'UGX',
+      displayCurrency:
+          json['display_currency']?.toString().trim().isNotEmpty == true
+              ? json['display_currency'].toString().trim()
+              : (json['currency']?.toString().trim().isNotEmpty == true
+                  ? json['currency'].toString().trim()
+                  : 'UGX'),
       image: json['image'] ?? '',
       categoryId: json['category_id'] ?? 0,
       color: parsedColors,

@@ -9,6 +9,7 @@ import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/buyer_massage/model/chat_history_route_model.dart';
 import 'package:market_jango/core/screen/buyer_massage/screen/global_chat_screen.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
@@ -639,35 +640,50 @@ class ProductTitleAndDescription extends StatelessWidget {
           SizedBox(height: 12.h),
           Builder(
             builder: (context) {
-              final regularPrice =
+              final regularPriceUgx =
                   product.regularPrice.isFinite && product.regularPrice > 0
                   ? product.regularPrice
                   : 0.0;
-              final sellPrice =
+              final sellPriceUgx =
                   product.sellPrice.isFinite && product.sellPrice > 0
                   ? product.sellPrice
-                  : regularPrice;
-              final hasDiscount =
-                  regularPrice > sellPrice && sellPrice > 0 && regularPrice > 0;
+                  : regularPriceUgx;
+              // Discount % from ledger UGX amounts (ratio is currency-invariant).
+              final hasDiscount = regularPriceUgx > sellPriceUgx &&
+                  sellPriceUgx > 0 &&
+                  regularPriceUgx > 0;
 
-              String formatPrice(double price) {
-                if (!price.isFinite || price <= 0) return '0.00';
-                final formatted = price.toStringAsFixed(2);
-                final parts = formatted.split('.');
-                final integerPart = parts[0];
-                final decimalPart = parts.length > 1 ? parts[1] : '00';
-                final integerWithCommas = integerPart.replaceAllMapped(
-                  RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                  (Match m) => '${m[1]},',
-                );
-                return '$integerWithCommas.$decimalPart';
-              }
+              final sellLabel = formatApiMoney(
+                visibleMoneyAmount(
+                  displayAmount: product.sellPriceDisplay > 0
+                      ? product.sellPriceDisplay
+                      : null,
+                  ugxAmount: sellPriceUgx,
+                ),
+                visibleMoneyCurrency(
+                  displayCurrency: product.displayCurrency,
+                  currency: product.currency,
+                ),
+              );
+              final regularLabel = formatApiMoney(
+                visibleMoneyAmount(
+                  displayAmount: product.regularPriceDisplay > 0
+                      ? product.regularPriceDisplay
+                      : null,
+                  ugxAmount: regularPriceUgx,
+                ),
+                visibleMoneyCurrency(
+                  displayCurrency: product.displayCurrency,
+                  currency: product.currency,
+                ),
+              );
 
               int calculateDiscount() {
                 if (!hasDiscount) return 0;
-                if (regularPrice <= 0) return 0;
+                if (regularPriceUgx <= 0) return 0;
                 final discount =
-                    ((regularPrice - sellPrice) / regularPrice * 100).round();
+                    ((regularPriceUgx - sellPriceUgx) / regularPriceUgx * 100)
+                        .round();
                 return discount > 0 ? discount : 0;
               }
 
@@ -677,7 +693,7 @@ class ProductTitleAndDescription extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    '\$${formatPrice(sellPrice)}',
+                    sellLabel,
                     style: TextStyle(
                       fontSize: 28.sp,
                       fontWeight: FontWeight.bold,
@@ -688,7 +704,7 @@ class ProductTitleAndDescription extends StatelessWidget {
                   ),
                   if (hasDiscount) ...[
                     Text(
-                      '\$${formatPrice(regularPrice)}',
+                      regularLabel,
                       style: TextStyle(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w400,

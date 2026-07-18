@@ -72,6 +72,10 @@ class NewItemsProduct {
   final String description;
   final String regularPrice;
   final String sellPrice;
+  final String regularPriceDisplay;
+  final String sellPriceDisplay;
+  final String currency;
+  final String displayCurrency;
   final String image;
   final int vendorId;
   final int categoryId;
@@ -87,6 +91,10 @@ class NewItemsProduct {
     required this.description,
     required this.regularPrice,
     required this.sellPrice,
+    this.regularPriceDisplay = '',
+    this.sellPriceDisplay = '',
+    this.currency = 'UGX',
+    this.displayCurrency = 'UGX',
     required this.image,
     required this.vendorId,
     required this.categoryId,
@@ -127,6 +135,19 @@ class NewItemsProduct {
       description: _toStr(src['description']),
       regularPrice: _toStr(src['regular_price'], fallback: '0.00'),
       sellPrice: _toStr(src['sell_price'], fallback: '0.00'),
+      regularPriceDisplay: _toStr(
+        src['regular_price_display'] ?? src['regular_price'],
+        fallback: '0.00',
+      ),
+      sellPriceDisplay: _toStr(
+        src['sell_price_display'] ?? src['sell_price'],
+        fallback: '0.00',
+      ),
+      currency: _toStr(src['currency'], fallback: 'UGX'),
+      displayCurrency: _toStr(
+        src['display_currency'] ?? src['currency'],
+        fallback: 'UGX',
+      ),
       image: _toStr(src['image']),
       vendorId: _toInt(src['vendor_id']),
       categoryId: _toInt(src['category_id']),
