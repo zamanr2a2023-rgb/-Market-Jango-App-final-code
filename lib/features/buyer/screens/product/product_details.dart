@@ -14,6 +14,7 @@ import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
+import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/widget/highlighted_product_shell.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/cart_data.dart';
 import 'package:market_jango/features/buyer/screens/cart/screen/cart_screen.dart';
 import 'package:market_jango/features/buyer/screens/review/review_screen.dart';
@@ -183,8 +184,7 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
                       product.vendor.user.name ??
                       product.vendor.businessName ??
                       '',
-                  image:
-                      (product.vendor.user.image.isNotEmpty)
+                  image: (product.vendor.user.image.isNotEmpty)
                       ? product.vendor.user.image
                       : "https://www.selikoff.net/blog-files/null-value.gif",
                   vendorId: product.vendor.id,
@@ -224,6 +224,7 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
                 ),
 
                 SizedBox(height: 16.h),
+
                 /// Sale type & Terms – under Specifications (orange tag + orange box)
                 ProductSaleTypeAndTermsUnderSection(
                   saleType: product.saleType,
@@ -257,7 +258,7 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
                           ),
                         ],
                       ),
-                    
+
                       JustForYouProduct(),
                     ],
                   ),
@@ -649,7 +650,8 @@ class ProductTitleAndDescription extends StatelessWidget {
                   ? product.sellPrice
                   : regularPriceUgx;
               // Discount % from ledger UGX amounts (ratio is currency-invariant).
-              final hasDiscount = regularPriceUgx > sellPriceUgx &&
+              final hasDiscount =
+                  regularPriceUgx > sellPriceUgx &&
                   sellPriceUgx > 0 &&
                   regularPriceUgx > 0;
 
@@ -794,11 +796,7 @@ class ProductSaleTypeAndTermsUnderSection extends StatelessWidget {
             Wrap(
               spacing: 8.w,
               runSpacing: 8.h,
-              children: [
-                _OrangeTag(
-                  text: _capitalize(saleType!.trim()),
-                ),
-              ],
+              children: [_OrangeTag(text: _capitalize(saleType!.trim()))],
             ),
             SizedBox(height: 16.h),
           ],
@@ -828,10 +826,7 @@ class ProductSaleTypeAndTermsUnderSection extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(
-                  color: Colors.orange.shade200,
-                  width: 1.2,
-                ),
+                border: Border.all(color: Colors.orange.shade200, width: 1.2),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.orange.shade100.withOpacity(0.4),
@@ -903,11 +898,7 @@ class ProductSaleTypeChip extends StatelessWidget {
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Icon(
-            Icons.sell_rounded,
-            size: 18.r,
-            color: AllColor.orange,
-          ),
+          Icon(Icons.sell_rounded, size: 18.r, color: AllColor.orange),
           SizedBox(width: 8.w),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
@@ -971,10 +962,7 @@ class ProductTermsSection extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.orange.shade50,
               borderRadius: BorderRadius.circular(12.r),
-              border: Border.all(
-                color: Colors.orange.shade200,
-                width: 1.2,
-              ),
+              border: Border.all(color: Colors.orange.shade200, width: 1.2),
               boxShadow: [
                 BoxShadow(
                   color: Colors.orange.shade100.withOpacity(0.4),
@@ -1328,7 +1316,11 @@ class ProductMaterialAndStoreInfo extends ConsumerWidget {
               onTap: () {
                 context.push(
                   BuyerVendorProfileScreen.routeName,
-                  extra: {'vendorId': vendorId, 'userId': userId},
+                  extra: buyerVendorProfileExtra(
+                    vendorId: vendorId,
+                    userId: userId,
+                    highlightProductId: product.id,
+                  ),
                 );
               },
               borderRadius: BorderRadius.circular(16.r),

@@ -166,6 +166,25 @@ class BuyerAPIController {
         .toString();
   }
 
+  static String visibilityVendorsByCategory({
+    required int categoryId,
+    String? zone,
+    String? state,
+    String? town,
+    int perPage = 20,
+  }) {
+    final q = <String, String>{
+      'category_id': '$categoryId',
+      'per_page': '$perPage',
+    };
+    if (zone != null && zone.trim().isNotEmpty) q['zone'] = zone.trim();
+    if (state != null && state.trim().isNotEmpty) q['state'] = state.trim();
+    if (town != null && town.trim().isNotEmpty) q['town'] = town.trim();
+    return Uri.parse(
+      '$_base_api/buyer/visibility-locations/vendors-by-category',
+    ).replace(queryParameters: q).toString();
+  }
+
   // --- Follow vendor (buyer) ---
   /// `GET /follows/vendor/{vendorId}/followers`
   static String vendorFollowers(int vendorId, {int page = 1}) =>

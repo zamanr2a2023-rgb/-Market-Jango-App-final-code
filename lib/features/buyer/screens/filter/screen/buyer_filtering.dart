@@ -5,9 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/features/buyer/data/buyer_categori_data.dart';
 import 'package:market_jango/features/buyer/screens/cart/data/visibility_locations_data.dart';
 import 'package:market_jango/features/buyer/screens/filter/data/visibility_vendors_data.dart';
 import 'package:market_jango/features/buyer/screens/filter/screen/available_vendors_screen.dart';
+
+enum _FilterTab { location, category }
 
 class LocationFilteringTab extends ConsumerStatefulWidget {
   const LocationFilteringTab({super.key});
@@ -18,8 +21,11 @@ class LocationFilteringTab extends ConsumerStatefulWidget {
 }
 
 class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
+  _FilterTab _tab = _FilterTab.location;
   String? _selectedZone;
   String? _selectedTown;
+  int? _selectedCategoryId;
+  String? _selectedCategoryName;
   late final TextEditingController _stateController;
 
   @override
@@ -36,7 +42,7 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
 
   @override
   Widget build(BuildContext context) {
-    TextTheme theme = Theme.of(context).textTheme;
+    final theme = Theme.of(context).textTheme;
 
     return Scaffold(
       backgroundColor: Colors.white.withOpacity(0.32),
@@ -55,156 +61,28 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  /// Close button
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
-
-                  SizedBox(height: 15.h),
-
-                  /// Location
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      //"Enter your Location"
-                      ref.t(BKeys.enterLocation),
-                      style: theme.headlineMedium!.copyWith(fontSize: 14),
-                    ),
-                  ),
-                  SizedBox(height: 5.h),
-                  ref
-                      .watch(visibilityZonesProvider)
-                      .when(
-                        loading: () => const LinearProgressIndicator(),
-                        error: (e, _) => Text(
-                          e.toString().replaceFirst('Exception: ', ''),
-                          style: TextStyle(color: Colors.red, fontSize: 12.sp),
-                        ),
-                        data: (zones) => DropdownButtonFormField<String>(
-                          initialValue:
-                              _selectedZone != null &&
-                                  zones.contains(_selectedZone)
-                              ? _selectedZone
-                              : null,
-                          decoration: buildInputDecoration(),
-                          hint: Text(ref.t(BKeys.searchLocation)),
-                          items: zones
-                              .map(
-                                (z) => DropdownMenuItem<String>(
-                                  value: z,
-                                  child: Text(z),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) {
-                            setState(() {
-                              _selectedZone = v;
-                              _selectedTown = null;
-                            });
-                          },
-                        ),
+                  Row(
+                    children: [
+                      Expanded(child: _buildTabButton('Location', _FilterTab.location)),
+                      SizedBox(width: 10.w),
+                      Expanded(child: _buildTabButton('Category', _FilterTab.category)),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
                       ),
-
+                    ],
+                  ),
                   SizedBox(height: 12.h),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'State',
-                      style: theme.headlineMedium!.copyWith(fontSize: 14),
-                    ),
-                  ),
-                  SizedBox(height: 5.h),
-                  TextField(
-                    controller: _stateController,
-                    enabled: (_selectedZone ?? '').trim().isNotEmpty,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: buildInputDecoration().copyWith(
-                      hintText: 'Type state (optional)',
-                    ),
-                  ),
-
-                  SizedBox(height: 12.h),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Town',
-                      style: theme.headlineMedium!.copyWith(fontSize: 14),
-                    ),
-                  ),
-                  SizedBox(height: 5.h),
-                  ref
-                      .watch(
-                        visibilityTownsByZoneProvider(
-                          (_selectedZone ?? '').trim(),
-                        ),
-                      )
-                      .when(
-                        loading: () => const LinearProgressIndicator(),
-                        error: (e, _) => DropdownButtonFormField<String>(
-                          decoration: buildInputDecoration(),
-                          items: const [],
-                          onChanged: null,
-                          hint: Text(
-                            e.toString().replaceFirst('Exception: ', ''),
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                        ),
-                        data: (towns) => DropdownButtonFormField<String>(
-                          initialValue:
-                              _selectedTown != null &&
-                                  towns.contains(_selectedTown)
-                              ? _selectedTown
-                              : null,
-                          decoration: buildInputDecoration(),
-                          hint: const Text('Select town'),
-                          items: towns
-                              .map(
-                                (t) => DropdownMenuItem<String>(
-                                  value: t,
-                                  child: Text(t),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: ((_selectedZone ?? '').trim().isEmpty)
-                              ? null
-                              : (v) => setState(() => _selectedTown = v),
-                        ),
-                      ),
-
+                  if (_tab == _FilterTab.location)
+                    _buildLocationForm(theme)
+                  else
+                    _buildCategoryForm(theme),
                   SizedBox(height: 20.h),
-
-                  /// Apply button - call API and show products
                   SizedBox(
                     width: double.infinity,
                     height: 48.h,
                     child: ElevatedButton(
-                      onPressed: () {
-                        final zone = (_selectedZone ?? '').trim();
-                        final st = _stateController.text.trim();
-                        final town = (_selectedTown ?? '').trim();
-
-                        if (zone.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please enter your location'),
-                            ),
-                          );
-                          return;
-                        }
-                        Navigator.pop(context);
-                        context.push(
-                          AvailableVendorsScreen.routeName,
-                          extra: VisibilityVendorsParams(
-                            zone: zone,
-                            state: st.isEmpty ? null : st,
-                            town: town.isEmpty ? null : town,
-                          ),
-                        );
-                      },
+                      onPressed: _onApply,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AllColor.loginButtomColor,
                         foregroundColor: Colors.white,
@@ -227,6 +105,277 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(String label, _FilterTab tab) {
+    final selected = _tab == tab;
+    return InkWell(
+      onTap: () => setState(() => _tab = tab),
+      borderRadius: BorderRadius.circular(10.r),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 10.h),
+        decoration: BoxDecoration(
+          color: selected ? AllColor.loginButtomColor : AllColor.dropDown,
+          borderRadius: BorderRadius.circular(10.r),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : Colors.black87,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocationForm(TextTheme theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            ref.t(BKeys.enterLocation),
+            style: theme.headlineMedium!.copyWith(fontSize: 14),
+          ),
+        ),
+        SizedBox(height: 5.h),
+        ref.watch(visibilityZonesProvider).when(
+              loading: () => const LinearProgressIndicator(),
+              error: (e, _) => Text(
+                e.toString().replaceFirst('Exception: ', ''),
+                style: TextStyle(color: Colors.red, fontSize: 12.sp),
+              ),
+              data: (zones) => DropdownButtonFormField<String>(
+                initialValue:
+                    _selectedZone != null && zones.contains(_selectedZone)
+                        ? _selectedZone
+                        : null,
+                decoration: buildInputDecoration(),
+                hint: Text(ref.t(BKeys.searchLocation)),
+                items: zones
+                    .map(
+                      (z) => DropdownMenuItem<String>(
+                        value: z,
+                        child: Text(z),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  setState(() {
+                    _selectedZone = v;
+                    _selectedTown = null;
+                  });
+                },
+              ),
+            ),
+        SizedBox(height: 12.h),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'State',
+            style: theme.headlineMedium!.copyWith(fontSize: 14),
+          ),
+        ),
+        SizedBox(height: 5.h),
+        TextField(
+          controller: _stateController,
+          enabled: (_selectedZone ?? '').trim().isNotEmpty,
+          textCapitalization: TextCapitalization.words,
+          decoration: buildInputDecoration().copyWith(
+            hintText: 'Type state (optional)',
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Town',
+            style: theme.headlineMedium!.copyWith(fontSize: 14),
+          ),
+        ),
+        SizedBox(height: 5.h),
+        ref
+            .watch(
+              visibilityTownsByZoneProvider(
+                (_selectedZone ?? '').trim(),
+              ),
+            )
+            .when(
+              loading: () => const LinearProgressIndicator(),
+              error: (e, _) => DropdownButtonFormField<String>(
+                decoration: buildInputDecoration(),
+                items: const [],
+                onChanged: null,
+                hint: Text(
+                  e.toString().replaceFirst('Exception: ', ''),
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+              data: (towns) => DropdownButtonFormField<String>(
+                initialValue:
+                    _selectedTown != null && towns.contains(_selectedTown)
+                        ? _selectedTown
+                        : null,
+                decoration: buildInputDecoration(),
+                hint: const Text('Select town'),
+                items: towns
+                    .map(
+                      (t) => DropdownMenuItem<String>(
+                        value: t,
+                        child: Text(t),
+                      ),
+                    )
+                    .toList(),
+                onChanged: ((_selectedZone ?? '').trim().isEmpty)
+                    ? null
+                    : (v) => setState(() => _selectedTown = v),
+              ),
+            ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryForm(TextTheme theme) {
+    return SizedBox(
+      height: 280.h,
+      child: ref.watch(categoriesProvider).when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(
+              child: Text(
+                e.toString().replaceFirst('Exception: ', ''),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.red, fontSize: 12.sp),
+              ),
+            ),
+            data: (resp) {
+              final categories = (resp?.data.data ?? [])
+                  .where((c) => c.status == 'Active')
+                  .toList();
+
+              if (categories.isEmpty) {
+                return const Center(child: Text('No categories found'));
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select category',
+                    style: theme.headlineMedium!.copyWith(fontSize: 14),
+                  ),
+                  SizedBox(height: 8.h),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: categories.length,
+                      separatorBuilder: (_, __) => SizedBox(height: 8.h),
+                      itemBuilder: (context, index) {
+                        final cat = categories[index];
+                        final selected = _selectedCategoryId == cat.id;
+                        return InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedCategoryId = cat.id;
+                              _selectedCategoryName = cat.name;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(10.r),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 14.w,
+                              vertical: 12.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? AllColor.loginButtomColor.withOpacity(0.12)
+                                  : AllColor.dropDown,
+                              borderRadius: BorderRadius.circular(10.r),
+                              border: Border.all(
+                                color: selected
+                                    ? AllColor.loginButtomColor
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    cat.name,
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: selected
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                if (selected)
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: AllColor.loginButtomColor,
+                                    size: 20.sp,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+    );
+  }
+
+  void _onApply() {
+    if (_tab == _FilterTab.location) {
+      final zone = (_selectedZone ?? '').trim();
+      final st = _stateController.text.trim();
+      final town = (_selectedTown ?? '').trim();
+
+      if (zone.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter your location')),
+        );
+        return;
+      }
+
+      Navigator.pop(context);
+      context.push(
+        AvailableVendorsScreen.routeName,
+        extra: AvailableVendorsScreenArgs.location(
+          VisibilityVendorsParams(
+            zone: zone,
+            state: st.isEmpty ? null : st,
+            town: town.isEmpty ? null : town,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_selectedCategoryId == null || _selectedCategoryId! <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a category')),
+      );
+      return;
+    }
+
+    Navigator.pop(context);
+    context.push(
+      AvailableVendorsScreen.routeName,
+      extra: AvailableVendorsScreenArgs.category(
+        CategoryVendorsParams(
+          categoryId: _selectedCategoryId!,
+          categoryName: _selectedCategoryName,
+        ),
       ),
     );
   }

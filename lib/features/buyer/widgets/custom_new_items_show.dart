@@ -8,6 +8,7 @@ import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
 import 'package:market_jango/features/buyer/data/new_items_data.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
+import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/widget/highlighted_product_shell.dart';
 
 class CustomNewItemsShow extends ConsumerWidget {
   const CustomNewItemsShow({super.key});
@@ -48,10 +49,11 @@ class CustomNewItemsShow extends ConsumerWidget {
                       onTap: () {
                         context.push(
                           BuyerVendorProfileScreen.routeName,
-                          extra: {
-                            'vendorId': products[index].vendor.id,
-                            'userId': products[index].vendor.userId,
-                          },
+                          extra: buyerVendorProfileExtra(
+                            vendorId: products[index].vendor.id,
+                            userId: products[index].vendor.userId,
+                            highlightProductId: products[index].id,
+                          ),
                         );
                       },
                     ),
@@ -89,10 +91,11 @@ class CustomNewItemsShow extends ConsumerWidget {
                   onTap: () {
                     context.push(
                       BuyerVendorProfileScreen.routeName,
-                      extra: {
-                        'vendorId': product.vendor.id,
-                        'userId': product.vendor.userId,
-                      },
+                      extra: buyerVendorProfileExtra(
+                        vendorId: product.vendor.id,
+                        userId: product.vendor.userId,
+                        highlightProductId: product.id,
+                      ),
                     );
                   },
                 ),

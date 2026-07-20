@@ -30,12 +30,20 @@ import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'buyer_vendor_cetagory_screen.dart';
 import 'buyer_vendor_followers_screen.dart';
 import 'vendor_promotion_screen.dart';
+import '../widget/highlighted_product_shell.dart';
 
 /// First 4 products from GET api/product/vendor/{id} (see doc/API_PRODUCT_VENDOR.md). Shown above Popular.
 class VendorFirstFourProductSection extends ConsumerWidget {
-  const VendorFirstFourProductSection({super.key, required this.vendorId});
+  const VendorFirstFourProductSection({
+    super.key,
+    required this.vendorId,
+    this.highlightProductId,
+    this.highlightKey,
+  });
 
   final int vendorId;
+  final int? highlightProductId;
+  final GlobalKey? highlightKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,7 +55,9 @@ class VendorFirstFourProductSection extends ConsumerWidget {
       ),
       error: (e, _) => Padding(
         padding: EdgeInsets.symmetric(vertical: 8.h),
-        child: Center(child: Text(e.toString(), style: TextStyle(fontSize: 12.sp))),
+        child: Center(
+          child: Text(e.toString(), style: TextStyle(fontSize: 12.sp)),
+        ),
       ),
       data: (products) {
         if (products.isEmpty) return const SizedBox.shrink();
@@ -64,20 +74,27 @@ class VendorFirstFourProductSection extends ConsumerWidget {
           itemCount: products.length,
           itemBuilder: (context, index) {
             final p = products[index];
+            final isHighlighted =
+                highlightProductId != null && p.id == highlightProductId;
             return GestureDetector(
               onTap: () => context.push(ProductDetails.routeName, extra: p.id),
-              child: CustomNewProduct(
-                width: 162.w,
-                height: 175.h,
-                productName: p.name,
-                productPrices: formatProductPriceLabel(
-                  sellPriceDisplay: p.sellPriceDisplay,
-                  sellPrice: p.sellPrice,
-                  displayCurrency: p.displayCurrency,
-                  currency: p.currency,
+              child: HighlightedProductShell(
+                key: isHighlighted ? highlightKey : null,
+                isHighlighted: isHighlighted,
+                child: CustomNewProduct(
+                  width: 162.w,
+                  height: 175.h,
+                  isHighlighted: isHighlighted,
+                  productName: p.name,
+                  productPrices: formatProductPriceLabel(
+                    sellPriceDisplay: p.sellPriceDisplay,
+                    sellPrice: p.sellPrice,
+                    displayCurrency: p.displayCurrency,
+                    currency: p.currency,
+                  ),
+                  image: p.image,
+                  imageHeight: 175,
                 ),
-                image: p.image,
-                imageHeight: 175,
               ),
             );
           },
@@ -87,19 +104,65 @@ class VendorFirstFourProductSection extends ConsumerWidget {
   }
 }
 
-class BuyerVendorProfileScreen extends ConsumerWidget {
+class BuyerVendorProfileScreen extends ConsumerStatefulWidget {
   const BuyerVendorProfileScreen({
     super.key,
     required this.vendorId,
     required this.userId,
+    this.highlightProductId,
   });
 
   static final String routeName = '/vendorProfileScreen';
   final int vendorId;
   final int userId;
+  final int? highlightProductId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BuyerVendorProfileScreen> createState() =>
+      _BuyerVendorProfileScreenState();
+}
+
+class _BuyerVendorProfileScreenState
+    extends ConsumerState<BuyerVendorProfileScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _highlightKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.highlightProductId != null && widget.highlightProductId! > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToHighlight());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scrollToHighlight() async {
+    for (var attempt = 0; attempt < 6; attempt++) {
+      await Future.delayed(Duration(milliseconds: attempt == 0 ? 400 : 350));
+      if (!mounted) return;
+      final ctx = _highlightKey.currentContext;
+      if (ctx != null) {
+        await Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeInOut,
+          alignment: 0.25,
+        );
+        return;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vendorId = widget.vendorId;
+    final userId = widget.userId;
+    final highlightProductId = widget.highlightProductId;
     final async = ref.watch(vendorCategoryProductsProvider(vendorId));
     final int? effectiveUserId;
     if (userId > 0) {
@@ -115,6 +178,7 @@ class BuyerVendorProfileScreen extends ConsumerWidget {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
+          controller: _scrollController,
           child: Column(
             children: [
               // Cover image section with back icon overlay
@@ -256,9 +320,17 @@ class BuyerVendorProfileScreen extends ConsumerWidget {
                 padding: EdgeInsets.symmetric(horizontal: 10.w),
                 child: Column(
                   children: [
-                    VendorFirstFourProductSection(vendorId: vendorId),
+                    VendorFirstFourProductSection(
+                      vendorId: vendorId,
+                      highlightProductId: highlightProductId,
+                      highlightKey: _highlightKey,
+                    ),
                     SeeMoreButton(name: "Popular", isSeeMore: false),
-                    PopularProduct(vendorId: vendorId),
+                    PopularProduct(
+                      vendorId: vendorId,
+                      highlightProductId: highlightProductId,
+                      highlightKey: _highlightKey,
+                    ),
 
                     async.when(
                       loading: () => const Center(child: Text('Loading...')),
@@ -283,7 +355,11 @@ class BuyerVendorProfileScreen extends ConsumerWidget {
                                   },
                                 ),
                               if (c.products.isNotEmpty)
-                                FashionProduct(products: c.products),
+                                FashionProduct(
+                                  products: c.products,
+                                  highlightProductId: highlightProductId,
+                                  highlightKey: _highlightKey,
+                                ),
                             ],
                           ],
                         );
@@ -415,7 +491,9 @@ class CustomVendorUpperSection extends ConsumerWidget {
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(24.r),
                             elevation: 1,
-                            shadowColor: Colors.orange.shade200.withOpacity(0.4),
+                            shadowColor: Colors.orange.shade200.withOpacity(
+                              0.4,
+                            ),
                             child: InkWell(
                               onTap: () {
                                 VendorPromotionScreen.showLinkCreatePopup(
@@ -439,7 +517,9 @@ class CustomVendorUpperSection extends ConsumerWidget {
                                   color: Colors.white,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.orange.shade100.withOpacity(0.5),
+                                      color: Colors.orange.shade100.withOpacity(
+                                        0.5,
+                                      ),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
@@ -945,9 +1025,16 @@ class _VendorFollowActions extends ConsumerWidget {
 }
 
 class FashionProduct extends StatelessWidget {
-  const FashionProduct({super.key, this.products});
+  const FashionProduct({
+    super.key,
+    this.products,
+    this.highlightProductId,
+    this.highlightKey,
+  });
 
   final List<VcpProduct>? products;
+  final int? highlightProductId;
+  final GlobalKey? highlightKey;
 
   @override
   Widget build(BuildContext context) {
@@ -972,19 +1059,7 @@ class FashionProduct extends StatelessWidget {
                         ProductDetails.routeName,
                         extra: items[index].id,
                       ),
-                      child: CustomNewProduct(
-                        width: 130,
-                        height: 140,
-                        productName: items[index].name,
-                        productPrices: formatProductPriceLabel(
-                          sellPriceDisplay: items[index].sellPriceDisplay,
-                          sellPrice: items[index].sellPrice,
-                          displayCurrency: items[index].displayCurrency,
-                          currency: items[index].currency,
-                        ),
-                        image: items[index].image,
-                        imageHeight: 130,
-                      ),
+                      child: _buildProductCard(items[index]),
                     ),
                     if (index < items.length - 1) SizedBox(width: 12.w),
                   ],
@@ -1004,31 +1079,49 @@ class FashionProduct extends StatelessWidget {
                   child: GestureDetector(
                     onTap: () =>
                         context.push(ProductDetails.routeName, extra: p.id),
-                    child: CustomNewProduct(
-                      width: 130,
-                      height: 140,
-                      productName: p.name,
-                      productPrices: formatProductPriceLabel(
-                        sellPriceDisplay: p.sellPriceDisplay,
-                        sellPrice: p.sellPrice,
-                        displayCurrency: p.displayCurrency,
-                        currency: p.currency,
-                      ),
-                      image: p.image,
-                      imageHeight: 130,
-                    ),
+                    child: _buildProductCard(p),
                   ),
                 );
               },
             ),
     );
   }
+
+  Widget _buildProductCard(VcpProduct p) {
+    final isHighlighted =
+        highlightProductId != null && p.id == highlightProductId;
+    return HighlightedProductShell(
+      key: isHighlighted ? highlightKey : null,
+      isHighlighted: isHighlighted,
+      child: CustomNewProduct(
+        width: 130,
+        height: 140,
+        isHighlighted: isHighlighted,
+        productName: p.name,
+        productPrices: formatProductPriceLabel(
+          sellPriceDisplay: p.sellPriceDisplay,
+          sellPrice: p.sellPrice,
+          displayCurrency: p.displayCurrency,
+          currency: p.currency,
+        ),
+        image: p.image,
+        imageHeight: 130,
+      ),
+    );
+  }
 }
 
 class PopularProduct extends ConsumerWidget {
-  const PopularProduct({super.key, required this.vendorId});
+  const PopularProduct({
+    super.key,
+    required this.vendorId,
+    this.highlightProductId,
+    this.highlightKey,
+  });
 
-  final int vendorId; // pass the ID you used in Postman (e.g., 1)
+  final int vendorId;
+  final int? highlightProductId;
+  final GlobalKey? highlightKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1059,22 +1152,29 @@ class PopularProduct extends ConsumerWidget {
           itemCount: items.length,
           itemBuilder: (context, index) {
             final p = items[index].product;
+            final isHighlighted =
+                highlightProductId != null && p.id == highlightProductId;
 
             return GestureDetector(
               onTap: () => context.push(ProductDetails.routeName, extra: p.id),
               child: Stack(
                 children: [
-                  CustomNewProduct(
-                    width: 162.w,
-                    height: 175.h,
-                    productName: p.name,
-                    productPrices: formatProductPriceLabel(
-                      sellPriceDisplay: p.sellPriceDisplay,
-                      sellPrice: p.sellPrice,
-                      displayCurrency: p.displayCurrency,
-                      currency: p.currency,
+                  HighlightedProductShell(
+                    key: isHighlighted ? highlightKey : null,
+                    isHighlighted: isHighlighted,
+                    child: CustomNewProduct(
+                      width: 162.w,
+                      height: 175.h,
+                      isHighlighted: isHighlighted,
+                      productName: p.name,
+                      productPrices: formatProductPriceLabel(
+                        sellPriceDisplay: p.sellPriceDisplay,
+                        sellPrice: p.sellPrice,
+                        displayCurrency: p.displayCurrency,
+                        currency: p.currency,
+                      ),
+                      image: p.image,
                     ),
-                    image: p.image,
                   ),
                   if (p.discount > 0)
                     Positioned(

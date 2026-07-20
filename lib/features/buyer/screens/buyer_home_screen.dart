@@ -25,6 +25,7 @@ import 'package:market_jango/features/buyer/model/buyer_top_model.dart';
 import 'package:market_jango/features/buyer/screens/all_categori/screen/all_categori_screen.dart';
 import 'package:market_jango/features/buyer/screens/all_categori/screen/category_product_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
+import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/widget/highlighted_product_shell.dart';
 import 'package:market_jango/features/buyer/screens/filter/screen/buyer_filtering.dart';
 import 'package:market_jango/features/buyer/screens/see_just_for_you_screen.dart';
 import 'package:market_jango/features/buyer/widgets/custom_categories.dart';
@@ -268,10 +269,11 @@ class JustForYouProduct extends ConsumerWidget {
 
                 context.push(
                   BuyerVendorProfileScreen.routeName,
-                  extra: {
-                    'vendorId': detail.vendor.id,
-                    'userId': detail.vendor.userId,
-                  },
+                  extra: buyerVendorProfileExtra(
+                    vendorId: detail.vendor.id,
+                    userId: detail.vendor.userId,
+                    highlightProductId: detail.id,
+                  ),
                 );
               },
               child: CustomNewProduct(
@@ -507,10 +509,11 @@ class BuyerHomeSearchBar extends ConsumerWidget {
                 onItemSelected: (p) {
                   context.push(
                     BuyerVendorProfileScreen.routeName,
-                    extra: {
-                      'vendorId': p.vendor?.id ?? 0,
-                      'userId': p.vendor?.userId ?? 0,
-                    },
+                    extra: buyerVendorProfileExtra(
+                      vendorId: p.vendor?.id ?? 0,
+                      userId: p.vendor?.userId ?? 0,
+                      highlightProductId: p.id,
+                    ),
                   );
                 },
                 hintText: ref.t(BKeys.searchProduct),

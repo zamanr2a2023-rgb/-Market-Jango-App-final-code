@@ -497,12 +497,18 @@ final GoRouter router = GoRouter(
       name: AvailableVendorsScreen.routeName,
       builder: (context, state) {
         final extra = state.extra;
-        if (extra is! VisibilityVendorsParams) {
-          return const Scaffold(
-            body: Center(child: Text('Invalid vendor filter params')),
+        if (extra is AvailableVendorsScreenArgs) {
+          return AvailableVendorsScreen(args: extra);
+        }
+        // Backward compatibility for older navigation calls.
+        if (extra is VisibilityVendorsParams) {
+          return AvailableVendorsScreen(
+            args: AvailableVendorsScreenArgs.location(extra),
           );
         }
-        return AvailableVendorsScreen(params: extra);
+        return const Scaffold(
+          body: Center(child: Text('Invalid vendor filter params')),
+        );
       },
     ),
 
@@ -640,9 +646,7 @@ final GoRouter router = GoRouter(
         final extra = state.extra;
         final id = extra is int ? extra : int.tryParse('$extra') ?? 0;
         if (id <= 0) {
-          return const Scaffold(
-            body: Center(child: Text('Invalid driver')),
-          );
+          return const Scaffold(body: Center(child: Text('Invalid driver')));
         }
         return PublicDriverFollowersScreen(driverId: id);
       },
@@ -877,10 +881,15 @@ final GoRouter router = GoRouter(
         final extra = state.extra;
         int vendorId;
         int userId = 0;
+        int? highlightProductId;
 
         if (extra is Map<String, dynamic>) {
           vendorId = extra['vendorId'] as int? ?? 0;
           userId = extra['userId'] as int? ?? 0;
+          final highlight = extra['highlightProductId'];
+          highlightProductId = highlight is int
+              ? highlight
+              : int.tryParse('$highlight');
         } else if (extra is int) {
           // Backward compatibility: if only int is passed, treat it as vendorId
           // and try to get userId from AuthLocalStorage
@@ -890,7 +899,11 @@ final GoRouter router = GoRouter(
           vendorId = 0;
         }
 
-        return BuyerVendorProfileScreen(vendorId: vendorId, userId: userId);
+        return BuyerVendorProfileScreen(
+          vendorId: vendorId,
+          userId: userId,
+          highlightProductId: highlightProductId,
+        );
       },
     ),
     GoRoute(
@@ -900,9 +913,7 @@ final GoRouter router = GoRouter(
         final extra = state.extra;
         final id = extra is int ? extra : int.tryParse('$extra') ?? 0;
         if (id <= 0) {
-          return const Scaffold(
-            body: Center(child: Text('Invalid vendor')),
-          );
+          return const Scaffold(body: Center(child: Text('Invalid vendor')));
         }
         return BuyerVendorFollowersScreen(vendorId: id);
       },

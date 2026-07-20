@@ -8,6 +8,7 @@ import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/features/buyer/data/buyer_top_data.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
+import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/widget/highlighted_product_shell.dart';
 
 class CustomTopProducts extends ConsumerWidget {
   const CustomTopProducts({super.key});
@@ -36,10 +37,11 @@ class CustomTopProducts extends ConsumerWidget {
                     onTap: () {
                       context.push(
                         BuyerVendorProfileScreen.routeName,
-                        extra: {
-                          'vendorId': p.vendor.id,
-                          'userId': p.vendor.userId,
-                        },
+                        extra: buyerVendorProfileExtra(
+                          vendorId: p.vendor.id,
+                          userId: p.vendor.userId,
+                          highlightProductId: p.id,
+                        ),
                       );
                     },
                     child: Padding(

@@ -7,19 +7,27 @@ import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/
 import 'package:market_jango/features/buyer/screens/filter/data/visibility_vendors_data.dart';
 
 class AvailableVendorsScreen extends ConsumerWidget {
-  const AvailableVendorsScreen({super.key, required this.params});
+  const AvailableVendorsScreen({super.key, required this.args});
 
   static const String routeName = '/availableVendors';
 
-  final VisibilityVendorsParams params;
+  final AvailableVendorsScreenArgs args;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(visibilityVendorsProvider(params));
+    final async = args.type == VendorFilterType.category
+        ? ref.watch(categoryVendorsProvider(args.categoryParams!))
+        : ref.watch(visibilityVendorsProvider(args.locationParams!));
+
+    final title = args.type == VendorFilterType.category
+        ? (args.categoryParams?.categoryName?.trim().isNotEmpty == true
+            ? args.categoryParams!.categoryName!.trim()
+            : 'Vendors by category')
+        : 'Available vendors';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Available vendors'),
+        title: Text(title),
         centerTitle: true,
       ),
       body: async.when(
@@ -67,20 +75,7 @@ class AvailableVendorsScreen extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        radius: 22.r,
-                        backgroundColor: AllColor.grey200,
-                        backgroundImage: (v.image != null &&
-                                (v.image!.startsWith('http://') ||
-                                    v.image!.startsWith('https://')))
-                            ? NetworkImage(v.image!)
-                            : null,
-                        child: (v.image == null ||
-                                !(v.image!.startsWith('http://') ||
-                                    v.image!.startsWith('https://')))
-                            ? Icon(Icons.store, color: AllColor.grey500)
-                            : null,
-                      ),
+                      _VendorAvatar(imageUrl: v.image),
                       SizedBox(width: 12.w),
                       Expanded(
                         child: Column(
@@ -95,14 +90,48 @@ class AvailableVendorsScreen extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if ((v.country ?? '').trim().isNotEmpty) ...[
+                            if ((v.businessType ?? '').trim().isNotEmpty) ...[
                               SizedBox(height: 2.h),
                               Text(
-                                v.country!,
+                                v.businessType!.trim(),
                                 style: TextStyle(
                                   fontSize: 12.sp,
                                   color: AllColor.grey500,
                                 ),
+                              ),
+                            ],
+                            if (v.avgRating != null) ...[
+                              SizedBox(height: 2.h),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.star_rounded,
+                                    size: 14.sp,
+                                    color: Colors.amber.shade700,
+                                  ),
+                                  SizedBox(width: 2.w),
+                                  Text(
+                                    v.avgRating!.toStringAsFixed(1),
+                                    style: TextStyle(
+                                      fontSize: 12.sp,
+                                      color: AllColor.grey500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            if ((v.visibilityLocation ?? '').trim().isNotEmpty ||
+                                (v.address ?? '').trim().isNotEmpty) ...[
+                              SizedBox(height: 2.h),
+                              Text(
+                                (v.visibilityLocation ?? v.address ?? '')
+                                    .trim(),
+                                style: TextStyle(
+                                  fontSize: 11.sp,
+                                  color: AllColor.grey500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ],
@@ -121,3 +150,22 @@ class AvailableVendorsScreen extends ConsumerWidget {
   }
 }
 
+class _VendorAvatar extends StatelessWidget {
+  const _VendorAvatar({this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl?.trim() ?? '';
+    final isNetwork =
+        url.startsWith('http://') || url.startsWith('https://');
+
+    return CircleAvatar(
+      radius: 24.r,
+      backgroundColor: AllColor.grey200,
+      backgroundImage: isNetwork ? NetworkImage(url) : null,
+      child: isNetwork ? null : Icon(Icons.store, color: AllColor.grey500),
+    );
+  }
+}
