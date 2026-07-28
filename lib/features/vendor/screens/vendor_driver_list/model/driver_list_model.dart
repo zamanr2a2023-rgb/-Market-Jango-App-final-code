@@ -172,16 +172,23 @@ class Driver {
   });
 
   factory Driver.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic v, {int d = 0}) {
+      if (v == null) return d;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString()) ?? d;
+    }
+
     return Driver(
-      id: json['id'] as int? ?? 0,
+      id: toInt(json['id']),
       carName: json['car_name']?.toString() ?? '',
       carModel: json['car_model']?.toString() ?? '',
       location: json['location']?.toString() ?? '',
       price: json['price']?.toString() ?? '',
-      rating: json['rating'] as int? ?? 0,
+      rating: toInt(json['rating']),
       description: json['description']?.toString() ?? '',
-      userId: json['user_id'] as int? ?? 0,
-      routeId: json['route_id'] as int? ?? 0,
+      userId: toInt(json['user_id']),
+      routeId: toInt(json['route_id']),
       createdAt: json['created_at']?.toString() ?? '',
       updatedAt: json['updated_at']?.toString() ?? '',
       user: DriverUser.fromJson(
@@ -249,8 +256,15 @@ class DriverUser {
   });
 
   factory DriverUser.fromJson(Map<String, dynamic> json) {
+    int toInt(dynamic v, {int d = 0}) {
+      if (v == null) return d;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString()) ?? d;
+    }
+
     return DriverUser(
-      id: json['id'] as int? ?? 0,
+      id: toInt(json['id']),
       userType: json['user_type']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
@@ -261,9 +275,7 @@ class DriverUser {
       image: json['image']?.toString() ?? '',
       publicId: json['public_id']?.toString(),
       status: json['status']?.toString() ?? '',
-      isActive: json['is_active'] == null
-          ? null
-          : (json['is_active'] as num).toInt(),
+      isActive: json['is_active'] == null ? null : toInt(json['is_active']),
       expiresAt: json['expires_at']?.toString(),
       createdAt: json['created_at']?.toString() ?? '',
       updatedAt: json['updated_at']?.toString() ?? '',

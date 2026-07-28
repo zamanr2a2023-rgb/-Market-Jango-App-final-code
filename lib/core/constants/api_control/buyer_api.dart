@@ -185,6 +185,25 @@ class BuyerAPIController {
     ).replace(queryParameters: q).toString();
   }
 
+  static String visibilityVendorsByBusinessType({
+    required int businessTypeId,
+    String? zone,
+    String? state,
+    String? town,
+    int perPage = 20,
+  }) {
+    final q = <String, String>{
+      'business_type_id': '$businessTypeId',
+      'per_page': '$perPage',
+    };
+    if (zone != null && zone.trim().isNotEmpty) q['zone'] = zone.trim();
+    if (state != null && state.trim().isNotEmpty) q['state'] = state.trim();
+    if (town != null && town.trim().isNotEmpty) q['town'] = town.trim();
+    return Uri.parse(
+      '$_base_api/buyer/visibility-locations/vendors-by-business-type',
+    ).replace(queryParameters: q).toString();
+  }
+
   // --- Follow vendor (buyer) ---
   /// `GET /follows/vendor/{vendorId}/followers`
   static String vendorFollowers(int vendorId, {int page = 1}) =>
@@ -210,6 +229,10 @@ class BuyerAPIController {
   /// `DELETE /follows/driver/{driverId}` — unfollow
   static String unfollowDriver(int driverId) =>
       '$_base_api/follows/driver/$driverId';
+
+  /// `GET /follows/me` — list of accounts the current user follows
+  static String myFollowing({int page = 1}) =>
+      '$_base_api/follows/me?page=$page';
 }
 
 // lib/core/constants/api_control/buyer_api.dart

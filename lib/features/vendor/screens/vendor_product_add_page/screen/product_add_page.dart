@@ -62,8 +62,9 @@ class _ProductAddPageState extends ConsumerState<ProductAddPage> {
             padding: EdgeInsets.all(10.r),
             child: Column(
               children: [
-                //"Profile Edite"
-                Tuppertextandbackbutton(screenName: ref.t(BKeys.profile_edit, fallback: 'Profile Edit')),
+                Tuppertextandbackbutton(
+                  screenName: ref.t(BKeys.product_upload, fallback: 'Product Upload'),
+                ),
                 ProductBasicInfoSection(),
                 SizedBox(height: 16.h),
               attributeAsync.when(
@@ -297,7 +298,7 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
 
         SizedBox(height: 16.h),
 
-        _Label(ref.t(BKeys.destination), color: _lblColor),
+        _Label('Description', color: _lblColor),
         SizedBox(height: 6.h),
         TextFormField(
           onChanged: (value) {
@@ -442,6 +443,14 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
   @override
   void dispose() {
     _termsC.dispose();
+    _currentC.dispose();
+    _previousC.dispose();
+    _stockC.dispose();
+    _weightC.dispose();
+    _lengthC.dispose();
+    _widthC.dispose();
+    _heightC.dispose();
+    _barcodeC.dispose();
     super.dispose();
   }
 
@@ -555,14 +564,14 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
               SizedBox(width: 14.w),
               Expanded(
                 child: _Labeled(
-                  label: 'Weight (kg)',
+                  label: 'Weight',
                   labelColor: labelBlue,
                   child: TextField(
                     controller: _weightC,
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       fillColor: AllColor.white,
-                      hintText: 'Weight in kg',
+                      hintText: 'e.g. 1.5',
                       enabledBorder: border(),
                       focusedBorder: border(),
                     ),
@@ -570,6 +579,102 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                 ),
               ),
             ],
+          ),
+          SizedBox(height: 16.h),
+          // Weight unit
+          _Labeled(
+            label: 'Weight unit',
+            labelColor: labelBlue,
+            child: _UnitDropdown(
+              value: _weightUnit,
+              items: const ['kg', 'g', 'lb'],
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _weightUnit = v);
+              },
+              border: border(),
+            ),
+          ),
+          SizedBox(height: 16.h),
+          // Dimensions (length / width / height)
+          Text(
+            'Dimensions',
+            style: TextStyle(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w600,
+              color: labelBlue,
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _lengthC,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    fillColor: AllColor.white,
+                    hintText: 'Length',
+                    enabledBorder: border(),
+                    focusedBorder: border(),
+                  ),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: TextField(
+                  controller: _widthC,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    fillColor: AllColor.white,
+                    hintText: 'Width',
+                    enabledBorder: border(),
+                    focusedBorder: border(),
+                  ),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: TextField(
+                  controller: _heightC,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    fillColor: AllColor.white,
+                    hintText: 'Height',
+                    enabledBorder: border(),
+                    focusedBorder: border(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16.h),
+          _Labeled(
+            label: 'Dimension unit',
+            labelColor: labelBlue,
+            child: _UnitDropdown(
+              value: _dimensionUnit,
+              items: const ['cm', 'm', 'in'],
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _dimensionUnit = v);
+              },
+              border: border(),
+            ),
+          ),
+          SizedBox(height: 16.h),
+          _Labeled(
+            label: 'Barcode (optional)',
+            labelColor: labelBlue,
+            child: TextField(
+              controller: _barcodeC,
+              decoration: InputDecoration(
+                fillColor: AllColor.white,
+                hintText: 'Custom barcode',
+                enabledBorder: border(),
+                focusedBorder: border(),
+              ),
+            ),
           ),
           SizedBox(height: 16.h),
 
@@ -678,6 +783,17 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                     );
                     return;
                   }
+
+                  // API requires at least 1 additional image in files[]
+                  if (_gallery.isEmpty) {
+                    GlobalSnackbar.show(
+                      context,
+                      title: "Validation Error",
+                      message: "Please upload at least one gallery image",
+                      type: CustomSnackType.error,
+                    );
+                    return;
+                  }
                   
                   final createAsync = ref.read(createProductProvider.notifier);
                   final name = ref.watch(productNameProvider);
@@ -694,6 +810,12 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                     attributes: selectedAttributes,
                     stock: _stockC.text,
                     weight: _weightC.text,
+                    weightUnit: _weightUnit,
+                    length: _lengthC.text,
+                    width: _widthC.text,
+                    height: _heightC.text,
+                    dimensionUnit: _dimensionUnit,
+                    barcode: _barcodeC.text,
                     saleType: saleType,
                     termsAndConditions: termsAndConditions,
                     image: File(_cover!.path),
@@ -725,7 +847,13 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
   final _previousC = TextEditingController();
   final _stockC = TextEditingController();
   final _weightC = TextEditingController();
+  final _lengthC = TextEditingController();
+  final _widthC = TextEditingController();
+  final _heightC = TextEditingController();
+  final _barcodeC = TextEditingController();
   final _termsC = TextEditingController();
+  String _weightUnit = 'kg';
+  String _dimensionUnit = 'cm';
 
   final _picker = ImagePicker();
 
@@ -779,6 +907,42 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
           ),
         );
       },
+    );
+  }
+}
+
+class _UnitDropdown extends StatelessWidget {
+  const _UnitDropdown({
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    required this.border,
+  });
+
+  final String value;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+  final OutlineInputBorder border;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        fillColor: AllColor.white,
+        enabledBorder: border,
+        focusedBorder: border,
+        contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: value,
+          items: items
+              .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
     );
   }
 }

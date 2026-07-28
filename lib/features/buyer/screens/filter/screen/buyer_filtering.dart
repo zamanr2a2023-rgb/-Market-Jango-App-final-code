@@ -5,12 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
-import 'package:market_jango/features/buyer/data/buyer_categori_data.dart';
+import 'package:market_jango/features/auth/data/vendor_business_type_data.dart';
 import 'package:market_jango/features/buyer/screens/cart/data/visibility_locations_data.dart';
 import 'package:market_jango/features/buyer/screens/filter/data/visibility_vendors_data.dart';
 import 'package:market_jango/features/buyer/screens/filter/screen/available_vendors_screen.dart';
 
-enum _FilterTab { location, category }
+enum _FilterTab { location, businessType }
 
 class LocationFilteringTab extends ConsumerStatefulWidget {
   const LocationFilteringTab({super.key});
@@ -24,8 +24,8 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
   _FilterTab _tab = _FilterTab.location;
   String? _selectedZone;
   String? _selectedTown;
-  int? _selectedCategoryId;
-  String? _selectedCategoryName;
+  int? _selectedBusinessTypeId;
+  String? _selectedBusinessTypeName;
   late final TextEditingController _stateController;
 
   @override
@@ -63,9 +63,16 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: _buildTabButton('Location', _FilterTab.location)),
+                      Expanded(
+                        child: _buildTabButton('Location', _FilterTab.location),
+                      ),
                       SizedBox(width: 10.w),
-                      Expanded(child: _buildTabButton('Category', _FilterTab.category)),
+                      Expanded(
+                        child: _buildTabButton(
+                          'Business Type',
+                          _FilterTab.businessType,
+                        ),
+                      ),
                       IconButton(
                         icon: const Icon(Icons.close),
                         onPressed: () => Navigator.pop(context),
@@ -76,7 +83,7 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                   if (_tab == _FilterTab.location)
                     _buildLocationForm(theme)
                   else
-                    _buildCategoryForm(theme),
+                    _buildBusinessTypeForm(theme),
                   SizedBox(height: 20.h),
                   SizedBox(
                     width: double.infinity,
@@ -124,7 +131,7 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 14.sp,
+            fontSize: 13.sp,
             fontWeight: FontWeight.w600,
             color: selected ? Colors.white : Colors.black87,
           ),
@@ -241,10 +248,10 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
     );
   }
 
-  Widget _buildCategoryForm(TextTheme theme) {
+  Widget _buildBusinessTypeForm(TextTheme theme) {
     return SizedBox(
       height: 280.h,
-      child: ref.watch(categoriesProvider).when(
+      child: ref.watch(businessTypesProvider).when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(
               child: Text(
@@ -253,35 +260,31 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                 style: TextStyle(color: Colors.red, fontSize: 12.sp),
               ),
             ),
-            data: (resp) {
-              final categories = (resp?.data.data ?? [])
-                  .where((c) => c.status == 'Active')
-                  .toList();
-
-              if (categories.isEmpty) {
-                return const Center(child: Text('No categories found'));
+            data: (types) {
+              if (types.isEmpty) {
+                return const Center(child: Text('No business types found'));
               }
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Select category',
+                    'Select business type',
                     style: theme.headlineMedium!.copyWith(fontSize: 14),
                   ),
                   SizedBox(height: 8.h),
                   Expanded(
                     child: ListView.separated(
-                      itemCount: categories.length,
+                      itemCount: types.length,
                       separatorBuilder: (_, __) => SizedBox(height: 8.h),
                       itemBuilder: (context, index) {
-                        final cat = categories[index];
-                        final selected = _selectedCategoryId == cat.id;
+                        final type = types[index];
+                        final selected = _selectedBusinessTypeId == type.id;
                         return InkWell(
                           onTap: () {
                             setState(() {
-                              _selectedCategoryId = cat.id;
-                              _selectedCategoryName = cat.name;
+                              _selectedBusinessTypeId = type.id;
+                              _selectedBusinessTypeName = type.name;
                             });
                           },
                           borderRadius: BorderRadius.circular(10.r),
@@ -292,7 +295,8 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                             ),
                             decoration: BoxDecoration(
                               color: selected
-                                  ? AllColor.loginButtomColor.withOpacity(0.12)
+                                  ? AllColor.loginButtomColor
+                                      .withValues(alpha: 0.12)
                                   : AllColor.dropDown,
                               borderRadius: BorderRadius.circular(10.r),
                               border: Border.all(
@@ -304,14 +308,34 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                             child: Row(
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    cat.name,
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: selected
-                                          ? FontWeight.w600
-                                          : FontWeight.w500,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        type.name,
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: selected
+                                              ? FontWeight.w600
+                                              : FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (type.description
+                                          .trim()
+                                          .isNotEmpty) ...[
+                                        SizedBox(height: 2.h),
+                                        Text(
+                                          type.description.trim(),
+                                          style: TextStyle(
+                                            fontSize: 11.sp,
+                                            color: AllColor.grey500,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                                 if (selected)
@@ -361,9 +385,9 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
       return;
     }
 
-    if (_selectedCategoryId == null || _selectedCategoryId! <= 0) {
+    if (_selectedBusinessTypeId == null || _selectedBusinessTypeId! <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a category')),
+        const SnackBar(content: Text('Please select a business type')),
       );
       return;
     }
@@ -371,10 +395,10 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
     Navigator.pop(context);
     context.push(
       AvailableVendorsScreen.routeName,
-      extra: AvailableVendorsScreenArgs.category(
-        CategoryVendorsParams(
-          categoryId: _selectedCategoryId!,
-          categoryName: _selectedCategoryName,
+      extra: AvailableVendorsScreenArgs.businessType(
+        BusinessTypeVendorsParams(
+          businessTypeId: _selectedBusinessTypeId!,
+          businessTypeName: _selectedBusinessTypeName,
         ),
       ),
     );

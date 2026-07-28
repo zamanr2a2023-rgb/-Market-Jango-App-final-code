@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/vendor_api.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/core/utils/image_check_before_post.dart';
+import 'package:market_jango/features/vendor/screens/vendor_product_add_page/logic/creat_product_provider.dart';
 import 'package:path/path.dart' as p;
 
 final updateProductProvider =
@@ -22,15 +23,20 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
     required int id,
     String? name,
     String? description,
-
-    // ✅ API expects these:
     String? regularPrice, // regular_price
     String? sellPrice, // sell_price
-
     int? categoryId,
-    Map<String, List<String>>? attributes, // JSON string in form-data
-    String? stock, // if API supports
-    String? weight, // weight in kg
+    Map<String, List<String>>? attributes,
+    String? stock,
+    String? weight,
+    String? weightUnit,
+    String? length,
+    String? width,
+    String? height,
+    String? dimensionUnit,
+    String? saleType,
+    String? termsAndConditions,
+    String? barcode,
     File? image, // main image
     List<File>? newFiles, // files[]
   }) async {
@@ -55,17 +61,41 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
 
       addField('name', name);
       addField('description', description);
-
-      // ✅ FIXED: match API keys
       addField('regular_price', regularPrice);
       addField('sell_price', sellPrice);
 
       if (categoryId != null) req.fields['category_id'] = '$categoryId';
       addField('stock', stock);
       addField('weight', weight);
+      addField('weight_unit', weightUnit);
+      addField('length', length);
+      addField('width', width);
+      addField('height', height);
+      if ((length?.trim().isNotEmpty ?? false) ||
+          (width?.trim().isNotEmpty ?? false) ||
+          (height?.trim().isNotEmpty ?? false)) {
+        addField(
+          'dimension_unit',
+          (dimensionUnit == null || dimensionUnit.trim().isEmpty)
+              ? 'cm'
+              : dimensionUnit,
+        );
+      }
+      addField('sale_type', saleType);
+      addField('terms_and_conditions', termsAndConditions);
+      addField('barcode', barcode);
 
       if (attributes != null && attributes.isNotEmpty) {
-        req.fields['attributes'] = jsonEncode(attributes);
+        final split = CreateProductNotifier.splitAttributes(attributes);
+        if (split.color != null && split.color!.isNotEmpty) {
+          req.fields['color'] = jsonEncode(split.color);
+        }
+        if (split.measurement != null && split.measurement!.isNotEmpty) {
+          req.fields['measurement'] = jsonEncode(split.measurement);
+        }
+        if (split.attributes.isNotEmpty) {
+          req.fields['attributes'] = jsonEncode(split.attributes);
+        }
       }
 
       if (image != null) {
@@ -94,7 +124,7 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
       }
 
       final res = await req.send();
-      final body = await res.stream.bytesToString(); // ✅ helpful debug
+      final body = await res.stream.bytesToString();
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
         state = const AsyncData(null);

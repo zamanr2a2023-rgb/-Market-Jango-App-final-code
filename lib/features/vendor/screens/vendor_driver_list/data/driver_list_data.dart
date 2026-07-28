@@ -32,19 +32,34 @@ class DriverNotifier extends AsyncNotifier<PaginatedDrivers?> {
     final baseUrl = VendorAPIController.approved_driver;
     final uri = Uri.parse('$baseUrl?page=$_page');
 
-    final response = await http.get(uri, headers: {'token': token});
+    final response = await http.get(
+      uri,
+      headers: {
+        'token': token,
+        'Accept': 'application/json',
+      },
+    );
 
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body);
       final data = body['data'];
-      // if (data == null) {
-      //   return PaginatedDrivers(
-      //     currentPage: 1,
-      //     lastPage: 1,
-      //     total: 0,
-      //     drivers: [],
-      //   );
-      // }
+      if (data == null || data is! Map<String, dynamic>) {
+        return PaginatedDrivers(
+          currentPage: 1,
+          lastPage: 1,
+          total: 0,
+          drivers: const [],
+          firstPageUrl: null,
+          from: null,
+          lastPageUrl: null,
+          links: const [],
+          nextPageUrl: null,
+          path: null,
+          perPage: 10,
+          prevPageUrl: null,
+          to: null,
+        );
+      }
       return PaginatedDrivers.fromJson(data);
     } else {
       throw Exception('Failed to fetch drivers: ${response.statusCode}');

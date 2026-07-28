@@ -10,6 +10,7 @@ import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
+import 'package:market_jango/core/widget/global_save_botton.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/vendor/screens/product_edit/data/product_attribute_data.dart';
 import 'package:market_jango/features/vendor/screens/product_edit/logic/delete_image_riverpod.dart';
@@ -37,12 +38,13 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
   int? _selectedBusinessTypeId;
   int? _selectedCategoryId;
   List<File> _newFiles = [];
+  String _weightUnit = 'kg';
+  String _dimensionUnit = 'cm';
 
   @override
   Widget build(BuildContext context) {
     final categoryAsync = ref.watch(vendorProductCreateCategoriesProvider);
     final attributeAsync = ref.watch(productAttributesProvider);
-    final selectedAttributes = ref.watch(selectedAttributesProvider);
     final saving = ref.watch(updateProductProvider).isLoading;
     return Scaffold(
       body: SingleChildScrollView(
@@ -305,7 +307,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
 
                   /// Description
                   _Label(
-                    ref.t(BKeys.destination),
+                    'Description',
                     color: const Color(0xFF436AA0),
                   ),
                   SizedBox(height: 6.h),
@@ -314,6 +316,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     maxLines: 5,
                     decoration: InputDecoration(
                       fillColor: AllColor.white,
+                      hintText: 'Enter Product Description...',
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(
                           color: AllColor.grey,
@@ -343,23 +346,14 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
 
                   SizedBox(height: 15.h),
 
-                  /// Price — always entered and stored as UGX (ledger currency).
-                  _Label('Current price (UGX)', color: const Color(0xFF2B6CB0)),
-                  SizedBox(height: 4.h),
-                  Text(
-                    'Enter the UGX amount. Your display currency does not change the submitted price.',
-                    style: TextStyle(
-                      fontSize: 11.sp,
-                      color: AllColor.black54,
-                      height: 1.3,
-                    ),
-                  ),
+                  /// Sale type
+                  _Label('Sale type', color: const Color(0xFF436AA0)),
                   SizedBox(height: 6.h),
                   TextFormField(
-                    controller: priceController,
-                    keyboardType: TextInputType.number,
+                    controller: saleTypeController,
                     decoration: InputDecoration(
                       fillColor: AllColor.white,
+                      hintText: 'e.g. kg, piece, etc.',
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(
                           color: AllColor.grey,
@@ -375,6 +369,87 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         borderRadius: BorderRadius.circular(5.r),
                       ),
                     ),
+                  ),
+                  SizedBox(height: 15.h),
+
+                  /// Prices — always entered and stored as UGX (ledger currency).
+                  Text(
+                    'Prices must be entered in UGX. Your display currency does not change the submitted amount.',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      color: AllColor.black54,
+                      height: 1.3,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _Label('Current price (UGX)',
+                                color: const Color(0xFF2B6CB0)),
+                            SizedBox(height: 6.h),
+                            TextFormField(
+                              controller: priceController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                fillColor: AllColor.white,
+                                hintText: 'Current Price (UGX)',
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: AllColor.grey,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(5.r),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: AllColor.grey,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(5.r),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 14.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _Label('Previous price (UGX)',
+                                color: const Color(0xFF2B6CB0)),
+                            SizedBox(height: 6.h),
+                            TextFormField(
+                              controller: regularPriceController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                fillColor: AllColor.white,
+                                hintText: 'Previous Price (UGX)',
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: AllColor.grey,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(5.r),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: AllColor.grey,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(5.r),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   SizedBox(height: 10.h),
 
@@ -417,14 +492,16 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _Label('Weight (kg)', color: const Color(0xFF2B6CB0)),
+                            _Label('Weight', color: const Color(0xFF2B6CB0)),
                             SizedBox(height: 6.h),
                             TextFormField(
                               controller: weightController,
-                              keyboardType: TextInputType.number,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
                               decoration: InputDecoration(
                                 fillColor: AllColor.white,
-                                hintText: 'Weight in kg',
+                                hintText: 'e.g. 1.5',
                                 enabledBorder: OutlineInputBorder(
                                   borderSide: BorderSide(
                                     color: AllColor.grey,
@@ -446,70 +523,238 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                       ),
                     ],
                   ),
+                  SizedBox(height: 10.h),
+
+                  _Label('Weight unit', color: const Color(0xFF2B6CB0)),
+                  SizedBox(height: 6.h),
+                  _EditUnitDropdown(
+                    value: _weightUnit,
+                    items: const ['kg', 'g', 'lb'],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() => _weightUnit = v);
+                    },
+                  ),
+                  SizedBox(height: 10.h),
+
+                  _Label('Dimensions', color: const Color(0xFF2B6CB0)),
+                  SizedBox(height: 6.h),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: lengthController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: InputDecoration(
+                            fillColor: AllColor.white,
+                            hintText: 'Length',
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AllColor.grey,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AllColor.grey,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 10.w),
+                      Expanded(
+                        child: TextFormField(
+                          controller: widthController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: InputDecoration(
+                            fillColor: AllColor.white,
+                            hintText: 'Width',
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AllColor.grey,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AllColor.grey,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 10.w),
+                      Expanded(
+                        child: TextFormField(
+                          controller: heightController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: InputDecoration(
+                            fillColor: AllColor.white,
+                            hintText: 'Height',
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AllColor.grey,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AllColor.grey,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10.h),
+
+                  _Label('Dimension unit', color: const Color(0xFF2B6CB0)),
+                  SizedBox(height: 6.h),
+                  _EditUnitDropdown(
+                    value: _dimensionUnit,
+                    items: const ['cm', 'm', 'in'],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() => _dimensionUnit = v);
+                    },
+                  ),
+                  SizedBox(height: 10.h),
+
+                  _Label('Barcode (optional)', color: const Color(0xFF2B6CB0)),
+                  SizedBox(height: 6.h),
+                  TextFormField(
+                    controller: barcodeController,
+                    decoration: InputDecoration(
+                      fillColor: AllColor.white,
+                      hintText: 'Custom barcode',
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: AllColor.grey,
+                          width: 1.2,
+                        ),
+                        borderRadius: BorderRadius.circular(5.r),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: AllColor.grey,
+                          width: 1.2,
+                        ),
+                        borderRadius: BorderRadius.circular(5.r),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 15.h),
+
+                  _Label('Terms & conditions', color: const Color(0xFF2B6CB0)),
+                  SizedBox(height: 8.h),
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8.r),
+                      border: Border.all(
+                          color: Colors.orange.shade200, width: 1.2),
+                    ),
+                    child: TextField(
+                      controller: termsController,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        hintText: 'Enter terms and conditions (optional)',
+                        hintStyle: TextStyle(
+                          fontSize: 14.sp,
+                          color: const Color(0xFF95A6C4),
+                        ),
+                        fillColor: Colors.transparent,
+                        filled: true,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
 
                   SizedBox(height: 20.h),
 
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: ElevatedButton(
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              String? nn(String s) =>
-                                  s.trim().isEmpty ? null : s.trim();
+                  GlobalSaveBotton(
+                    bottonName: saving ? 'Saving...' : 'Save',
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            String? nn(String s) =>
+                                s.trim().isEmpty ? null : s.trim();
 
-                              await ref
-                                  .read(updateProductProvider.notifier)
-                                  .updateProduct(
-                                    id: widget.product.id,
-                                    name: nn(nameController.text),
-                                    description: nn(descriptionController.text),
+                            await ref
+                                .read(updateProductProvider.notifier)
+                                .updateProduct(
+                                  id: widget.product.id,
+                                  name: nn(nameController.text),
+                                  description:
+                                      nn(descriptionController.text),
+                                  regularPrice:
+                                      nn(regularPriceController.text),
+                                  sellPrice: nn(priceController.text),
+                                  categoryId: _selectedCategoryId,
+                                  attributes: ref
+                                          .read(selectedAttributesProvider)
+                                          .isEmpty
+                                      ? null
+                                      : ref.read(
+                                          selectedAttributesProvider),
+                                  stock: nn(stockController.text),
+                                  weight: nn(weightController.text),
+                                  weightUnit: _weightUnit,
+                                  length: nn(lengthController.text),
+                                  width: nn(widthController.text),
+                                  height: nn(heightController.text),
+                                  dimensionUnit: _dimensionUnit,
+                                  saleType: nn(saleTypeController.text),
+                                  termsAndConditions:
+                                      nn(termsController.text),
+                                  barcode: nn(barcodeController.text),
+                                  image: mainImage,
+                                  newFiles: _newFiles,
+                                );
 
-                                    // ✅ map to API keys
-                                    regularPrice: nn(
-                                      widget.product.regularPrice.toString(),
-                                    ), // or controller থাকলে controller.text
-                                    sellPrice: nn(priceController.text),
-
-                                    categoryId: _selectedCategoryId,
-                                    attributes:
-                                        ref
-                                            .read(selectedAttributesProvider)
-                                            .isEmpty
-                                        ? null
-                                        : ref.read(selectedAttributesProvider),
-                                    stock: nn(stockController.text),
-                                    weight: nn(weightController.text),
-                                    image: mainImage,
-                                    newFiles: _newFiles,
-                                  );
-
-                              final res = ref.read(updateProductProvider);
-                              res.when(
-                                data: (_) {
-                                  // Invalidate product list to refresh with updated data
-                                  ref.invalidate(productNotifierProvider);
-                                  ref.invalidate(updateProductProvider);
-                                  context.pop();
-                                  GlobalSnackbar.show(
-                                    context,
-                                    title: "Success",
-                                    message: "Product updated successfully",
-                                  );
-                                },
-                                loading: () {},
-                                error: (e, _) {
-                                  GlobalSnackbar.show(
-                                    context,
-                                    title: "Error",
-                                    message: "Product updated failed",
-                                    type: CustomSnackType.error,
-                                  );
-                                },
-                              );
-                            },
-                      child: Text(saving ? 'Saving...' : ref.t(BKeys.save)),
-                    ),
+                            final res = ref.read(updateProductProvider);
+                            res.when(
+                              data: (_) {
+                                ref.invalidate(productNotifierProvider);
+                                ref.invalidate(updateProductProvider);
+                                context.pop();
+                                GlobalSnackbar.show(
+                                  context,
+                                  title: "Success",
+                                  message: "Product updated successfully",
+                                );
+                              },
+                              loading: () {},
+                              error: (e, _) {
+                                GlobalSnackbar.show(
+                                  context,
+                                  title: "Error",
+                                  message: e.toString(),
+                                  type: CustomSnackType.error,
+                                );
+                              },
+                            );
+                          },
                   ),
                   SizedBox(height: 15.h),
                 ],
@@ -527,14 +772,17 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
   List<File> extraImages = [];
 
   late TextEditingController nameController;
-
   late TextEditingController descriptionController;
-
   late TextEditingController priceController;
-
+  late TextEditingController regularPriceController;
   late TextEditingController stockController;
-
   late TextEditingController weightController;
+  late TextEditingController lengthController;
+  late TextEditingController widthController;
+  late TextEditingController heightController;
+  late TextEditingController saleTypeController;
+  late TextEditingController termsController;
+  late TextEditingController barcodeController;
 
   final ThemeData dropTheme = ThemeData(
     splashColor: Colors.transparent,
@@ -550,12 +798,35 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     priceController = TextEditingController(
       text: widget.product.sellPrice.toString(),
     );
+    regularPriceController = TextEditingController(
+      text: widget.product.regularPrice.toString(),
+    );
     stockController = TextEditingController(
       text: widget.product.stock?.toString() ?? '',
     );
     weightController = TextEditingController(
       text: widget.product.weight ?? '',
     );
+    lengthController = TextEditingController(
+      text: widget.product.length ?? '',
+    );
+    widthController = TextEditingController(
+      text: widget.product.width ?? '',
+    );
+    heightController = TextEditingController(
+      text: widget.product.height ?? '',
+    );
+    saleTypeController = TextEditingController(
+      text: widget.product.saleType ?? '',
+    );
+    termsController = TextEditingController(
+      text: widget.product.termsAndConditions ?? '',
+    );
+    barcodeController = TextEditingController(
+      text: widget.product.barcode ?? '',
+    );
+    _weightUnit = widget.product.weightUnit;
+    _dimensionUnit = widget.product.dimensionUnit;
     _selectedCategoryId = widget.product.categoryId > 0
         ? widget.product.categoryId
         : null;
@@ -598,6 +869,16 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
         if (widget.product.sizes.isNotEmpty) {
           parsedAttributes['size'] = widget.product.sizes;
         }
+      }
+      // Ensure color/size from top-level API fields are present
+      if (!parsedAttributes.containsKey('color') &&
+          widget.product.colors.isNotEmpty) {
+        parsedAttributes['color'] = widget.product.colors;
+      }
+      if (!parsedAttributes.containsKey('size') &&
+          !parsedAttributes.containsKey('measurement') &&
+          widget.product.sizes.isNotEmpty) {
+        parsedAttributes['size'] = widget.product.sizes;
       }
       ref.read(selectedAttributesProvider.notifier).state = parsedAttributes;
     });
@@ -657,10 +938,15 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     nameController.dispose();
     descriptionController.dispose();
     priceController.dispose();
+    regularPriceController.dispose();
     stockController.dispose();
     weightController.dispose();
-
-    // TODO: implement dispose
+    lengthController.dispose();
+    widthController.dispose();
+    heightController.dispose();
+    saleTypeController.dispose();
+    termsController.dispose();
+    barcodeController.dispose();
     super.dispose();
   }
 }
@@ -904,6 +1190,47 @@ class _ImageTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _EditUnitDropdown extends StatelessWidget {
+  const _EditUnitDropdown({
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final String value;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        fillColor: AllColor.white,
+        filled: true,
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AllColor.grey, width: 1.2),
+          borderRadius: BorderRadius.circular(5.r),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AllColor.grey, width: 1.2),
+          borderRadius: BorderRadius.circular(5.r),
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: value,
+          items: items
+              .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
     );
   }
 }

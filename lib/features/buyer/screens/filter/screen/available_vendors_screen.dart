@@ -15,14 +15,14 @@ class AvailableVendorsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = args.type == VendorFilterType.category
-        ? ref.watch(categoryVendorsProvider(args.categoryParams!))
+    final async = args.type == VendorFilterType.businessType
+        ? ref.watch(businessTypeVendorsProvider(args.businessTypeParams!))
         : ref.watch(visibilityVendorsProvider(args.locationParams!));
 
-    final title = args.type == VendorFilterType.category
-        ? (args.categoryParams?.categoryName?.trim().isNotEmpty == true
-            ? args.categoryParams!.categoryName!.trim()
-            : 'Vendors by category')
+    final title = args.type == VendorFilterType.businessType
+        ? (args.businessTypeParams?.businessTypeName?.trim().isNotEmpty == true
+            ? args.businessTypeParams!.businessTypeName!.trim()
+            : 'Vendors by business type')
         : 'Available vendors';
 
     return Scaffold(

@@ -17,7 +17,15 @@ class VendorProduct {
   final List<String> colors;
   final List<ProductImage> images;
   final int? stock;
-  final String? weight; // weight in kg
+  final String? weight; // weight value
+  final String weightUnit;
+  final String? length;
+  final String? width;
+  final String? height;
+  final String dimensionUnit;
+  final String? saleType;
+  final String? termsAndConditions;
+  final String? barcode;
   final String? attributes; // JSON string: {"color":["red"],"size":["m"]}
   final int? viewCount; // number of views
 
@@ -40,12 +48,20 @@ class VendorProduct {
     required this.images,
     this.stock,
     this.weight,
+    this.weightUnit = 'kg',
+    this.length,
+    this.width,
+    this.height,
+    this.dimensionUnit = 'cm',
+    this.saleType,
+    this.termsAndConditions,
+    this.barcode,
     this.attributes,
     this.viewCount,
   });
 
   factory VendorProduct.fromJson(Map<String, dynamic> json) {
-    final rawSize = json['size'];
+    final rawSize = json['measurement'] ?? json['size'];
     final rawColor = json['color'];
 
     // Helper to safely convert to int
@@ -55,6 +71,18 @@ class VendorProduct {
       if (value is String) return int.tryParse(value) ?? defaultValue;
       if (value is num) return value.toInt();
       return defaultValue;
+    }
+
+    List<String> toStringList(dynamic raw) {
+      if (raw is List) return raw.map((e) => e.toString()).toList();
+      if (raw is String && raw.trim().isNotEmpty) return [raw];
+      return [];
+    }
+
+    String? optString(dynamic v) {
+      if (v == null) return null;
+      final s = v.toString().trim();
+      return s.isEmpty ? null : s;
     }
 
     return VendorProduct(
@@ -84,17 +112,8 @@ class VendorProduct {
       categoryName: json['category']?['name']?.toString() ?? '',
 
       /// ✅ Safe list conversion
-      sizes: rawSize is List
-          ? rawSize.map((e) => e.toString()).toList()
-          : rawSize is String
-          ? [rawSize]
-          : [],
-
-      colors: rawColor is List
-          ? rawColor.map((e) => e.toString()).toList()
-          : rawColor is String
-          ? [rawColor]
-          : [],
+      sizes: toStringList(rawSize),
+      colors: toStringList(rawColor),
 
       /// ✅ images mapping - ensure it's a List, not a Map
       images: () {
@@ -115,6 +134,20 @@ class VendorProduct {
                   ? (json['stock'] as num).toInt() 
                   : int.tryParse(json['stock'].toString()))),
       weight: json['weight']?.toString(),
+      weightUnit: () {
+        final u = json['weight_unit']?.toString().trim();
+        return (u == null || u.isEmpty) ? 'kg' : u;
+      }(),
+      length: optString(json['length']),
+      width: optString(json['width']),
+      height: optString(json['height']),
+      dimensionUnit: () {
+        final u = json['dimension_unit']?.toString().trim();
+        return (u == null || u.isEmpty) ? 'cm' : u;
+      }(),
+      saleType: optString(json['sale_type']),
+      termsAndConditions: optString(json['terms_and_conditions']),
+      barcode: optString(json['barcode']),
       attributes: json['attributes']?.toString(),
       viewCount: () {
         // Try multiple field names that API might use

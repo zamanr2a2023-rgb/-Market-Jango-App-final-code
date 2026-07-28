@@ -10,31 +10,6 @@ import 'package:market_jango/features/vendor/screens/product_edit/logic/update_p
 
 final Set<int> _stockUpdateInFlight = <int>{};
 
-class _SummaryDateFilter {
-  const _SummaryDateFilter({this.from, this.to});
-  final DateTime? from;
-  final DateTime? to;
-
-  _SummaryDateFilter copyWith({
-    DateTime? from,
-    DateTime? to,
-    bool clearFrom = false,
-    bool clearTo = false,
-  }) {
-    return _SummaryDateFilter(
-      from: clearFrom ? null : (from ?? this.from),
-      to: clearTo ? null : (to ?? this.to),
-    );
-  }
-
-  bool get hasFilter => from != null || to != null;
-}
-
-final _summaryDateFilterProvider =
-    StateProvider.family<_SummaryDateFilter, int>(
-  (ref, productId) => const _SummaryDateFilter(),
-);
-
 class VendorInventoryProductScreen extends ConsumerWidget {
   const VendorInventoryProductScreen({super.key, required this.productId});
 
@@ -45,8 +20,6 @@ class VendorInventoryProductScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncLogs = ref.watch(vendorInventoryLogsProvider(productId));
-    final asyncSummary = ref.watch(vendorInventorySummaryProvider(productId));
-    final summaryFilter = ref.watch(_summaryDateFilterProvider(productId));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FA),
@@ -62,7 +35,6 @@ class VendorInventoryProductScreen extends ConsumerWidget {
             return RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(vendorInventoryLogsProvider(productId));
-                ref.invalidate(vendorInventorySummaryProvider(productId));
               },
               child: ListView(
                 children: [
@@ -151,112 +123,6 @@ class VendorInventoryProductScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
-                  ),
-                  SizedBox(height: 14.h),
-                  Text(
-                    'Action summary',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.sp),
-                  ),
-                  SizedBox(height: 8.h),
-                  _SummaryFilterBar(
-                    filter: summaryFilter,
-                    onPickFrom: () => _pickSummaryDate(
-                      context,
-                      ref,
-                      productId: productId,
-                      isFrom: true,
-                    ),
-                    onPickTo: () => _pickSummaryDate(
-                      context,
-                      ref,
-                      productId: productId,
-                      isFrom: false,
-                    ),
-                    onClear: () {
-                      ref
-                          .read(_summaryDateFilterProvider(productId).notifier)
-                          .state = const _SummaryDateFilter();
-                    },
-                  ),
-                  SizedBox(height: 8.h),
-                  asyncSummary.when(
-                    data: (events) {
-                      final filteredEvents =
-                          _filterSummaryEvents(events, summaryFilter);
-                      if (filteredEvents.isEmpty) {
-                        return _EmptyCard(
-                          icon: Icons.timeline_outlined,
-                          title: summaryFilter.hasFilter
-                              ? 'No events in this time'
-                              : 'No summary yet',
-                          message: summaryFilter.hasFilter
-                              ? 'Try changing or clearing the time filter.'
-                              : 'No stock events found for this product. When sales/restocks happen, summary will appear here.',
-                        );
-                      }
-                      return Column(
-                        children: filteredEvents.take(20).map((e) {
-                          final isPlus = e.direction.trim() == '+';
-                          final color = isPlus ? Colors.green : Colors.red;
-                          return Container(
-                            margin: EdgeInsets.only(bottom: 10.h),
-                            padding: EdgeInsets.all(12.r),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16.r),
-                              border: Border.all(
-                                color: AllColor.grey.withOpacity(0.15),
-                              ),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _DeltaBadge(
-                                  delta: e.quantityChange,
-                                  color: color,
-                                ),
-                                SizedBox(width: 10.w),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _prettyChangeType(e.changeType),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 13.sp,
-                                        ),
-                                      ),
-                                      SizedBox(height: 6.h),
-                                      Text(
-                                        'Actor: ${e.actorName.isEmpty ? 'system' : e.actorName}',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade700,
-                                          fontSize: 12.sp,
-                                        ),
-                                      ),
-                                      SizedBox(height: 2.h),
-                                      Text(
-                                        'Time: ${_formatTime(e.time)}',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade700,
-                                          fontSize: 12.sp,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                    loading: () => const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: LinearProgressIndicator(),
-                    ),
-                    error: (e, _) => Text('Summary error: $e'),
                   ),
                   SizedBox(height: 14.h),
                   Text(
@@ -432,7 +298,6 @@ Future<void> _showStockUpdateDialog(
     if (ok) {
       ref.invalidate(vendorInventoryProvider);
       ref.invalidate(vendorInventoryLogsProvider(productId));
-      ref.invalidate(vendorInventorySummaryProvider(productId));
       GlobalSnackbar.show(
         context,
         title: 'Success',
@@ -461,141 +326,6 @@ Future<void> _showStockUpdateDialog(
     );
   } finally {
     _stockUpdateInFlight.remove(productId);
-  }
-}
-
-Future<void> _pickSummaryDate(
-  BuildContext context,
-  WidgetRef ref, {
-  required int productId,
-  required bool isFrom,
-}) async {
-  final current = ref.read(_summaryDateFilterProvider(productId));
-  final initial = (isFrom ? current.from : current.to) ?? DateTime.now();
-  final picked = await showDatePicker(
-    context: context,
-    initialDate: initial,
-    firstDate: DateTime(2020),
-    lastDate: DateTime(DateTime.now().year + 2),
-  );
-  if (picked == null) return;
-
-  final normalized = DateTime(picked.year, picked.month, picked.day);
-  final notifier = ref.read(_summaryDateFilterProvider(productId).notifier);
-  notifier.state = isFrom
-      ? current.copyWith(from: normalized)
-      : current.copyWith(to: normalized);
-}
-
-List<VendorInventorySummaryEvent> _filterSummaryEvents(
-  List<VendorInventorySummaryEvent> events,
-  _SummaryDateFilter filter,
-) {
-  if (!filter.hasFilter) return events;
-  return events.where((event) {
-    final dt = DateTime.tryParse(event.time);
-    if (dt == null) return false;
-    final day = DateTime(dt.year, dt.month, dt.day);
-    final from = filter.from;
-    final to = filter.to;
-    if (from != null && day.isBefore(from)) return false;
-    if (to != null && day.isAfter(to)) return false;
-    return true;
-  }).toList();
-}
-
-String _dateLabel(DateTime? date, String fallback) {
-  if (date == null) return fallback;
-  final y = date.year.toString().padLeft(4, '0');
-  final m = date.month.toString().padLeft(2, '0');
-  final d = date.day.toString().padLeft(2, '0');
-  return '$y-$m-$d';
-}
-
-class _SummaryFilterBar extends StatelessWidget {
-  const _SummaryFilterBar({
-    required this.filter,
-    required this.onPickFrom,
-    required this.onPickTo,
-    required this.onClear,
-  });
-
-  final _SummaryDateFilter filter;
-  final VoidCallback onPickFrom;
-  final VoidCallback onPickTo;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _DateFilterButton(
-            label: _dateLabel(filter.from, 'From date'),
-            onTap: onPickFrom,
-          ),
-        ),
-        SizedBox(width: 8.w),
-        Expanded(
-          child: _DateFilterButton(
-            label: _dateLabel(filter.to, 'To date'),
-            onTap: onPickTo,
-          ),
-        ),
-        if (filter.hasFilter) ...[
-          SizedBox(width: 6.w),
-          InkWell(
-            onTap: onClear,
-            borderRadius: BorderRadius.circular(10.r),
-            child: Container(
-              padding: EdgeInsets.all(10.r),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10.r),
-                border: Border.all(color: AllColor.grey.withOpacity(0.18)),
-              ),
-              child: Icon(Icons.close, size: 18.sp, color: Colors.grey.shade700),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _DateFilterButton extends StatelessWidget {
-  const _DateFilterButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10.r),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10.r),
-          border: Border.all(color: AllColor.grey.withOpacity(0.18)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.calendar_today_outlined, size: 14.sp, color: AllColor.orange),
-            SizedBox(width: 6.w),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -824,4 +554,3 @@ String _formatTime(String raw) {
   final mm = dt.minute.toString().padLeft(2, '0');
   return '$y-$m-$d $hh:$mm';
 }
-

@@ -33,52 +33,58 @@ class VisibilityVendorsParams {
   int get hashCode => Object.hash(zone, state, town, perPage);
 }
 
-class CategoryVendorsParams {
-  final int categoryId;
-  final String? categoryName;
+class BusinessTypeVendorsParams {
+  final int businessTypeId;
+  final String? businessTypeName;
   final String? zone;
   final String? state;
   final String? town;
   final int perPage;
 
-  const CategoryVendorsParams({
-    required this.categoryId,
-    this.categoryName,
+  const BusinessTypeVendorsParams({
+    required this.businessTypeId,
+    this.businessTypeName,
     this.zone,
     this.state,
     this.town,
     this.perPage = 20,
   });
 
-  bool get isValid => categoryId > 0;
+  bool get isValid => businessTypeId > 0;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is CategoryVendorsParams &&
-          categoryId == other.categoryId &&
-          categoryName == other.categoryName &&
+      other is BusinessTypeVendorsParams &&
+          businessTypeId == other.businessTypeId &&
+          businessTypeName == other.businessTypeName &&
           zone == other.zone &&
           state == other.state &&
           town == other.town &&
           perPage == other.perPage;
 
   @override
-  int get hashCode =>
-      Object.hash(categoryId, categoryName, zone, state, town, perPage);
+  int get hashCode => Object.hash(
+        businessTypeId,
+        businessTypeName,
+        zone,
+        state,
+        town,
+        perPage,
+      );
 }
 
-enum VendorFilterType { location, category }
+enum VendorFilterType { location, businessType }
 
 class AvailableVendorsScreenArgs {
   final VendorFilterType type;
   final VisibilityVendorsParams? locationParams;
-  final CategoryVendorsParams? categoryParams;
+  final BusinessTypeVendorsParams? businessTypeParams;
 
   const AvailableVendorsScreenArgs._({
     required this.type,
     this.locationParams,
-    this.categoryParams,
+    this.businessTypeParams,
   });
 
   factory AvailableVendorsScreenArgs.location(VisibilityVendorsParams params) {
@@ -88,10 +94,12 @@ class AvailableVendorsScreenArgs {
     );
   }
 
-  factory AvailableVendorsScreenArgs.category(CategoryVendorsParams params) {
+  factory AvailableVendorsScreenArgs.businessType(
+    BusinessTypeVendorsParams params,
+  ) {
     return AvailableVendorsScreenArgs._(
-      type: VendorFilterType.category,
-      categoryParams: params,
+      type: VendorFilterType.businessType,
+      businessTypeParams: params,
     );
   }
 }
@@ -218,12 +226,12 @@ final visibilityVendorsProvider = FutureProvider.autoDispose
   return _fetchVisibilityVendors(url);
 });
 
-final categoryVendorsProvider = FutureProvider.autoDispose
-    .family<List<VisibilityVendorItem>, CategoryVendorsParams>((ref, params) async {
+final businessTypeVendorsProvider = FutureProvider.autoDispose
+    .family<List<VisibilityVendorItem>, BusinessTypeVendorsParams>((ref, params) async {
   if (!params.isValid) return [];
 
-  final url = BuyerAPIController.visibilityVendorsByCategory(
-    categoryId: params.categoryId,
+  final url = BuyerAPIController.visibilityVendorsByBusinessType(
+    businessTypeId: params.businessTypeId,
     zone: params.zone,
     state: params.state,
     town: params.town,

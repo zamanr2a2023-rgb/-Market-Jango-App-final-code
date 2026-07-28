@@ -547,6 +547,17 @@ class _OutletCard extends ConsumerWidget {
   }
 }
 
+String _formatDriverPrice(String price) {
+  final trimmed = price.trim();
+  if (trimmed.isEmpty) return '—';
+  if (trimmed.startsWith(r'$') ||
+      trimmed.contains('UGX') ||
+      trimmed.contains('AED')) {
+    return trimmed;
+  }
+  return '\$$trimmed';
+}
+
 /* ===================== CARD WIDGET ===================== */
 
 class _DriverCard extends ConsumerWidget {
@@ -562,8 +573,6 @@ class _DriverCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref ) {
-    final onlineColor = Colors.green;
-
     return GestureDetector(
       onTap: () {
         context.push(DriverDetailsScreen.routeName, extra: data.user.id);
@@ -603,13 +612,15 @@ class _DriverCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Name + Online pill
+                      // Name + Online/Offline pill
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
-                              data.user.name,
+                              data.user.name.isNotEmpty
+                                  ? data.user.name
+                                  : 'Driver',
                               style: TextStyle(
                                 color: AllColor.black,
                                 fontWeight: FontWeight.w700,
@@ -618,24 +629,33 @@ class _DriverCard extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 10.h,
-                              vertical: 5.w,
-                            ),
-                            decoration: BoxDecoration(
-                              color: onlineColor.withOpacity(.12),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: onlineColor),
-                            ),
-                            child: Text(
-                              'Online',
-                              style: TextStyle(
-                                color: onlineColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12.sp,
-                              ),
-                            ),
+                          Builder(
+                            builder: (_) {
+                              final isOnline = data.user.isActive == 1 ||
+                                  data.user.status.toLowerCase() == 'active' ||
+                                  data.user.status.toLowerCase() == 'online';
+                              final statusColor =
+                                  isOnline ? Colors.green : AllColor.grey500;
+                              return Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 10.h,
+                                  vertical: 5.w,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: statusColor),
+                                ),
+                                child: Text(
+                                  isOnline ? 'Online' : 'Offline',
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.sp,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -643,12 +663,18 @@ class _DriverCard extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            "014441114451",
-                            style: TextStyle(color: AllColor.black54),
+                          Expanded(
+                            child: Text(
+                              data.user.phone.isNotEmpty
+                                  ? data.user.phone
+                                  : '—',
+                              style: TextStyle(color: AllColor.black54),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                           Text(
-                            '\$700',
+                            _formatDriverPrice(data.price),
                             style: TextStyle(
                               color: AllColor.black,
                               fontWeight: FontWeight.w800,
@@ -658,7 +684,7 @@ class _DriverCard extends ConsumerWidget {
                         ],
                       ),
                       Text(
-                        data.location,
+                        data.location.isNotEmpty ? data.location : '—',
                         style: TextStyle(color: AllColor.black54),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

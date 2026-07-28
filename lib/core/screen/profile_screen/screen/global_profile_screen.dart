@@ -13,6 +13,8 @@ import 'package:market_jango/core/screen/global_language/screen/global_language_
 import 'package:market_jango/features/subscription/screen/subscription_screen.dart';
 import 'package:market_jango/features/affiliate/screen/affiliate_screen.dart';
 import 'package:market_jango/features/ranking/screen/ranking_screen.dart';
+import 'package:market_jango/core/screen/following/data/following_api.dart';
+import 'package:market_jango/core/screen/following/screen/my_following_screen.dart';
 import 'package:market_jango/core/screen/google_map/data/location_store.dart';
 import 'package:market_jango/core/screen/profile_screen/logic/user_data_update_riverpod.dart';
 import 'package:market_jango/core/screen/profile_screen/screen/global_profile_edit_screen.dart';
@@ -105,6 +107,11 @@ class GlobalSettingScreen extends ConsumerWidget {
                         if (userTypeAsync.value == 'vendor') ...[
                           SizedBox(height: 12.h),
                           const _VendorFollowersEntry(),
+                        ],
+                        if (userTypeAsync.value == 'buyer' ||
+                            userTypeAsync.value == 'transport') ...[
+                          SizedBox(height: 12.h),
+                          const _MyFollowingEntry(),
                         ],
                         SizedBox(height: 20.h),
                         _buildSettingsContent(
@@ -1015,6 +1022,87 @@ class _FollowersPill extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MyFollowingEntry extends ConsumerWidget {
+  const _MyFollowingEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countAsync = ref.watch(myFollowingCountProvider);
+
+    return InkWell(
+      onTap: () => context.push(MyFollowingScreen.routeName),
+      borderRadius: BorderRadius.circular(10.r),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+        decoration: BoxDecoration(
+          color: AllColor.loginButtomColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10.r),
+          border: Border.all(
+            color: AllColor.loginButtomColor.withValues(alpha: 0.18),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.favorite_outline_rounded,
+              size: 20.sp,
+              color: AllColor.loginButtomColor,
+            ),
+            SizedBox(width: 10.w),
+            Expanded(
+              child: countAsync.when(
+                data: (count) => Text(
+                  '$count Following',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.black,
+                  ),
+                ),
+                loading: () => Row(
+                  children: [
+                    Text(
+                      'Following',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AllColor.black,
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    SizedBox(
+                      width: 12.r,
+                      height: 12.r,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: AllColor.loginButtomColor,
+                      ),
+                    ),
+                  ],
+                ),
+                error: (_, __) => Text(
+                  'Following',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.black,
+                  ),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 20.sp,
+              color: AllColor.grey500,
+            ),
+          ],
         ),
       ),
     );

@@ -12,6 +12,7 @@ import 'package:market_jango/core/screen/google_map/screen/google_map.dart';
 import 'package:market_jango/core/screen/profile_screen/model/profile_model.dart';
 import 'package:market_jango/core/screen/profile_screen/screen/global_profile_edit_screen.dart';
 import 'package:market_jango/core/screen/profile_screen/screen/global_profile_screen.dart';
+import 'package:market_jango/core/screen/following/screen/my_following_screen.dart';
 import 'package:market_jango/features/auth/screens/Congratulation.dart';
 import 'package:market_jango/features/auth/screens/account_request.dart';
 import 'package:market_jango/features/auth/screens/car_info_screen.dart';
@@ -469,6 +470,12 @@ final GoRouter router = GoRouter(
       path: GlobalSettingScreen.routeName,
       name: GlobalSettingScreen.routeName,
       builder: (context, state) => const GlobalSettingScreen(),
+    ),
+
+    GoRoute(
+      path: MyFollowingScreen.routeName,
+      name: MyFollowingScreen.routeName,
+      builder: (context, state) => const MyFollowingScreen(),
     ),
 
     GoRoute(

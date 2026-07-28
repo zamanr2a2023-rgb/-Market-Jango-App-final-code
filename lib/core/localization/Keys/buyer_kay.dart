@@ -391,6 +391,7 @@ class BKeys {
   static const String enter_your_address = 'enter_your_address';
   static const String please_enter_location = 'please_enter_location';
   static const String profile_edit = 'profile_edit';
+  static const String product_upload = 'product_upload';
   static const String no_products_found = 'no_products_found';
   static const String no_categories_available = 'no_categories_available';
   static const String select_category = 'select_category';

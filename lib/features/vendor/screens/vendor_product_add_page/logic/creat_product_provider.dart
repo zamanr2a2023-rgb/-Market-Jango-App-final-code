@@ -37,6 +37,36 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
     return out;
   }
 
+  /// Splits attribute picker values into Postman fields:
+  /// `color`, `measurement`, and remaining `attributes`.
+  static ({
+    List<String>? color,
+    List<String>? measurement,
+    Map<String, List<String>> attributes,
+  }) splitAttributes(Map<String, List<String>> selected) {
+    final remaining = <String, List<String>>{};
+    List<String>? color;
+    List<String>? measurement;
+
+    selected.forEach((key, values) {
+      final lower = key.toLowerCase().trim();
+      final clean = values.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      if (clean.isEmpty) return;
+
+      if (lower == 'color' || lower == 'colour') {
+        color = [...?color, ...clean];
+      } else if (lower == 'measurement' ||
+          lower == 'size' ||
+          lower == 'sizes') {
+        measurement = [...?measurement, ...clean];
+      } else {
+        remaining[key] = clean;
+      }
+    });
+
+    return (color: color, measurement: measurement, attributes: remaining);
+  }
+
   Future<void> createProduct({
     required String name,
     required String description,
@@ -46,6 +76,12 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
     required Map<String, List<String>> attributes,
     required String stock,
     required String weight,
+    String weightUnit = 'kg',
+    String? length,
+    String? width,
+    String? height,
+    String dimensionUnit = 'cm',
+    String? barcode,
     required String saleType,
     required String termsAndConditions,
     required File image,
@@ -71,24 +107,49 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
       });
 
       
-      // Text fields
+      // Text fields — match POST /product/create form-data
       request.fields['name'] = name;
       request.fields['description'] = description;
       request.fields['regular_price'] = regularPrice;
       request.fields['sell_price'] = sellPrice;
       request.fields['category_id'] = categoryId.toString();
-      
-      // Convert attributes map to JSON string
-      // Format: {"color":["red","green"],"size":["m","xl"],"brand":["apple"]}
-      final attributesJson = jsonEncode(attributes);
-      request.fields['attributes'] = attributesJson;
-      
-      request.fields['stock'] = stock; // stock quantity
-      request.fields['weight'] = weight; // weight in kg
+      request.fields['stock'] = stock;
+      request.fields['weight'] = weight;
+      request.fields['weight_unit'] =
+          weightUnit.trim().isEmpty ? 'kg' : weightUnit.trim();
       request.fields['sale_type'] = saleType;
       request.fields['terms_and_conditions'] = termsAndConditions;
 
-      // 🖼️ Main Image
+      void addOptional(String key, String? value) {
+        final v = value?.trim();
+        if (v != null && v.isNotEmpty) {
+          request.fields[key] = v;
+        }
+      }
+
+      addOptional('length', length);
+      addOptional('width', width);
+      addOptional('height', height);
+      if ((length?.trim().isNotEmpty ?? false) ||
+          (width?.trim().isNotEmpty ?? false) ||
+          (height?.trim().isNotEmpty ?? false)) {
+        request.fields['dimension_unit'] =
+            dimensionUnit.trim().isEmpty ? 'cm' : dimensionUnit.trim();
+      }
+      addOptional('barcode', barcode);
+
+      final split = splitAttributes(attributes);
+      if (split.color != null && split.color!.isNotEmpty) {
+        request.fields['color'] = jsonEncode(split.color);
+      }
+      if (split.measurement != null && split.measurement!.isNotEmpty) {
+        request.fields['measurement'] = jsonEncode(split.measurement);
+      }
+      if (split.attributes.isNotEmpty) {
+        request.fields['attributes'] = jsonEncode(split.attributes);
+      }
+
+      // 🖼️ Main Image + additional images (files[])
       request.files.add(await http.MultipartFile.fromPath('image', cover.path, filename: 'cover.jpg'));
       for (int i = 0; i < gallery.length; i++) {
         final f = gallery[i];

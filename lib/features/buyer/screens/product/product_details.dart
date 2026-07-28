@@ -11,6 +11,7 @@ import 'package:market_jango/core/screen/buyer_massage/screen/global_chat_screen
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
+import 'package:market_jango/core/utils/product_image_downloader.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
@@ -350,6 +351,7 @@ class ProductImage extends StatefulWidget {
 
 class _ProductImageState extends State<ProductImage> {
   int _currentIndex = 0;
+  bool _downloading = false;
   final CarouselSliderController _carouselController =
       CarouselSliderController();
 
@@ -377,6 +379,98 @@ class _ProductImageState extends State<ProductImage> {
     }
 
     return images;
+  }
+
+  Future<void> _downloadAllPhotos(List<String> images) async {
+    if (_downloading || images.isEmpty) return;
+
+    setState(() => _downloading = true);
+    try {
+      final result = await ProductImageDownloader.downloadAll(images);
+      if (!mounted) return;
+
+      if (result.noneSaved) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Download failed',
+          message: 'Could not save product photos',
+          type: CustomSnackType.error,
+        );
+      } else if (result.allSaved) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Downloaded',
+          message: result.total == 1
+              ? '1 photo saved to gallery'
+              : '${result.saved} photos saved to gallery',
+          type: CustomSnackType.success,
+        );
+      } else {
+        GlobalSnackbar.show(
+          context,
+          title: 'Partially saved',
+          message: '${result.saved} of ${result.total} photos saved',
+          type: CustomSnackType.success,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Download failed',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        type: CustomSnackType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  Widget _circleActionButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+    Widget? child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AllColor.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: AllColor.black.withOpacity(0.1),
+            blurRadius: 8.r,
+            offset: Offset(0, 2.h),
+          ),
+        ],
+      ),
+      child: child != null
+          ? Padding(
+              padding: EdgeInsets.all(10.w),
+              child: SizedBox(width: 20.sp, height: 20.sp, child: child),
+            )
+          : IconButton(
+              onPressed: onPressed,
+              icon: Icon(icon, color: AllColor.black, size: 20.sp),
+              padding: EdgeInsets.all(8.w),
+            ),
+    );
+  }
+
+  Widget _downloadButton(List<String> images) {
+    return _circleActionButton(
+      icon: Icons.download_rounded,
+      onPressed: _downloading ? null : () => _downloadAllPhotos(images),
+      child: _downloading
+          ? SizedBox(
+              width: 18.sp,
+              height: 18.sp,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AllColor.loginButtomColor,
+              ),
+            )
+          : null,
+    );
   }
 
   @override
@@ -413,27 +507,9 @@ class _ProductImageState extends State<ProductImage> {
             Positioned(
               top: 40.h,
               left: 16.w,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AllColor.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AllColor.black.withOpacity(0.1),
-                      blurRadius: 8.r,
-                      offset: Offset(0, 2.h),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  onPressed: () => context.pop(),
-                  icon: Icon(
-                    Icons.arrow_back_ios_new,
-                    color: AllColor.black,
-                    size: 20.sp,
-                  ),
-                  padding: EdgeInsets.all(8.w),
-                ),
+              child: _circleActionButton(
+                icon: Icons.arrow_back_ios_new,
+                onPressed: () => context.pop(),
               ),
             ),
           ],
@@ -483,27 +559,38 @@ class _ProductImageState extends State<ProductImage> {
           Positioned(
             top: 40.h,
             left: 16.w,
-            child: Container(
-              decoration: BoxDecoration(
-                color: AllColor.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AllColor.black.withOpacity(0.1),
-                    blurRadius: 8.r,
-                    offset: Offset(0, 2.h),
+            child: _circleActionButton(
+              icon: Icons.arrow_back_ios_new,
+              onPressed: () => context.pop(),
+            ),
+          ),
+          Positioned(
+            top: 40.h,
+            right: 16.w,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _downloadButton(images),
+                if (images.length > 1) ...[
+                  SizedBox(height: 8.h),
+                  Container(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                    decoration: BoxDecoration(
+                      color: AllColor.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Text(
+                      '${_currentIndex + 1} / ${images.length}',
+                      style: TextStyle(
+                        color: AllColor.white,
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
-              ),
-              child: IconButton(
-                onPressed: () => context.pop(),
-                icon: Icon(
-                  Icons.arrow_back_ios_new,
-                  color: AllColor.black,
-                  size: 20.sp,
-                ),
-                padding: EdgeInsets.all(8.w),
-              ),
+              ],
             ),
           ),
           if (images.length > 1)
@@ -536,26 +623,6 @@ class _ProductImageState extends State<ProductImage> {
                             : AllColor.white.withOpacity(0.5),
                       ),
                     ),
-                  ),
-                ),
-              ),
-            ),
-          if (images.length > 1)
-            Positioned(
-              top: 40.h,
-              right: 16.w,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                decoration: BoxDecoration(
-                  color: AllColor.black.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(20.r),
-                ),
-                child: Text(
-                  '${_currentIndex + 1} / ${images.length}',
-                  style: TextStyle(
-                    color: AllColor.white,
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
