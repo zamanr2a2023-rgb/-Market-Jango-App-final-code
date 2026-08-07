@@ -18,6 +18,9 @@ import 'package:market_jango/features/vendor/screens/vendor_product_add_page/dat
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/logic/creat_product_provider.dart';
 
 import '../../product_edit/data/product_attribute_data.dart';
+import '../widget/ai_generate_description_section.dart';
+import '../widget/ai_generate_image_button.dart';
+import '../widget/ai_generate_title_section.dart';
 import '../widget/generic_attribute_picker.dart';
 
 class ProductAddPage extends ConsumerStatefulWidget {
@@ -36,6 +39,7 @@ class _ProductAddPageState extends ConsumerState<ProductAddPage> {
     // Clear attributes when entering the page and refresh attributes list
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(selectedAttributesProvider.notifier).state = {};
+      ref.read(productKeywordsProvider.notifier).state = '';
       // Refresh attributes to ensure we have the latest data
       ref.invalidate(productAttributesProvider);
     });
@@ -47,6 +51,7 @@ class _ProductAddPageState extends ConsumerState<ProductAddPage> {
     ref.read(selectedAttributesProvider.notifier).state = {};
     ref.read(saleTypeProvider.notifier).state = '';
     ref.read(termsAndConditionsProvider.notifier).state = '';
+    ref.read(productKeywordsProvider.notifier).state = '';
     super.dispose();
   }
 
@@ -100,9 +105,7 @@ class ProductBasicInfoSection extends ConsumerStatefulWidget {
 
 class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSection> {
   final _titleC = TextEditingController();
-  final _descC = TextEditingController(
-
-  );
+  final _descC = TextEditingController();
 
   int? selectedBusinessTypeId; // Will be set when business types load
   int? selectedCategoryId; // Will be set when categories load
@@ -119,6 +122,13 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
   );
 
   @override
+  void dispose() {
+    _titleC.dispose();
+    _descC.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
    
     final ThemeData dropTheme = ThemeData(
@@ -131,22 +141,52 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Label(
-            //'Product Title'
-          ref.t(BKeys.product_title)
-        , color: _lblColor),
-        SizedBox(height: 6.h),
+        Row(
+          children: [
+            Expanded(
+              child: _Label(
+                ref.t(BKeys.product_title),
+                color: _lblColor,
+              ),
+            ),
+          ],
+        ),
+        AiGenerateTitleSection(
+          labelColor: _lblColor,
+          onTitleGenerated: (title) {
+            final clipped = title.length > kProductNameMaxLength
+                ? title.substring(0, kProductNameMaxLength).trimRight()
+                : title;
+            _titleC.text = clipped;
+            _titleC.selection = TextSelection.fromPosition(
+              TextPosition(offset: _titleC.text.length),
+            );
+            ref.read(productNameProvider.notifier).state = clipped;
+          },
+        ),
         TextFormField(
           onChanged: (value) {
             ref.read(productNameProvider.notifier).state = value;
           },
           controller: _titleC,
+          maxLength: kProductNameMaxLength,
           style: TextStyle(fontSize: 16.sp),
           decoration: InputDecoration(
             hintText: 'Enter Product Title',
             fillColor: AllColor.white,
             enabledBorder: _border(),
             focusedBorder: _border(),
+            counterText: '',
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: EdgeInsets.only(top: 2.h, bottom: 4.h),
+            child: Text(
+              'Max $kProductNameMaxLength characters',
+              style: TextStyle(fontSize: 11.sp, color: AllColor.black54),
+            ),
           ),
         ),
 
@@ -196,6 +236,16 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
                 });
                 ref.read(productCategoryProvider.notifier).state =
                     validCategoryId;
+                String catName = '';
+                if (validCategoryId != null) {
+                  for (final c in result.categories) {
+                    if (c.id == validCategoryId) {
+                      catName = c.name;
+                      break;
+                    }
+                  }
+                }
+                ref.read(productCategoryNameProvider.notifier).state = catName;
               });
             }
 
@@ -239,6 +289,8 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
                         });
                         ref.read(productCategoryProvider.notifier).state =
                             firstCat.isEmpty ? null : firstCat.first.id;
+                        ref.read(productCategoryNameProvider.notifier).state =
+                            firstCat.isEmpty ? '' : firstCat.first.name;
                       },
                     ),
                   ),
@@ -275,6 +327,12 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
                         if (v == null) return;
                         setState(() => selectedCategoryId = v);
                         ref.read(productCategoryProvider.notifier).state = v;
+                        final name = visibleCategories
+                            .where((c) => c.id == v)
+                            .map((c) => c.name)
+                            .cast<String>();
+                        ref.read(productCategoryNameProvider.notifier).state =
+                            name.isEmpty ? '' : name.first;
                       },
                     ),
                   ),
@@ -299,7 +357,20 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
         SizedBox(height: 16.h),
 
         _Label('Description', color: _lblColor),
-        SizedBox(height: 6.h),
+        AiGenerateDescriptionSection(
+          labelColor: _lblColor,
+          title: ref.watch(productNameProvider).isNotEmpty
+              ? ref.watch(productNameProvider)
+              : _titleC.text,
+          category: ref.watch(productCategoryNameProvider),
+          onDescriptionGenerated: (desc) {
+            _descC.text = desc;
+            _descC.selection = TextSelection.fromPosition(
+              TextPosition(offset: _descC.text.length),
+            );
+            ref.read(productDescProvider.notifier).state = desc;
+          },
+        ),
         TextFormField(
           onChanged: (value) {
             ref.read(productDescProvider.notifier).state = value;
@@ -679,11 +750,31 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
           SizedBox(height: 16.h),
 
           // Cover image
-          _Labeled(
-            label: 'Cover Image',
-            labelColor: labelBlue,
-            child: _UploadCard(text: 'Upload Image', onTap: _askImageSource),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Cover Image',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: labelBlue,
+                  ),
+                ),
+              ),
+              AiGenerateImageButton(
+                title: ref.watch(productNameProvider),
+                description: ref.watch(productDescProvider),
+                category: ref.watch(productCategoryNameProvider),
+                label: 'Generate image',
+                onImageGenerated: (file) {
+                  setState(() => _cover = XFile(file.path));
+                },
+              ),
+            ],
           ),
+          SizedBox(height: 6.h),
+          _UploadCard(text: 'Upload Image', onTap: _askImageSource),
           SizedBox(height: 10.h),
 
           // Single preview
@@ -699,13 +790,37 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
           SizedBox(height: 18.h),
 
           // Gallery images
-       _Labeled(
-            label: 'Gallery Images',
-            labelColor: labelBlue,
-            child: _UploadCard(
-              text: 'Upload Multiple Images',
-              onTap: _pickGallery,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Gallery Images',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: labelBlue,
+                  ),
+                ),
+              ),
+              AiGenerateImageButton(
+                title: ref.watch(productNameProvider),
+                description: ref.watch(productDescProvider),
+                category: ref.watch(productCategoryNameProvider),
+                label: 'Generate image',
+                onImageGenerated: (file) {
+                  setState(() {
+                    if (_gallery.length < 8) {
+                      _gallery.add(XFile(file.path));
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          _UploadCard(
+            text: 'Upload Multiple Images',
+            onTap: _pickGallery,
           ),
           SizedBox(height: 10.h),
 
@@ -762,6 +877,27 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
           GlobalSaveBotton(
                 bottonName:loading? "Creating....": "Create a Product",
                 onPressed: () {
+                  final name = ref.read(productNameProvider).trim();
+                  if (name.isEmpty) {
+                    GlobalSnackbar.show(
+                      context,
+                      title: "Validation Error",
+                      message: "Please enter a product title",
+                      type: CustomSnackType.error,
+                    );
+                    return;
+                  }
+                  if (name.length > kProductNameMaxLength) {
+                    GlobalSnackbar.show(
+                      context,
+                      title: "Validation Error",
+                      message:
+                          "Product title must be $kProductNameMaxLength characters or less",
+                      type: CustomSnackType.error,
+                    );
+                    return;
+                  }
+
                   // Validate prices
                   if (_currentC.text.trim().isEmpty || _previousC.text.trim().isEmpty) {
                     GlobalSnackbar.show(
@@ -796,11 +932,10 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                   }
                   
                   final createAsync = ref.read(createProductProvider.notifier);
-                  final name = ref.watch(productNameProvider);
-                  final desc = ref.watch(productDescProvider);
-                  final categoryId = ref.watch(productCategoryProvider);
-                  final saleType = ref.watch(saleTypeProvider);
-                  final termsAndConditions = ref.watch(termsAndConditionsProvider);
+                  final desc = ref.read(productDescProvider);
+                  final categoryId = ref.read(productCategoryProvider);
+                  final saleType = ref.read(saleTypeProvider);
+                  final termsAndConditions = ref.read(termsAndConditionsProvider);
                   createAsync.createProduct(
                     name: name,
                     description: desc,

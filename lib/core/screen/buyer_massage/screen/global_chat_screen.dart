@@ -11,6 +11,7 @@ import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/buyer_massage/data/chat_block_data.dart';
 import 'package:market_jango/core/screen/buyer_massage/data/chat_history_data.dart';
 import 'package:market_jango/core/screen/buyer_massage/data/chat_read_data.dart';
+import 'package:market_jango/core/screen/buyer_massage/data/generate_chat_reply_api.dart';
 import 'package:market_jango/core/screen/buyer_massage/data/meassage_data.dart';
 import 'package:market_jango/core/screen/buyer_massage/logic/message_send_riverpod.dart';
 import 'package:market_jango/core/screen/buyer_massage/model/chat_history_model.dart';
@@ -25,6 +26,7 @@ import 'package:market_jango/core/screen/buyer_massage/widget/custom_textfromfie
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/core/utils/get_user_type.dart';
 import 'package:market_jango/core/screen/profile_screen/data/profile_data.dart';
+import 'package:market_jango/core/widget/global_snackbar.dart';
 
 class GlobalChatScreen extends ConsumerStatefulWidget {
   const GlobalChatScreen({
@@ -33,6 +35,7 @@ class GlobalChatScreen extends ConsumerStatefulWidget {
     required this.partnerName,
     required this.partnerImage,
     required this.myUserId,
+    this.conversationId,
   });
 
   static const routeName = "/chatScreen";
@@ -41,6 +44,7 @@ class GlobalChatScreen extends ConsumerStatefulWidget {
   final String partnerName;
   final String partnerImage;
   final int myUserId;
+  final int? conversationId;
 
   @override
   ConsumerState<GlobalChatScreen> createState() => _ChatScreenState();
@@ -48,6 +52,7 @@ class GlobalChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
   int? _myUserId;
+  bool _generatingReply = false;
 
   int get _effectiveMyUserId => _myUserId ?? widget.myUserId;
 
@@ -193,7 +198,32 @@ class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
       ),
       body: history.when(
         loading: () => const Center(child: Text('Loading...')),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: EdgeInsets.all(24.w),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  e.toString().replaceFirst('Exception: ', ''),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14.sp, color: AllColor.grey500),
+                ),
+                SizedBox(height: 12.h),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _messages = [];
+                      _seeded = false;
+                    });
+                    ref.invalidate(chatHistoryStreamProvider(widget.partnerId));
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
         data: (serverMessages) {
           final incoming = serverMessages.reversed.toList(); // newest first
           if (!_seeded) {
@@ -587,52 +617,174 @@ class _ChatScreenState extends ConsumerState<GlobalChatScreen> {
   }
 
   Widget _composer() {
-    return IconTheme(
-      data: IconThemeData(color: Theme.of(context).colorScheme.secondary),
-      child: Container(
-        height: 60.h,
-        margin: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
-        child: Row(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: AllColor.grey.shade200,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: Icon(Icons.add, color: AllColor.black54, size: 24.sp),
-                onPressed: _askImageSource,
-              ),
-            ),
-            SizedBox(width: 8.w),
-            Expanded(
-              child: CustomTextFromField(
-                controller: _textController,
-                hintText: ref.t(VKeys.typeAMessage),
-                onFieldSubmitted: _handleSubmitted,
-              ),
-            ),
-            SizedBox(width: 8.w),
-            Container(
-              decoration: BoxDecoration(
-                color: AllColor.grey.shade200,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: Icon(
-                  Icons.send,
-                  color: _hasContentToSend()
-                      ? AllColor.blue
-                      : AllColor.grey.shade400,
-                  size: 24.sp,
+    final userTypeAsync = ref.watch(getUserTypeProvider);
+    final isVendor = userTypeAsync.value?.toLowerCase() == 'vendor';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isVendor)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(12.w, 6.h, 12.w, 0),
+              child: TextButton.icon(
+                onPressed: _generatingReply ? null : _generateAiReply,
+                icon: _generatingReply
+                    ? SizedBox(
+                        width: 16.w,
+                        height: 16.w,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AllColor.loginButtomColor,
+                        ),
+                      )
+                    : Icon(
+                        Icons.auto_awesome,
+                        size: 18.sp,
+                        color: AllColor.loginButtomColor,
+                      ),
+                label: Text(
+                  _generatingReply ? 'Generating...' : 'Generate reply',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AllColor.loginButtomColor,
+                  ),
                 ),
-                onPressed: _hasContentToSend() ? _sendMessage : null,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ),
-          ],
+          ),
+        IconTheme(
+          data: IconThemeData(color: Theme.of(context).colorScheme.secondary),
+          child: Container(
+            height: 60.h,
+            margin: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
+            child: Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: AllColor.grey.shade200,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.add, color: AllColor.black54, size: 24.sp),
+                    onPressed: _askImageSource,
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: CustomTextFromField(
+                    controller: _textController,
+                    hintText: ref.t(VKeys.typeAMessage),
+                    onFieldSubmitted: _handleSubmitted,
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AllColor.grey.shade200,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.send,
+                      color: _hasContentToSend()
+                          ? AllColor.blue
+                          : AllColor.grey.shade400,
+                      size: 24.sp,
+                    ),
+                    onPressed: _hasContentToSend() ? _sendMessage : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
+  }
+
+  /// Newest-first list: first partner text message is the latest incoming one.
+  ChatMessage? _lastIncomingPartnerMessage() {
+    for (final m in _messages) {
+      if (m.id <= 0) continue; // skip optimistic/local bubbles
+      if (m.senderId == _effectiveMyUserId) continue;
+      if (m.message.trim().isEmpty) continue;
+      return m;
+    }
+    return null;
+  }
+
+  /// Same id used by `GET /api/chat/history/{id}`.
+  int _historyConversationId() {
+    if (widget.partnerId > 0) return widget.partnerId;
+    if (widget.conversationId != null && widget.conversationId! > 0) {
+      return widget.conversationId!;
+    }
+    return 0;
+  }
+
+  Future<void> _generateAiReply() async {
+    if (_generatingReply) return;
+
+    final incoming = _lastIncomingPartnerMessage();
+    if (incoming == null) {
+      GlobalSnackbar.show(
+        context,
+        title: 'AI Reply',
+        message: 'No incoming message to reply to',
+        type: CustomSnackType.error,
+      );
+      return;
+    }
+
+    final conversationId = _historyConversationId();
+    if (conversationId <= 0) {
+      GlobalSnackbar.show(
+        context,
+        title: 'AI Reply',
+        message: 'Invalid conversation id',
+        type: CustomSnackType.error,
+      );
+      return;
+    }
+
+    setState(() => _generatingReply = true);
+    try {
+      // conversation_id = history API id (/chat/history/{id})
+      // message = last partner message text
+      final reply = await GenerateChatReplyApi.generate(
+        conversationId: conversationId,
+        message: incoming.message.trim(),
+      );
+      if (!mounted) return;
+      _textController.text = reply;
+      _textController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _textController.text.length),
+      );
+      setState(() {});
+      GlobalSnackbar.show(
+        context,
+        title: 'Success',
+        message: 'Reply added to message field',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Error',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        type: CustomSnackType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _generatingReply = false);
+    }
   }
 }
 

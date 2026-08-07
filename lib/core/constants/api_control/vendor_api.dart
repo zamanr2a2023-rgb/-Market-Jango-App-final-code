@@ -12,6 +12,13 @@ class VendorAPIController {
   static String vendor_category_product_filter =
       "$_base_api/vendor/category/product";
   static String product_create = "$_base_api/product/create";
+  static String generateProductTitle =
+      '$_base_api/vendor/ai/product/generate-title';
+  static String generateProductDescription =
+      '$_base_api/vendor/ai/product/generate-description';
+  static String generateProductImage =
+      '$_base_api/vendor/ai/product/generate-image';
+  static String generateChatReply = '$_base_api/vendor/ai/chat-reply';
   static String category_create = "$_base_api/category/create";
   static String productImageDelete(int id) =>
       '$_base_api/vendor/image/destroy/$id';

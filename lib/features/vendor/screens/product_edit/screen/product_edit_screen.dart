@@ -18,6 +18,9 @@ import 'package:market_jango/features/vendor/screens/product_edit/logic/update_p
 import 'package:market_jango/features/vendor/screens/vendor_home/data/vendor_product_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/selecd_color_size_list.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/vendor_product_create_categories.dart';
+import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/ai_generate_description_section.dart';
+import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/ai_generate_image_button.dart';
+import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/ai_generate_title_section.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/generic_attribute_picker.dart';
 
 import '../../../widgets/custom_back_button.dart';
@@ -99,6 +102,21 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     onLocalAddedChanged: (files) {
                       setState(() => _newFiles = files);
                     },
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: AiGenerateImageButton(
+                      productId: widget.product.id,
+                      title: nameController.text,
+                      description: descriptionController.text,
+                      category: widget.product.categoryName,
+                      resolveTitle: () => nameController.text,
+                      resolveDescription: () => descriptionController.text,
+                      label: 'Generate cover image',
+                      onImageGenerated: (file) {
+                        setState(() => mainImage = file);
+                      },
+                    ),
                   ),
                   SizedBox(height: 10.h),
 
@@ -282,11 +300,25 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     ref.t(BKeys.product_title),
                     color: const Color(0xFF436AA0),
                   ),
-                  SizedBox(height: 6.h),
+                  AiGenerateTitleSection(
+                    productId: widget.product.id,
+                    onTitleGenerated: (title) {
+                      final clipped = title.length > kProductNameMaxLength
+                          ? title.substring(0, kProductNameMaxLength).trimRight()
+                          : title;
+                      nameController.text = clipped;
+                      nameController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: nameController.text.length),
+                      );
+                    },
+                  ),
                   TextFormField(
                     controller: nameController,
+                    maxLength: kProductNameMaxLength,
                     decoration: InputDecoration(
                       fillColor: AllColor.white,
+                      hintText: 'Enter Product Title',
+                      counterText: '',
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(
                           color: AllColor.grey,
@@ -303,6 +335,16 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                       ),
                     ),
                   ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'Max $kProductNameMaxLength characters',
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: AllColor.black54,
+                      ),
+                    ),
+                  ),
                   SizedBox(height: 10.h),
 
                   /// Description
@@ -310,7 +352,22 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     'Description',
                     color: const Color(0xFF436AA0),
                   ),
-                  SizedBox(height: 6.h),
+                  AiGenerateDescriptionSection(
+                    productId: widget.product.id,
+                    title: nameController.text,
+                    resolveTitle: () => nameController.text,
+                    category: widget.product.categoryName,
+                    onDescriptionGenerated: (desc) {
+                      setState(() {
+                        descriptionController.text = desc;
+                        descriptionController.selection =
+                            TextSelection.fromPosition(
+                          TextPosition(
+                              offset: descriptionController.text.length),
+                        );
+                      });
+                    },
+                  ),
                   TextFormField(
                     controller: descriptionController,
                     maxLines: 5,
@@ -700,11 +757,32 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                             String? nn(String s) =>
                                 s.trim().isEmpty ? null : s.trim();
 
+                            final title = nameController.text.trim();
+                            if (title.isEmpty) {
+                              GlobalSnackbar.show(
+                                context,
+                                title: 'Validation Error',
+                                message: 'Please enter a product title',
+                                type: CustomSnackType.error,
+                              );
+                              return;
+                            }
+                            if (title.length > kProductNameMaxLength) {
+                              GlobalSnackbar.show(
+                                context,
+                                title: 'Validation Error',
+                                message:
+                                    'Product title must be $kProductNameMaxLength characters or less',
+                                type: CustomSnackType.error,
+                              );
+                              return;
+                            }
+
                             await ref
                                 .read(updateProductProvider.notifier)
                                 .updateProduct(
                                   id: widget.product.id,
-                                  name: nn(nameController.text),
+                                  name: title,
                                   description:
                                       nn(descriptionController.text),
                                   regularPrice:

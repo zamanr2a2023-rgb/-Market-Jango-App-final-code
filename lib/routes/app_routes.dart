@@ -866,6 +866,7 @@ final GoRouter router = GoRouter(
           partnerName: extra.partnerName,
           partnerImage: extra.partnerImage,
           myUserId: extra.myUserId,
+          conversationId: extra.conversationId,
         );
       },
     ),

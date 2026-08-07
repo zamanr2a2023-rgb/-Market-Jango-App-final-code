@@ -437,6 +437,7 @@ class ChatListView extends ConsumerWidget {
                     partnerName: chat.partnerName,
                     partnerImage: chat.partnerImage,
                     myUserId: myUserIdInt,
+                    conversationId: chat.chatId > 0 ? chat.chatId : null,
                   ),
                 );
                 if (context.mounted) {

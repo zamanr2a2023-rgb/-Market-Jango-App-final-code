@@ -10,27 +10,61 @@ Future<List<ChatMessage>> fetchChatHistory(int partnerId) async {
   final token = await authStorage.getToken();
 
   final uri = Uri.parse(ChatAPIController.chat_history(partnerId));
-  final res = await http.get(uri, headers: {if (token != null) 'token': token});
+  final res = await http.get(
+    uri,
+    headers: {
+      if (token != null) 'token': token,
+      'Accept': 'application/json',
+    },
+  );
 
-  if (res.statusCode == 200) {
-    final parsed = ChatHistoryResponse.fromBody(res.body);
-    return parsed.data;
+  if (res.statusCode != 200) {
+    throw Exception('Failed to fetch chat history: ${res.statusCode}');
   }
 
-  throw Exception('Failed to fetch chat history: ${res.statusCode}');
+  final body = res.body;
+  if (body.trim().isEmpty) {
+    throw Exception('Empty chat history response');
+  }
+
+  try {
+    final parsed = ChatHistoryResponse.fromBody(body);
+    return parsed.data;
+  } on FormatException catch (e) {
+    throw Exception(
+      'Chat history response was incomplete or invalid JSON. Please try again. ($e)',
+    );
+  } catch (e) {
+    // jsonDecode can also throw other errors for truncated payloads
+    if (e.toString().contains('FormatException') ||
+        e.toString().contains('Unexpected end of input')) {
+      throw Exception(
+        'Chat history response was incomplete. Please try again.',
+      );
+    }
+    rethrow;
+  }
 }
 
 /// Polls only while the chat screen is open (autoDispose + cancellable loop).
+/// Later poll failures keep the last good messages instead of blanking the UI.
 final chatHistoryStreamProvider = StreamProvider.autoDispose
     .family<List<ChatMessage>, int>((ref, partnerId) async* {
   var cancelled = false;
   ref.onDispose(() => cancelled = true);
 
-  yield await fetchChatHistory(partnerId);
+  List<ChatMessage> latest = await fetchChatHistory(partnerId);
+  yield latest;
 
   while (!cancelled) {
     await Future<void>.delayed(const Duration(seconds: 3));
     if (cancelled) break;
-    yield await fetchChatHistory(partnerId);
+    try {
+      latest = await fetchChatHistory(partnerId);
+      yield latest;
+    } catch (_) {
+      // Keep showing previous messages if a poll fails (e.g. truncated JSON).
+      yield latest;
+    }
   }
 });
