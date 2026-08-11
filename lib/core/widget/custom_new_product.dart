@@ -17,6 +17,8 @@ class CustomNewProduct extends StatefulWidget {
     this.onTap,
     this.isHighlighted = false,
     this.showDownloadButton = true,
+    this.showAddToCartButton = false,
+    this.onAddToCart,
     this.image =
         "https://t4.ftcdn.net/jpg/05/98/45/79/360_F_598457961_hojY3MEjPaYBgdUkfaWO6mPNuHce6WFv.jpg",
     this.viewCount,
@@ -32,7 +34,9 @@ class CustomNewProduct extends StatefulWidget {
   final bool checking;
   final bool isHighlighted;
   final bool showDownloadButton;
+  final bool showAddToCartButton;
   final VoidCallback? onTap;
+  final VoidCallback? onAddToCart;
 
   @override
   State<CustomNewProduct> createState() => _CustomNewProductState();
@@ -266,6 +270,39 @@ class _CustomNewProductState extends State<CustomNewProduct> {
                                 size: 16.sp,
                                 color: AllColor.black,
                               ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (widget.showAddToCartButton && widget.onAddToCart != null)
+                Positioned(
+                  bottom: 6.h,
+                  right: 6.w,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: widget.onAddToCart,
+                      borderRadius: BorderRadius.circular(20.r),
+                      child: Container(
+                        width: 32.r,
+                        height: 32.r,
+                        decoration: BoxDecoration(
+                          color: AllColor.loginButtomColor,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 6,
+                              offset: Offset(0, 2.h),
+                            ),
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.add_shopping_cart_rounded,
+                          size: 16.sp,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),

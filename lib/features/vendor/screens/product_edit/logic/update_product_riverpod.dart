@@ -27,6 +27,7 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
     String? sellPrice, // sell_price
     int? categoryId,
     Map<String, List<String>>? attributes,
+    Map<String, String> specification = const {},
     String? stock,
     String? weight,
     String? weightUnit,
@@ -85,17 +86,29 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
       addField('terms_and_conditions', termsAndConditions);
       addField('barcode', barcode);
 
-      if (attributes != null && attributes.isNotEmpty) {
-        final split = CreateProductNotifier.splitAttributes(attributes);
-        if (split.color != null && split.color!.isNotEmpty) {
-          req.fields['color'] = jsonEncode(split.color);
-        }
-        if (split.measurement != null && split.measurement!.isNotEmpty) {
-          req.fields['measurement'] = jsonEncode(split.measurement);
-        }
-        if (split.attributes.isNotEmpty) {
-          req.fields['attributes'] = jsonEncode(split.attributes);
-        }
+      final split = CreateProductNotifier.splitAttributes(attributes ?? {});
+      if (split.color != null && split.color!.isNotEmpty) {
+        req.fields['color'] = jsonEncode(split.color);
+      }
+      if (split.measurement != null && split.measurement!.isNotEmpty) {
+        req.fields['measurement'] = jsonEncode(split.measurement);
+      }
+
+      // Select Attribute → `attributes` e.g. {"brand":["apple"]}
+      if (split.attributes.isNotEmpty) {
+        req.fields['attributes'] = jsonEncode(split.attributes);
+      }
+
+      // Specification section → `specifications` e.g. {"material":"cotton"}
+      final specsOut = <String, String>{};
+      specification.forEach((k, v) {
+        final key = k.trim();
+        final val = v.trim();
+        if (key.isEmpty || val.isEmpty) return;
+        specsOut[key] = val;
+      });
+      if (specsOut.isNotEmpty) {
+        req.fields['specifications'] = jsonEncode(specsOut);
       }
 
       if (image != null) {

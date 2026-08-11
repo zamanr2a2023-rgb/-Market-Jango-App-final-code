@@ -26,12 +26,12 @@ class PageLink {
   }
 }
 
-/// ---------- Top-level response (status + message + paginated data) ----------
+/// ---------- Top-level response (status + message + products + vendors) ----------
 class GlobalSearchResponse {
   final String status;
   final String message;
 
-  // Pagination meta
+  // Pagination meta (from products page)
   final int currentPage;
   final String? firstPageUrl;
   final int? from;
@@ -47,6 +47,7 @@ class GlobalSearchResponse {
 
   // Actual items
   final List<GlobalSearchProduct> products;
+  final List<GlobalSearchVendorHit> vendors;
 
   GlobalSearchResponse({
     required this.status,
@@ -64,6 +65,7 @@ class GlobalSearchResponse {
     required this.to,
     required this.total,
     required this.products,
+    this.vendors = const [],
   });
 
   factory GlobalSearchResponse.fromJson(Map<String, dynamic> json) {
@@ -75,7 +77,25 @@ class GlobalSearchResponse {
     }
 
     final data = safeMap(json['data']);
-    final list = (data['data'] is List) ? data['data'] as List : const [];
+
+    // New shape: data.products = { paginated }, data.vendors = [...]
+    // Legacy shape: data = { paginated with data[] }
+    final productsPage = data['products'] is Map
+        ? safeMap(data['products'])
+        : data;
+    final list = (productsPage['data'] is List)
+        ? productsPage['data'] as List
+        : (data['data'] is List && data['products'] == null)
+            ? data['data'] as List
+            : const [];
+
+    final vendorsRaw = data['vendors'];
+    final vendors = (vendorsRaw is List)
+        ? vendorsRaw
+            .whereType<Map>()
+            .map((e) => GlobalSearchVendorHit.fromJson(safeMap(e)))
+            .toList()
+        : const <GlobalSearchVendorHit>[];
 
     int parsePerPage(dynamic v) {
       if (v is int) return v;
@@ -90,43 +110,154 @@ class GlobalSearchResponse {
     return GlobalSearchResponse(
       status: json['status']?.toString() ?? '',
       message: json['message']?.toString() ?? '',
-      currentPage: parseint(data['current_page'], 1),
-      firstPageUrl: data['first_page_url']?.toString(),
-      from: parseint(data['from'], 0),
-      lastPage: parseint(data['last_page'], 1),
-      lastPageUrl: data['last_page_url']?.toString(),
-      links: (data['links'] is List)
-          ? (data['links'] as List).map((e) => PageLink.fromJson(safeMap(e))).toList()
+      currentPage: parseint(productsPage['current_page'], 1),
+      firstPageUrl: productsPage['first_page_url']?.toString(),
+      from: parseint(productsPage['from'], 0),
+      lastPage: parseint(productsPage['last_page'], 1),
+      lastPageUrl: productsPage['last_page_url']?.toString(),
+      links: (productsPage['links'] is List)
+          ? (productsPage['links'] as List)
+              .map((e) => PageLink.fromJson(safeMap(e)))
+              .toList()
           : const [],
-      nextPageUrl: data['next_page_url']?.toString(),
-      path: data['path']?.toString() ?? '',
-      perPage: parsePerPage(data['per_page']),
-      prevPageUrl: data['prev_page_url']?.toString(),
-      to: parseint(data['to'], 0),
-      total: parseint(data['total'], 0),
+      nextPageUrl: productsPage['next_page_url']?.toString(),
+      path: productsPage['path']?.toString() ?? '',
+      perPage: parsePerPage(productsPage['per_page']),
+      prevPageUrl: productsPage['prev_page_url']?.toString(),
+      to: parseint(productsPage['to'], 0),
+      total: parseint(productsPage['total'], 0),
       products: List<GlobalSearchProduct>.from(
         list.map((x) => GlobalSearchProduct.fromJson(safeMap(x))),
       ),
+      vendors: vendors,
     );
   }
 
   factory GlobalSearchResponse.empty() => GlobalSearchResponse(
-    status: 'success',
-    message: '',
-    currentPage: 1,
-    firstPageUrl: null,
-    from: 0,
-    lastPage: 1,
-    lastPageUrl: null,
-    links: const [],
-    nextPageUrl: null,
-    path: '',
-    perPage: 0,
-    prevPageUrl: null,
-    to: 0,
-    total: 0,
-    products: const [],
-  );
+        status: 'success',
+        message: '',
+        currentPage: 1,
+        firstPageUrl: null,
+        from: 0,
+        lastPage: 1,
+        lastPageUrl: null,
+        links: const [],
+        nextPageUrl: null,
+        path: '',
+        perPage: 0,
+        prevPageUrl: null,
+        to: 0,
+        total: 0,
+        products: const [],
+        vendors: const [],
+      );
+
+  /// Flat list for search overlay: Vendors section then Products section.
+  List<GlobalSearchSuggestion> get suggestions {
+    final out = <GlobalSearchSuggestion>[];
+    if (vendors.isNotEmpty) {
+      out.add(const GlobalSearchSuggestion.header('Vendors'));
+      for (final v in vendors) {
+        out.add(GlobalSearchSuggestion.vendor(v));
+      }
+    }
+    if (products.isNotEmpty) {
+      out.add(const GlobalSearchSuggestion.header('Products'));
+      for (final p in products) {
+        out.add(GlobalSearchSuggestion.product(p));
+      }
+    }
+    return out;
+  }
+}
+
+/// One row in buyer search overlay (section header / product / vendor).
+class GlobalSearchSuggestion {
+  final String? header;
+  final GlobalSearchProduct? product;
+  final GlobalSearchVendorHit? vendor;
+
+  const GlobalSearchSuggestion._({this.header, this.product, this.vendor});
+
+  const GlobalSearchSuggestion.header(String title)
+      : this._(header: title);
+
+  factory GlobalSearchSuggestion.product(GlobalSearchProduct p) =>
+      GlobalSearchSuggestion._(product: p);
+
+  factory GlobalSearchSuggestion.vendor(GlobalSearchVendorHit v) =>
+      GlobalSearchSuggestion._(vendor: v);
+
+  bool get isHeader => header != null;
+  bool get isProduct => product != null;
+  bool get isVendor => vendor != null;
+}
+
+/// Top-level vendor hit from search `data.vendors[]`.
+class GlobalSearchVendorHit {
+  final int id;
+  final int userId;
+  final String businessName;
+  final String country;
+  final String address;
+  final String coverImage;
+  final SearchVendorUser? user;
+  final List<SearchVendorReview> reviews;
+
+  const GlobalSearchVendorHit({
+    required this.id,
+    required this.userId,
+    required this.businessName,
+    this.country = '',
+    this.address = '',
+    this.coverImage = '',
+    this.user,
+    this.reviews = const [],
+  });
+
+  String get displayName {
+    if (businessName.trim().isNotEmpty) return businessName.trim();
+    final n = user?.name.trim() ?? '';
+    return n.isNotEmpty ? n : 'Vendor';
+  }
+
+  String get avatarUrl {
+    final u = user?.image.trim() ?? '';
+    if (u.isNotEmpty) return u;
+    return coverImage;
+  }
+
+  factory GlobalSearchVendorHit.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic> safeMap(dynamic value) {
+      if (value == null) return {};
+      if (value is Map<String, dynamic>) return value;
+      if (value is Map) return Map<String, dynamic>.from(value);
+      return {};
+    }
+
+    int asInt(dynamic v) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v?.toString() ?? '') ?? 0;
+    }
+
+    return GlobalSearchVendorHit(
+      id: asInt(json['id']),
+      userId: asInt(json['user_id']),
+      businessName: json['business_name']?.toString() ?? '',
+      country: json['country']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      coverImage: json['cover_image']?.toString() ?? '',
+      user: (json['user'] is Map)
+          ? SearchVendorUser.fromJson(safeMap(json['user']))
+          : null,
+      reviews: (json['reviews'] is List)
+          ? (json['reviews'] as List)
+              .map((e) => SearchVendorReview.fromJson(safeMap(e)))
+              .toList()
+          : const [],
+    );
+  }
 }
 
 /// ---------- Product + nested objects ----------
@@ -263,14 +394,26 @@ class SearchVendor {
 class SearchVendorUser {
   final int id;
   final String name;
+  final String image;
+  final String email;
+  final String phone;
 
-  const SearchVendorUser({required this.id, required this.name});
+  const SearchVendorUser({
+    required this.id,
+    required this.name,
+    this.image = '',
+    this.email = '',
+    this.phone = '',
+  });
 
   factory SearchVendorUser.fromJson(Map<String, dynamic> json) {
     final safeJson = Map<String, dynamic>.from(json);
     return SearchVendorUser(
       id: safeJson['id'] ?? 0,
       name: safeJson['name']?.toString() ?? '',
+      image: safeJson['image']?.toString() ?? '',
+      email: safeJson['email']?.toString() ?? '',
+      phone: safeJson['phone']?.toString() ?? '',
     );
   }
 }

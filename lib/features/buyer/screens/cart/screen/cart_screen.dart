@@ -41,11 +41,7 @@ Widget _buildCartBackButton(BuildContext context, WidgetRef ref) {
     child: CircleAvatar(
       radius: 15.r,
       backgroundColor: AllColor.grey300,
-      child: Icon(
-        Icons.arrow_back_ios,
-        size: 8.sp,
-        color: AllColor.black,
-      ),
+      child: Icon(Icons.arrow_back_ios, size: 8.sp, color: AllColor.black),
     ),
   );
 }
@@ -208,25 +204,31 @@ class CartScreen extends ConsumerWidget {
 
   void _onDeleteCartItem(BuildContext context, WidgetRef ref, CartItem item) {
     if (item.id == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot remove this item')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cannot remove this item')));
       return;
     }
-    ref.read(cartServiceProvider).deleteCartItem(item.id!).then((_) {
-      ref.invalidate(cartProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cart item removed')),
-        );
-      }
-    }).catchError((e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
-    });
+    ref
+        .read(cartServiceProvider)
+        .deleteCartItem(item.id!)
+        .then((_) {
+          ref.invalidate(cartProvider);
+          if (context.mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Cart item removed')));
+          }
+        })
+        .catchError((e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(e.toString().replaceFirst('Exception: ', '')),
+              ),
+            );
+          }
+        });
   }
 
   PaymentPageData _buildPaymentData(List<CartItem> items, double total) {
@@ -315,6 +317,19 @@ class CartScreen extends ConsumerWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (item.vendor.businessName.trim().isNotEmpty) ...[
+                    SizedBox(height: 2.h),
+                    Text(
+                      'Sold by ${item.vendor.businessName.trim()}',
+                      style: TextStyle(
+                        color: AllColor.black54,
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                   SizedBox(height: 4.h),
                   Text(
                     'Color: ${item.color}  •  Size: ${item.size}',
@@ -469,9 +484,13 @@ class CartScreen extends ConsumerWidget {
   //   );
   // }
 
-  Widget _buildShippingAddress(BuildContext context, Buyer? buyer,WidgetRef ref) {
+  Widget _buildShippingAddress(
+    BuildContext context,
+    Buyer? buyer,
+    WidgetRef ref,
+  ) {
     final theme = Theme.of(context).textTheme;
-    
+
     // Build address lines - showing ship_name + ship_zone/state/town (preferred)
     final addressLines = buyer == null
         ? ['No address available']
@@ -508,7 +527,7 @@ class CartScreen extends ConsumerWidget {
                 lines.add(shipAddress);
               }
             }
-            
+
             return lines.isEmpty ? ['No address provided'] : lines;
           }();
 
@@ -541,13 +560,15 @@ class CartScreen extends ConsumerWidget {
                 ),
                 SizedBox(height: 4.h),
                 // Display multiple lines (ship_name, location, address)
-                ...addressLines.map((line) => Padding(
-                  padding: EdgeInsets.only(bottom: 2.h),
-                  child: Text(
-                    line,
-                    style: TextStyle(color: AllColor.black, fontSize: 11.sp),
+                ...addressLines.map(
+                  (line) => Padding(
+                    padding: EdgeInsets.only(bottom: 2.h),
+                    child: Text(
+                      line,
+                      style: TextStyle(color: AllColor.black, fontSize: 11.sp),
+                    ),
                   ),
-                )),
+                ),
               ],
             ),
           ),

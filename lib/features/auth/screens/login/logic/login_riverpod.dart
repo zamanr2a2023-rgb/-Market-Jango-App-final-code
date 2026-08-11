@@ -42,17 +42,18 @@ class LoginNotifier extends StateNotifier<AsyncValue<void>> {
 
     try {
       // Network call with timeout
-      final response = await _performLoginRequest(
-        normalizeLoginIdentityField(email),
-        password,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException(
-            'Login request timed out. Please check your connection.',
+      final response =
+          await _performLoginRequest(
+            normalizeLoginIdentityField(email),
+            password,
+          ).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw TimeoutException(
+                'Login request timed out. Please check your connection.',
+              );
+            },
           );
-        },
-      );
 
       // Parse JSON in isolate if response is large, otherwise on main thread
       final json = await _parseJsonInIsolate(response);
@@ -97,7 +98,9 @@ class LoginNotifier extends StateNotifier<AsyncValue<void>> {
       GlobalSnackbar.show(
         context,
         title: "Error",
-        message: isUnauthorized ? _invalidCredentialMessage : msg.replaceAll('Exception: ', ''),
+        message: isUnauthorized
+            ? _invalidCredentialMessage
+            : msg.replaceAll('Exception: ', ''),
         type: CustomSnackType.error,
       );
     }

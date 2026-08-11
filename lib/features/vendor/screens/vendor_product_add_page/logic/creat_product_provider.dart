@@ -74,6 +74,7 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
     required String sellPrice,
     required int categoryId,
     required Map<String, List<String>> attributes,
+    Map<String, String> specification = const {},
     required String stock,
     required String weight,
     String weightUnit = 'kg',
@@ -145,8 +146,22 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
       if (split.measurement != null && split.measurement!.isNotEmpty) {
         request.fields['measurement'] = jsonEncode(split.measurement);
       }
+
+      // Select Attribute → `attributes` e.g. {"brand":["apple"]}
       if (split.attributes.isNotEmpty) {
         request.fields['attributes'] = jsonEncode(split.attributes);
+      }
+
+      // Specification section → `specifications` e.g. {"material":"cotton"}
+      final specsOut = <String, String>{};
+      specification.forEach((k, v) {
+        final key = k.trim();
+        final val = v.trim();
+        if (key.isEmpty || val.isEmpty) return;
+        specsOut[key] = val;
+      });
+      if (specsOut.isNotEmpty) {
+        request.fields['specifications'] = jsonEncode(specsOut);
       }
 
       // 🖼️ Main Image + additional images (files[])

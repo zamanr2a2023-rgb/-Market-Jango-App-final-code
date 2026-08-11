@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class VendorProduct {
   final int id;
   final String name;
@@ -26,7 +28,9 @@ class VendorProduct {
   final String? saleType;
   final String? termsAndConditions;
   final String? barcode;
-  final String? attributes; // JSON string: {"color":["red"],"size":["m"]}
+  final String? attributes; // JSON: {"brand":["apple"]}
+  /// Specs JSON: {"material":"cotton","warranty":"1 year"}
+  final String? specifications;
   final int? viewCount; // number of views
 
   VendorProduct({
@@ -57,6 +61,7 @@ class VendorProduct {
     this.termsAndConditions,
     this.barcode,
     this.attributes,
+    this.specifications,
     this.viewCount,
   });
 
@@ -148,7 +153,26 @@ class VendorProduct {
       saleType: optString(json['sale_type']),
       termsAndConditions: optString(json['terms_and_conditions']),
       barcode: optString(json['barcode']),
-      attributes: json['attributes']?.toString(),
+      attributes: () {
+        final a = json['attributes'];
+        if (a == null) return null;
+        if (a is String) return a;
+        try {
+          return jsonEncode(a);
+        } catch (_) {
+          return a.toString();
+        }
+      }(),
+      specifications: () {
+        final s = json['specifications'] ?? json['specification'];
+        if (s == null) return null;
+        if (s is String) return s;
+        try {
+          return jsonEncode(s);
+        } catch (_) {
+          return s.toString();
+        }
+      }(),
       viewCount: () {
         // Try multiple field names that API might use
         final views = json['view_count'] ?? json['views'] ?? json['view'];

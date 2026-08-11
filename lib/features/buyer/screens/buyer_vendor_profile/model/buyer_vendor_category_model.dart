@@ -138,6 +138,8 @@ class VcpProduct {
   final List<String> size;
   final int vendorId;
   final int categoryId;
+  final String categoryName;
+  final int? businessTypeId;
 
   VcpProduct({
     required this.id,
@@ -155,33 +157,46 @@ class VcpProduct {
     required this.size,
     required this.vendorId,
     required this.categoryId,
+    this.categoryName = '',
+    this.businessTypeId,
   });
 
-  factory VcpProduct.fromJson(Map<String, dynamic> j) => VcpProduct(
-    id: _toInt(j['id']),
-    name: j['name']?.toString() ?? '',
-    description: j['description']?.toString() ?? '',
-    regularPrice: _toDouble(j['regular_price']),
-    sellPrice: _toDouble(j['sell_price']),
-    regularPriceDisplay: _toDouble(
-      j['regular_price_display'] ?? j['regular_price'],
-    ),
-    sellPriceDisplay: _toDouble(j['sell_price_display'] ?? j['sell_price']),
-    currency: j['currency']?.toString().trim().isNotEmpty == true
-        ? j['currency'].toString().trim()
-        : 'UGX',
-    displayCurrency: j['display_currency']?.toString().trim().isNotEmpty == true
-        ? j['display_currency'].toString().trim()
-        : (j['currency']?.toString().trim().isNotEmpty == true
-            ? j['currency'].toString().trim()
-            : 'UGX'),
-    discount: _toInt(j['discount']),
-    image: j['image']?.toString() ?? '',
-    color: _normalizeList(j['color']),
-    size: _normalizeList(j['size']),
-    vendorId: _toInt(j['vendor_id']),
-    categoryId: _toInt(j['category_id']),
-  );
+  factory VcpProduct.fromJson(Map<String, dynamic> j) {
+    final cat = j['category'];
+    final catMap = cat is Map ? Map<String, dynamic>.from(cat) : null;
+    return VcpProduct(
+      id: _toInt(j['id']),
+      name: j['name']?.toString() ?? '',
+      description: j['description']?.toString() ?? '',
+      regularPrice: _toDouble(j['regular_price']),
+      sellPrice: _toDouble(j['sell_price']),
+      regularPriceDisplay: _toDouble(
+        j['regular_price_display'] ?? j['regular_price'],
+      ),
+      sellPriceDisplay: _toDouble(j['sell_price_display'] ?? j['sell_price']),
+      currency: j['currency']?.toString().trim().isNotEmpty == true
+          ? j['currency'].toString().trim()
+          : 'UGX',
+      displayCurrency: j['display_currency']?.toString().trim().isNotEmpty == true
+          ? j['display_currency'].toString().trim()
+          : (j['currency']?.toString().trim().isNotEmpty == true
+              ? j['currency'].toString().trim()
+              : 'UGX'),
+      discount: _toInt(j['discount']),
+      image: j['image']?.toString() ?? '',
+      color: _normalizeList(j['color']),
+      size: _normalizeList(j['size']),
+      vendorId: _toInt(j['vendor_id']),
+      categoryId: _toInt(j['category_id'] ?? catMap?['id']),
+      categoryName: catMap?['name']?.toString() ?? '',
+      businessTypeId: () {
+        final v = catMap?['business_type_id'];
+        if (v == null) return null;
+        final n = _toInt(v);
+        return n > 0 ? n : null;
+      }(),
+    );
+  }
 }
 
 /// ---------- Vendor (brief) ----------

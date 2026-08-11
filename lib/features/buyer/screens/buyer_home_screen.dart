@@ -27,6 +27,7 @@ import 'package:market_jango/features/buyer/screens/all_categori/screen/category
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/widget/highlighted_product_shell.dart';
 import 'package:market_jango/features/buyer/screens/filter/screen/buyer_filtering.dart';
+import 'package:market_jango/features/buyer/screens/product/product_details.dart';
 import 'package:market_jango/features/buyer/screens/see_just_for_you_screen.dart';
 import 'package:market_jango/features/buyer/widgets/custom_categories.dart';
 import 'package:market_jango/features/buyer/widgets/custom_discunt_card.dart';
@@ -502,19 +503,29 @@ class BuyerHomeSearchBar extends ConsumerWidget {
           children: [
             Expanded(
               flex: 2,
-              child: GlobalSearchBar<GlobalSearchResponse, GlobalSearchProduct>(
+              child: GlobalSearchBar<GlobalSearchResponse, GlobalSearchSuggestion>(
                 provider: searchProvider,
-                itemsSelector: (res) => res.products,
-                itemBuilder: (context, p) => ProductSuggestionTile(p: p),
-                onItemSelected: (p) {
-                  context.push(
-                    BuyerVendorProfileScreen.routeName,
-                    extra: buyerVendorProfileExtra(
-                      vendorId: p.vendor?.id ?? 0,
-                      userId: p.vendor?.userId ?? 0,
-                      highlightProductId: p.id,
-                    ),
-                  );
+                itemsSelector: (res) => res.suggestions,
+                itemBuilder: (context, item) => SearchSuggestionTile(item: item),
+                onItemSelected: (item) {
+                  if (item.isHeader) return;
+                  if (item.isProduct && item.product != null) {
+                    context.push(
+                      ProductDetails.routeName,
+                      extra: item.product!.id,
+                    );
+                    return;
+                  }
+                  if (item.isVendor && item.vendor != null) {
+                    final v = item.vendor!;
+                    context.push(
+                      BuyerVendorProfileScreen.routeName,
+                      extra: buyerVendorProfileExtra(
+                        vendorId: v.id,
+                        userId: v.userId > 0 ? v.userId : (v.user?.id ?? 0),
+                      ),
+                    );
+                  }
                 },
                 hintText: ref.t(BKeys.searchProduct),
                 debounce: const Duration(seconds: 1),

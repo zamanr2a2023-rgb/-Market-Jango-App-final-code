@@ -21,9 +21,30 @@ class BuyerAPIController {
   static String categoryVendorProducts(int vendorId, {int page = 1}) =>
       "$_base_api/category/vendor/product/$vendorId?page=$page";
 
-  /// GET api/product/vendor/{id} — vendor's products (paginated). Doc: API_PRODUCT_VENDOR.md
-  static String productVendor(int vendorId, {int page = 1}) =>
-      '$_base_api/product/vendor/$vendorId?page=$page';
+  /// GET api/product/vendor/{id} — vendor's products (paginated).
+  /// Optional: `business_type_id`, `name` (search).
+  static String productVendor(
+    int vendorId, {
+    int page = 1,
+    int? businessTypeId,
+    String? name,
+  }) {
+    final q = <String, String>{'page': '$page'};
+    if (businessTypeId != null && businessTypeId > 0) {
+      q['business_type_id'] = '$businessTypeId';
+    }
+    final n = name?.trim();
+    if (n != null && n.isNotEmpty) {
+      q['name'] = n;
+    }
+    return Uri.parse('$_base_api/product/vendor/$vendorId')
+        .replace(queryParameters: q)
+        .toString();
+  }
+
+  /// GET api/vendor/{vendorId}/business-types — public business types for a vendor shop.
+  static String vendorPublicBusinessTypes(int vendorId) =>
+      '$_base_api/vendor/$vendorId/business-types';
 
   // static Uri _u(String path) => Uri.parse(_base_api).resolve(path);
   static String paymen_tresponse = "$_base_api/payment/response";

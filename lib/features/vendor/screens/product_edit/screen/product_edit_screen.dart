@@ -22,6 +22,7 @@ import 'package:market_jango/features/vendor/screens/vendor_product_add_page/wid
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/ai_generate_image_button.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/ai_generate_title_section.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/generic_attribute_picker.dart';
+import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/specification_section.dart';
 
 import '../../../widgets/custom_back_button.dart';
 import '../../vendor_home/model/vendor_product_model.dart';
@@ -151,21 +152,23 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                       final visibleCategories = validTypeId == null
                           ? result.categories
                           : result.categories
-                              .where((c) => c.businessTypeId == validTypeId)
-                              .toList();
+                                .where((c) => c.businessTypeId == validTypeId)
+                                .toList();
 
                       int? validCategoryId = _selectedCategoryId;
                       if (validCategoryId == null &&
                           productCategory.isNotEmpty &&
-                          visibleCategories
-                              .any((c) => c.id == productCategory.first.id)) {
+                          visibleCategories.any(
+                            (c) => c.id == productCategory.first.id,
+                          )) {
                         validCategoryId = productCategory.first.id;
                       }
                       if (visibleCategories.isEmpty) {
                         validCategoryId = null;
                       } else if (validCategoryId == null ||
-                          !visibleCategories
-                              .any((c) => c.id == validCategoryId)) {
+                          !visibleCategories.any(
+                            (c) => c.id == validCategoryId,
+                          )) {
                         validCategoryId = visibleCategories.first.id;
                       }
 
@@ -184,8 +187,10 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (businessTypes.isNotEmpty) ...[
-                            _Label('Business Type',
-                                color: const Color(0xFF436AA0)),
+                            _Label(
+                              'Business Type',
+                              color: const Color(0xFF436AA0),
+                            ),
                             SizedBox(height: 6.h),
                             DropdownButtonFormField<int>(
                               isExpanded: true,
@@ -304,7 +309,9 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     productId: widget.product.id,
                     onTitleGenerated: (title) {
                       final clipped = title.length > kProductNameMaxLength
-                          ? title.substring(0, kProductNameMaxLength).trimRight()
+                          ? title
+                                .substring(0, kProductNameMaxLength)
+                                .trimRight()
                           : title;
                       nameController.text = clipped;
                       nameController.selection = TextSelection.fromPosition(
@@ -348,10 +355,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                   SizedBox(height: 10.h),
 
                   /// Description
-                  _Label(
-                    'Description',
-                    color: const Color(0xFF436AA0),
-                  ),
+                  _Label('Description', color: const Color(0xFF436AA0)),
                   AiGenerateDescriptionSection(
                     productId: widget.product.id,
                     title: nameController.text,
@@ -362,9 +366,10 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         descriptionController.text = desc;
                         descriptionController.selection =
                             TextSelection.fromPosition(
-                          TextPosition(
-                              offset: descriptionController.text.length),
-                        );
+                              TextPosition(
+                                offset: descriptionController.text.length,
+                              ),
+                            );
                       });
                     },
                   ),
@@ -401,6 +406,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     error: (err, _) => Center(child: Text('Error: $err')),
                   ),
 
+                  SizedBox(height: 12.h),
+                  const SpecificationSection(),
                   SizedBox(height: 15.h),
 
                   /// Sale type
@@ -445,8 +452,10 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _Label('Current price (UGX)',
-                                color: const Color(0xFF2B6CB0)),
+                            _Label(
+                              'Current price (UGX)',
+                              color: const Color(0xFF2B6CB0),
+                            ),
                             SizedBox(height: 6.h),
                             TextFormField(
                               controller: priceController,
@@ -478,8 +487,10 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _Label('Previous price (UGX)',
-                                color: const Color(0xFF2B6CB0)),
+                            _Label(
+                              'Previous price (UGX)',
+                              color: const Color(0xFF2B6CB0),
+                            ),
                             SizedBox(height: 6.h),
                             TextFormField(
                               controller: regularPriceController,
@@ -555,7 +566,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                               controller: weightController,
                               keyboardType:
                                   const TextInputType.numberWithOptions(
-                                      decimal: true),
+                                    decimal: true,
+                                  ),
                               decoration: InputDecoration(
                                 fillColor: AllColor.white,
                                 hintText: 'e.g. 1.5',
@@ -602,7 +614,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         child: TextFormField(
                           controller: lengthController,
                           keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                            decimal: true,
+                          ),
                           decoration: InputDecoration(
                             fillColor: AllColor.white,
                             hintText: 'Length',
@@ -628,7 +641,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         child: TextFormField(
                           controller: widthController,
                           keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                            decimal: true,
+                          ),
                           decoration: InputDecoration(
                             fillColor: AllColor.white,
                             hintText: 'Width',
@@ -654,7 +668,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                         child: TextFormField(
                           controller: heightController,
                           keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                            decimal: true,
+                          ),
                           decoration: InputDecoration(
                             fillColor: AllColor.white,
                             hintText: 'Height',
@@ -720,13 +735,17 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                   SizedBox(height: 8.h),
                   Container(
                     width: double.infinity,
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 14.w,
+                      vertical: 12.h,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.orange.shade50,
                       borderRadius: BorderRadius.circular(8.r),
                       border: Border.all(
-                          color: Colors.orange.shade200, width: 1.2),
+                        color: Colors.orange.shade200,
+                        width: 1.2,
+                      ),
                     ),
                     child: TextField(
                       controller: termsController,
@@ -778,23 +797,22 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                               return;
                             }
 
+                            final selectedAttrs =
+                                ref.read(selectedAttributesProvider);
+                            final specs = ref.read(productSpecificationProvider);
                             await ref
                                 .read(updateProductProvider.notifier)
                                 .updateProduct(
                                   id: widget.product.id,
                                   name: title,
-                                  description:
-                                      nn(descriptionController.text),
-                                  regularPrice:
-                                      nn(regularPriceController.text),
+                                  description: nn(descriptionController.text),
+                                  regularPrice: nn(regularPriceController.text),
                                   sellPrice: nn(priceController.text),
                                   categoryId: _selectedCategoryId,
-                                  attributes: ref
-                                          .read(selectedAttributesProvider)
-                                          .isEmpty
+                                  attributes: selectedAttrs.isEmpty
                                       ? null
-                                      : ref.read(
-                                          selectedAttributesProvider),
+                                      : selectedAttrs,
+                                  specification: specs,
                                   stock: nn(stockController.text),
                                   weight: nn(weightController.text),
                                   weightUnit: _weightUnit,
@@ -803,8 +821,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                                   height: nn(heightController.text),
                                   dimensionUnit: _dimensionUnit,
                                   saleType: nn(saleTypeController.text),
-                                  termsAndConditions:
-                                      nn(termsController.text),
+                                  termsAndConditions: nn(termsController.text),
                                   barcode: nn(barcodeController.text),
                                   image: mainImage,
                                   newFiles: _newFiles,
@@ -882,18 +899,10 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     stockController = TextEditingController(
       text: widget.product.stock?.toString() ?? '',
     );
-    weightController = TextEditingController(
-      text: widget.product.weight ?? '',
-    );
-    lengthController = TextEditingController(
-      text: widget.product.length ?? '',
-    );
-    widthController = TextEditingController(
-      text: widget.product.width ?? '',
-    );
-    heightController = TextEditingController(
-      text: widget.product.height ?? '',
-    );
+    weightController = TextEditingController(text: widget.product.weight ?? '');
+    lengthController = TextEditingController(text: widget.product.length ?? '');
+    widthController = TextEditingController(text: widget.product.width ?? '');
+    heightController = TextEditingController(text: widget.product.height ?? '');
     saleTypeController = TextEditingController(
       text: widget.product.saleType ?? '',
     );
@@ -915,7 +924,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
       ref.invalidate(productAttributesProvider);
       ref.invalidate(vendorProductCreateCategoriesProvider);
 
-      // Parse attributes from JSON string if available
+      // Parse Select Attribute values from `attributes`
       Map<String, List<String>> parsedAttributes = {};
       if (widget.product.attributes != null &&
           widget.product.attributes!.isNotEmpty) {
@@ -923,24 +932,20 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
           final decoded = jsonDecode(widget.product.attributes!);
           if (decoded is Map) {
             decoded.forEach((key, value) {
+              final k = key.toString();
               if (value is List) {
-                parsedAttributes[key.toString()] = value
-                    .map((e) => e.toString())
-                    .toList();
+                parsedAttributes[k] =
+                    value.map((e) => e.toString()).toList();
+              } else if (value != null) {
+                parsedAttributes[k] = [value.toString()];
               }
             });
           }
-        } catch (e) {
-          // If parsing fails, fall back to color/size
-          if (widget.product.colors.isNotEmpty) {
-            parsedAttributes['color'] = widget.product.colors;
-          }
-          if (widget.product.sizes.isNotEmpty) {
-            parsedAttributes['size'] = widget.product.sizes;
-          }
-        }
-      } else {
-        // Fallback to color/size if attributes is null
+        } catch (_) {}
+      }
+
+      // Fallback to color/size top-level fields
+      if (parsedAttributes.isEmpty) {
         if (widget.product.colors.isNotEmpty) {
           parsedAttributes['color'] = widget.product.colors;
         }
@@ -948,7 +953,6 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
           parsedAttributes['size'] = widget.product.sizes;
         }
       }
-      // Ensure color/size from top-level API fields are present
       if (!parsedAttributes.containsKey('color') &&
           widget.product.colors.isNotEmpty) {
         parsedAttributes['color'] = widget.product.colors;
@@ -958,7 +962,24 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
           widget.product.sizes.isNotEmpty) {
         parsedAttributes['size'] = widget.product.sizes;
       }
+
+      // Parse Specification section from `specifications`
+      final parsedSpecs = <String, String>{};
+      final specsRaw = widget.product.specifications;
+      if (specsRaw != null && specsRaw.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(specsRaw);
+          if (decoded is Map) {
+            decoded.forEach((key, value) {
+              if (value == null) return;
+              parsedSpecs[key.toString()] = value.toString();
+            });
+          }
+        } catch (_) {}
+      }
+
       ref.read(selectedAttributesProvider.notifier).state = parsedAttributes;
+      ref.read(productSpecificationProvider.notifier).state = parsedSpecs;
     });
   }
 
@@ -1013,6 +1034,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
   @override
   void dispose() {
     ref.invalidate(selectedAttributesProvider);
+    ref.invalidate(productSpecificationProvider);
     nameController.dispose();
     descriptionController.dispose();
     priceController.dispose();

@@ -22,9 +22,10 @@ import '../widget/ai_generate_description_section.dart';
 import '../widget/ai_generate_image_button.dart';
 import '../widget/ai_generate_title_section.dart';
 import '../widget/generic_attribute_picker.dart';
+import '../widget/specification_section.dart';
 
 class ProductAddPage extends ConsumerStatefulWidget {
-   const ProductAddPage({super.key,});
+  const ProductAddPage({super.key});
 
   static final String routeName = "/productAddPage";
 
@@ -40,6 +41,7 @@ class _ProductAddPageState extends ConsumerState<ProductAddPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(selectedAttributesProvider.notifier).state = {};
       ref.read(productKeywordsProvider.notifier).state = '';
+      ref.read(productSpecificationProvider.notifier).state = {};
       // Refresh attributes to ensure we have the latest data
       ref.invalidate(productAttributesProvider);
     });
@@ -52,13 +54,13 @@ class _ProductAddPageState extends ConsumerState<ProductAddPage> {
     ref.read(saleTypeProvider.notifier).state = '';
     ref.read(termsAndConditionsProvider.notifier).state = '';
     ref.read(productKeywordsProvider.notifier).state = '';
+    ref.read(productSpecificationProvider.notifier).state = {};
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final attributeAsync = ref.watch(productAttributesProvider);
-
 
     return Scaffold(
       body: SafeArea(
@@ -68,23 +70,26 @@ class _ProductAddPageState extends ConsumerState<ProductAddPage> {
             child: Column(
               children: [
                 Tuppertextandbackbutton(
-                  screenName: ref.t(BKeys.product_upload, fallback: 'Product Upload'),
+                  screenName: ref.t(
+                    BKeys.product_upload,
+                    fallback: 'Product Upload',
+                  ),
                 ),
                 ProductBasicInfoSection(),
                 SizedBox(height: 16.h),
-              attributeAsync.when(
-                data: (data) {
-                  return GenericAttributePicker(
-                    attributes: data.data,
-                  );
-                },
-                loading: () => const Center(child: Text('Loading...')),
-                error: (err, _) => Center(child: Text('Error: $err')),
-              ),
+                attributeAsync.when(
+                  data: (data) {
+                    return GenericAttributePicker(attributes: data.data);
+                  },
+                  loading: () => const Center(child: Text('Loading...')),
+                  error: (err, _) => Center(child: Text('Error: $err')),
+                ),
 
-              SizedBox(height: 16.h),
-              _TwoOptionSection(),
-              SizedBox(height: 16.h),
+                SizedBox(height: 12.h),
+                const SpecificationSection(),
+                SizedBox(height: 16.h),
+                _TwoOptionSection(),
+                SizedBox(height: 16.h),
                 PriceAndImagesSection(),
               ],
             ),
@@ -103,7 +108,8 @@ class ProductBasicInfoSection extends ConsumerStatefulWidget {
       _ProductBasicInfoSectionState();
 }
 
-class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSection> {
+class _ProductBasicInfoSectionState
+    extends ConsumerState<ProductBasicInfoSection> {
   final _titleC = TextEditingController();
   final _descC = TextEditingController();
 
@@ -118,7 +124,6 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
   OutlineInputBorder _border() => OutlineInputBorder(
     borderRadius: BorderRadius.circular(5.r),
     borderSide: BorderSide(color: AllColor.grey, width: 1.2),
-
   );
 
   @override
@@ -130,12 +135,10 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
 
   @override
   Widget build(BuildContext context) {
-   
     final ThemeData dropTheme = ThemeData(
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
     );
-
 
     final categoryAsync = ref.watch(vendorProductCreateCategoriesProvider);
     return Column(
@@ -144,10 +147,7 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
         Row(
           children: [
             Expanded(
-              child: _Label(
-                ref.t(BKeys.product_title),
-                color: _lblColor,
-              ),
+              child: _Label(ref.t(BKeys.product_title), color: _lblColor),
             ),
           ],
         ),
@@ -213,8 +213,8 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
             final visibleCategories = validTypeId == null
                 ? result.categories
                 : result.categories
-                    .where((c) => c.businessTypeId == validTypeId)
-                    .toList();
+                      .where((c) => c.businessTypeId == validTypeId)
+                      .toList();
 
             // Keep the selected category valid within the visible list.
             int? validCategoryId = selectedCategoryId;
@@ -260,14 +260,14 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
                     child: DropdownButton<int>(
                       isExpanded: true,
                       value: validTypeId,
-                      hint: Text('Select Business Type',
-                          style:
-                              TextStyle(fontSize: 15.sp, color: _hintText)),
+                      hint: Text(
+                        'Select Business Type',
+                        style: TextStyle(fontSize: 15.sp, color: _hintText),
+                      ),
                       icon: const Icon(Icons.keyboard_arrow_down_rounded),
                       dropdownColor: Colors.white,
                       borderRadius: BorderRadius.circular(16.r),
-                      style:
-                          TextStyle(fontSize: 15.sp, color: Colors.black87),
+                      style: TextStyle(fontSize: 15.sp, color: Colors.black87),
                       items: businessTypes.map((t) {
                         return DropdownMenuItem(
                           value: t.id,
@@ -284,8 +284,9 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
                             .toList();
                         setState(() {
                           selectedBusinessTypeId = v;
-                          selectedCategoryId =
-                              firstCat.isEmpty ? null : firstCat.first.id;
+                          selectedCategoryId = firstCat.isEmpty
+                              ? null
+                              : firstCat.first.id;
                         });
                         ref.read(productCategoryProvider.notifier).state =
                             firstCat.isEmpty ? null : firstCat.first.id;
@@ -306,14 +307,14 @@ class _ProductBasicInfoSectionState extends ConsumerState<ProductBasicInfoSectio
                     child: DropdownButton<int>(
                       isExpanded: true,
                       value: validCategoryId,
-                      hint: Text('Select Category',
-                          style:
-                              TextStyle(fontSize: 15.sp, color: _hintText)),
+                      hint: Text(
+                        'Select Category',
+                        style: TextStyle(fontSize: 15.sp, color: _hintText),
+                      ),
                       icon: const Icon(Icons.keyboard_arrow_down_rounded),
                       dropdownColor: Colors.white,
                       borderRadius: BorderRadius.circular(16.r),
-                      style:
-                          TextStyle(fontSize: 15.sp, color: Colors.black87),
+                      style: TextStyle(fontSize: 15.sp, color: Colors.black87),
                       items: visibleCategories.map((c) {
                         return DropdownMenuItem(
                           value: c.id,
@@ -459,9 +460,9 @@ class _TwoOptionSectionState extends ConsumerState<_TwoOptionSection> {
   static const _hintColor = Color(0xFF95A6C4);
 
   OutlineInputBorder _border() => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(5.r),
-        borderSide: BorderSide(color: AllColor.grey, width: 1.2),
-      );
+    borderRadius: BorderRadius.circular(5.r),
+    borderSide: BorderSide(color: AllColor.grey, width: 1.2),
+  );
 
   @override
   void dispose() {
@@ -485,8 +486,7 @@ class _TwoOptionSectionState extends ConsumerState<_TwoOptionSection> {
         SizedBox(height: 6.h),
         TextField(
           controller: _saleTypeC,
-          onChanged: (v) =>
-              ref.read(saleTypeProvider.notifier).state = v,
+          onChanged: (v) => ref.read(saleTypeProvider.notifier).state = v,
           decoration: InputDecoration(
             hintText: 'e.g. kg, piece, etc.',
             hintStyle: TextStyle(fontSize: 14.sp, color: _hintColor),
@@ -500,17 +500,15 @@ class _TwoOptionSectionState extends ConsumerState<_TwoOptionSection> {
   }
 }
 
-class PriceAndImagesSection extends ConsumerStatefulWidget{
-  const PriceAndImagesSection({super.key,});
-
+class PriceAndImagesSection extends ConsumerStatefulWidget {
+  const PriceAndImagesSection({super.key});
 
   @override
-  ConsumerState<PriceAndImagesSection> createState() => _PriceAndImagesSectionState();
+  ConsumerState<PriceAndImagesSection> createState() =>
+      _PriceAndImagesSectionState();
 }
 
 class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
-
-
   @override
   void dispose() {
     _termsC.dispose();
@@ -527,7 +525,6 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
 
   @override
   Widget build(BuildContext context) {
-    
     const borderBlue = Color(0xFFBFD5F1);
     const labelBlue = Color(0xFF2B6CB0);
     const hintColor = Color(0xFF95A6C4);
@@ -545,7 +542,11 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
             ref.invalidate(updateProductProvider);
             // success হলেই নেভিগেট + টোস্ট
             context.pop();
-            GlobalSnackbar.show(context, title: "Success", message: "Product Created Successfully");
+            GlobalSnackbar.show(
+              context,
+              title: "Success",
+              message: "Product Created Successfully",
+            );
           }
         },
         error: (err, _) {
@@ -554,7 +555,6 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
         loading: () {},
       );
     });
-
 
     OutlineInputBorder border([Color c = borderBlue]) => OutlineInputBorder(
       borderSide: BorderSide(color: c, width: 1.2),
@@ -639,7 +639,9 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                   labelColor: labelBlue,
                   child: TextField(
                     controller: _weightC,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: InputDecoration(
                       fillColor: AllColor.white,
                       hintText: 'e.g. 1.5',
@@ -682,7 +684,9 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
               Expanded(
                 child: TextField(
                   controller: _lengthC,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     fillColor: AllColor.white,
                     hintText: 'Length',
@@ -695,7 +699,9 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
               Expanded(
                 child: TextField(
                   controller: _widthC,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     fillColor: AllColor.white,
                     hintText: 'Width',
@@ -708,7 +714,9 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
               Expanded(
                 child: TextField(
                   controller: _heightC,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     fillColor: AllColor.white,
                     hintText: 'Height',
@@ -778,15 +786,16 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
           SizedBox(height: 10.h),
 
           // Single preview
-          if (_cover != null)  _SectionTitle('Uploaded Preview', labelBlue),
+          if (_cover != null) _SectionTitle('Uploaded Preview', labelBlue),
           SizedBox(height: 8.h),
-          if (_cover != null)    SizedBox(
-            height: 64.w,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child:  _PreviewTile(file: _cover, size: 64.w),
+          if (_cover != null)
+            SizedBox(
+              height: 64.w,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _PreviewTile(file: _cover, size: 64.w),
+              ),
             ),
-          ),
           SizedBox(height: 18.h),
 
           // Gallery images
@@ -818,17 +827,14 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
             ],
           ),
           SizedBox(height: 6.h),
-          _UploadCard(
-            text: 'Upload Multiple Images',
-            onTap: _pickGallery,
-          ),
+          _UploadCard(text: 'Upload Multiple Images', onTap: _pickGallery),
           SizedBox(height: 10.h),
 
-          if (_gallery.isNotEmpty)   _SectionTitle('Uploaded Preview', labelBlue),
+          if (_gallery.isNotEmpty) _SectionTitle('Uploaded Preview', labelBlue),
           SizedBox(height: 8.h),
 
           // Grid of previews (show empty placeholders if none)
-        Wrap(
+          Wrap(
             spacing: 12.w,
             runSpacing: 12.h,
             children: List.generate(_gallery.length, (i) {
@@ -875,109 +881,112 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
           ),
           SizedBox(height: 20.h),
           GlobalSaveBotton(
-                bottonName:loading? "Creating....": "Create a Product",
-                onPressed: () {
-                  final name = ref.read(productNameProvider).trim();
-                  if (name.isEmpty) {
-                    GlobalSnackbar.show(
-                      context,
-                      title: "Validation Error",
-                      message: "Please enter a product title",
-                      type: CustomSnackType.error,
-                    );
-                    return;
-                  }
-                  if (name.length > kProductNameMaxLength) {
-                    GlobalSnackbar.show(
-                      context,
-                      title: "Validation Error",
-                      message:
-                          "Product title must be $kProductNameMaxLength characters or less",
-                      type: CustomSnackType.error,
-                    );
-                    return;
-                  }
+            bottonName: loading ? "Creating...." : "Create a Product",
+            onPressed: () {
+              final name = ref.read(productNameProvider).trim();
+              if (name.isEmpty) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please enter a product title",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+              if (name.length > kProductNameMaxLength) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message:
+                      "Product title must be $kProductNameMaxLength characters or less",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
 
-                  // Validate prices
-                  if (_currentC.text.trim().isEmpty || _previousC.text.trim().isEmpty) {
-                    GlobalSnackbar.show(
-                      context,
-                      title: "Validation Error",
-                      message: "Please enter the prices",
-                      type: CustomSnackType.error,
-                    );
-                    return;
-                  }
-                  
-                  // Validate cover image
-                  if (_cover == null) {
-                    GlobalSnackbar.show(
-                      context,
-                      title: "Validation Error",
-                      message: "Please upload a cover image",
-                      type: CustomSnackType.error,
-                    );
-                    return;
-                  }
+              // Validate prices
+              if (_currentC.text.trim().isEmpty ||
+                  _previousC.text.trim().isEmpty) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please enter the prices",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
 
-                  // API requires at least 1 additional image in files[]
-                  if (_gallery.isEmpty) {
-                    GlobalSnackbar.show(
-                      context,
-                      title: "Validation Error",
-                      message: "Please upload at least one gallery image",
-                      type: CustomSnackType.error,
-                    );
-                    return;
-                  }
-                  
-                  final createAsync = ref.read(createProductProvider.notifier);
-                  final desc = ref.read(productDescProvider);
-                  final categoryId = ref.read(productCategoryProvider);
-                  final saleType = ref.read(saleTypeProvider);
-                  final termsAndConditions = ref.read(termsAndConditionsProvider);
-                  createAsync.createProduct(
-                    name: name,
-                    description: desc,
-                    regularPrice: _previousC.text,
-                    sellPrice: _currentC.text,
-                    categoryId: categoryId ?? 1,
-                    attributes: selectedAttributes,
-                    stock: _stockC.text,
-                    weight: _weightC.text,
-                    weightUnit: _weightUnit,
-                    length: _lengthC.text,
-                    width: _widthC.text,
-                    height: _heightC.text,
-                    dimensionUnit: _dimensionUnit,
-                    barcode: _barcodeC.text,
-                    saleType: saleType,
-                    termsAndConditions: termsAndConditions,
-                    image: File(_cover!.path),
-                    files: _gallery.map((x) => File(x.path)).toList(),
-                  );
-                  // final state = ref.read(createProductProvider);
-                  // state.when(
-                  //     data: (msg) {
-                  //       if (msg.contains('success')) {
-                  //         context.push(VendorHomeScreen.routeName);
-                  //         GlobalSnackbar.show(context, title: "Success", message: "Product Created Successfully") ;
-                  //
-                  //       }
-                  //     },
-                  //     error: (err, _) {
-                  //       GlobalSnackbar.show(context, title: "Error", message: "Something went wrong") ;
-                  //     },
-                  //     loading: ()   {},
-                  //     // => const Center(child: CircularProgressIndicator()),
-                  // );
-                }
-              )
-           
+              // Validate cover image
+              if (_cover == null) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please upload a cover image",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+
+              // API requires at least 1 additional image in files[]
+              if (_gallery.isEmpty) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please upload at least one gallery image",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+
+              final createAsync = ref.read(createProductProvider.notifier);
+              final desc = ref.read(productDescProvider);
+              final categoryId = ref.read(productCategoryProvider);
+              final saleType = ref.read(saleTypeProvider);
+              final termsAndConditions = ref.read(termsAndConditionsProvider);
+              final specification = ref.read(productSpecificationProvider);
+              createAsync.createProduct(
+                name: name,
+                description: desc,
+                regularPrice: _previousC.text,
+                sellPrice: _currentC.text,
+                categoryId: categoryId ?? 1,
+                attributes: selectedAttributes,
+                specification: specification,
+                stock: _stockC.text,
+                weight: _weightC.text,
+                weightUnit: _weightUnit,
+                length: _lengthC.text,
+                width: _widthC.text,
+                height: _heightC.text,
+                dimensionUnit: _dimensionUnit,
+                barcode: _barcodeC.text,
+                saleType: saleType,
+                termsAndConditions: termsAndConditions,
+                image: File(_cover!.path),
+                files: _gallery.map((x) => File(x.path)).toList(),
+              );
+              // final state = ref.read(createProductProvider);
+              // state.when(
+              //     data: (msg) {
+              //       if (msg.contains('success')) {
+              //         context.push(VendorHomeScreen.routeName);
+              //         GlobalSnackbar.show(context, title: "Success", message: "Product Created Successfully") ;
+              //
+              //       }
+              //     },
+              //     error: (err, _) {
+              //       GlobalSnackbar.show(context, title: "Error", message: "Something went wrong") ;
+              //     },
+              //     loading: ()   {},
+              //     // => const Center(child: CircularProgressIndicator()),
+              // );
+            },
+          ),
         ],
       ),
     );
   }
+
   final _currentC = TextEditingController();
   final _previousC = TextEditingController();
   final _stockC = TextEditingController();
@@ -996,10 +1005,7 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
   final List<XFile> _gallery = [];
 
   Future<void> _pickCover(source) async {
-    final x = await _picker.pickImage(
-      source: source,
-      imageQuality: 85,
-    );
+    final x = await _picker.pickImage(source: source, imageQuality: 85);
     if (x != null) setState(() => _cover = x);
   }
 
@@ -1007,12 +1013,13 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
     final xs = await _picker.pickMultiImage(imageQuality: 85);
     if (xs.isNotEmpty) {
       setState(
-            () => _gallery
+        () => _gallery
           ..clear()
           ..addAll(xs.take(8)),
       ); // cap to 8 for neat grid
     }
   }
+
   void _askImageSource() {
     showModalBottomSheet(
       context: context,
@@ -1026,8 +1033,7 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                 onTap: () {
                   Navigator.pop(context);
 
-                  _pickCover(ImageSource.camera) ;
-
+                  _pickCover(ImageSource.camera);
                 },
               ),
               ListTile(

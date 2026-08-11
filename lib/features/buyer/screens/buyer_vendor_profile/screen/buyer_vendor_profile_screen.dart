@@ -26,11 +26,41 @@ import 'package:market_jango/core/screen/buyer_massage/screen/global_chat_screen
 import 'package:market_jango/core/utils/get_user_type.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
+import 'package:market_jango/features/buyer/screens/cart/logic/cart_data.dart';
+import 'package:market_jango/features/buyer/screens/cart/screen/cart_screen.dart';
+import 'package:market_jango/features/buyer/screens/product/logic/add_cart_quantity_logic.dart';
 
 import 'buyer_vendor_cetagory_screen.dart';
 import 'buyer_vendor_followers_screen.dart';
 import 'vendor_promotion_screen.dart';
 import '../widget/highlighted_product_shell.dart';
+import '../widget/vendor_profile_product_search.dart';
+
+Future<void> addProductToCartAndOpenCart(
+  BuildContext context,
+  WidgetRef ref, {
+  required int productId,
+}) async {
+  try {
+    await CartService.create(
+      productId: productId,
+      quantity: 1,
+      attributes: const {},
+    );
+    if (!context.mounted) return;
+    ref.invalidate(cartProvider);
+    GlobalSnackbar.show(
+      context,
+      title: 'Success',
+      message: 'Added to cart',
+    );
+    context.push(CartScreen.routeName);
+  } catch (_) {
+    if (!context.mounted) return;
+    // Product may need color/size — open details for full add-to-cart flow.
+    context.push(ProductDetails.routeName, extra: productId);
+  }
+}
 
 /// First 4 products from GET api/product/vendor/{id} (see doc/API_PRODUCT_VENDOR.md). Shown above Popular.
 class VendorFirstFourProductSection extends ConsumerWidget {
@@ -94,6 +124,12 @@ class VendorFirstFourProductSection extends ConsumerWidget {
                   ),
                   image: p.image,
                   imageHeight: 175,
+                  showAddToCartButton: true,
+                  onAddToCart: () => addProductToCartAndOpenCart(
+                    context,
+                    ref,
+                    productId: p.id,
+                  ),
                 ),
               ),
             );
@@ -316,6 +352,7 @@ class _BuyerVendorProfileScreenState
                 userId: effectiveUserId?.toString(),
                 vendorId: vendorId,
               ),
+              VendorProfileProductSearch(vendorId: vendorId),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 10.w),
                 child: Column(
@@ -411,10 +448,12 @@ class CustomVendorUpperSection extends ConsumerWidget {
         final vendor = v.vendor; // may be null
         bool hasText(String? s) => s != null && s.trim().isNotEmpty;
 
-        final name = hasText(v.name)
-            ? v.name
-            : (vendor != null && hasText(vendor.businessName))
+        // Shop profile should show business_name (e.g. "My Shop"), not the
+        // account holder's personal name (e.g. "Ahmed Al-Rashid").
+        final name = (vendor != null && hasText(vendor.businessName))
             ? vendor.businessName
+            : hasText(v.name)
+            ? v.name
             : 'Vendor';
 
         final img = hasText(v.image)
@@ -828,10 +867,11 @@ class CustomVendorUpperSection extends ConsumerWidget {
       return;
     }
 
-    final vendorName = vendor.name.isNotEmpty
+    final vendorName =
+        (vendor.vendor?.businessName.trim().isNotEmpty ?? false)
+        ? vendor.vendor!.businessName.trim()
+        : vendor.name.isNotEmpty
         ? vendor.name
-        : (vendor.vendor?.businessName.isNotEmpty ?? false)
-        ? vendor.vendor!.businessName
         : 'Vendor';
 
     final vendorImage = vendor.image.isNotEmpty
@@ -1024,7 +1064,7 @@ class _VendorFollowActions extends ConsumerWidget {
   }
 }
 
-class FashionProduct extends StatelessWidget {
+class FashionProduct extends ConsumerWidget {
   const FashionProduct({
     super.key,
     this.products,
@@ -1037,7 +1077,7 @@ class FashionProduct extends StatelessWidget {
   final GlobalKey? highlightKey;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final items = products ?? const [];
 
     if (items.isEmpty) {
@@ -1059,7 +1099,7 @@ class FashionProduct extends StatelessWidget {
                         ProductDetails.routeName,
                         extra: items[index].id,
                       ),
-                      child: _buildProductCard(items[index]),
+                      child: _buildProductCard(context, ref, items[index]),
                     ),
                     if (index < items.length - 1) SizedBox(width: 12.w),
                   ],
@@ -1079,7 +1119,7 @@ class FashionProduct extends StatelessWidget {
                   child: GestureDetector(
                     onTap: () =>
                         context.push(ProductDetails.routeName, extra: p.id),
-                    child: _buildProductCard(p),
+                    child: _buildProductCard(context, ref, p),
                   ),
                 );
               },
@@ -1087,7 +1127,11 @@ class FashionProduct extends StatelessWidget {
     );
   }
 
-  Widget _buildProductCard(VcpProduct p) {
+  Widget _buildProductCard(
+    BuildContext context,
+    WidgetRef ref,
+    VcpProduct p,
+  ) {
     final isHighlighted =
         highlightProductId != null && p.id == highlightProductId;
     return HighlightedProductShell(
@@ -1106,6 +1150,12 @@ class FashionProduct extends StatelessWidget {
         ),
         image: p.image,
         imageHeight: 130,
+        showAddToCartButton: true,
+        onAddToCart: () => addProductToCartAndOpenCart(
+          context,
+          ref,
+          productId: p.id,
+        ),
       ),
     );
   }
@@ -1174,6 +1224,12 @@ class PopularProduct extends ConsumerWidget {
                         currency: p.currency,
                       ),
                       image: p.image,
+                      showAddToCartButton: true,
+                      onAddToCart: () => addProductToCartAndOpenCart(
+                        context,
+                        ref,
+                        productId: p.id,
+                      ),
                     ),
                   ),
                   if (p.discount > 0)

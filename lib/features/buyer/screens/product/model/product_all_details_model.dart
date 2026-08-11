@@ -57,9 +57,11 @@ class DetailItem {
   /// terms_and_conditions from API – nullable
   final String? termsAndConditions;
 
-  /// ✅ API string JSON like:
-  /// "{\"color\":[\"red\",\"green\"],\"size\":[\"m\",\"xl\"],\"brand\":[\"apple\"]}"
+  /// API `attributes` JSON string like: {"brand":["apple"],"specition":["color 50%"]}
   final String? attributes;
+
+  /// API `specifications` map like: {"lau":"50%","bau":"40%"}
+  final Map<String, String> specifications;
 
   DetailItem({
     required this.id,
@@ -90,7 +92,8 @@ class DetailItem {
     this.stock,
     this.saleType,
     this.termsAndConditions,
-    this.attributes, // ✅ optional (clean)
+    this.attributes,
+    this.specifications = const {},
   });
 
   factory DetailItem.fromJson(Map<String, dynamic> json) {
@@ -111,6 +114,11 @@ class DetailItem {
         attrString = rawAttr.toString();
       }
     }
+
+    final sizeList = _parseStringList(data['size']);
+    final measurementList = _parseStringList(data['measurement']);
+    final effectiveSize =
+        sizeList.isNotEmpty ? sizeList : measurementList;
 
     return DetailItem(
       id: _toInt(data['id']),
@@ -139,7 +147,7 @@ class DetailItem {
       star: _toDouble(data['star']),
       image: data['image']?.toString() ?? '',
       color: _parseColors(data['color']),
-      size: _parseStringList(data['size']),
+      size: effectiveSize,
       remark: data['remark']?.toString() ?? '',
       isActive: data['is_active'] is bool
           ? data['is_active'] as bool
@@ -162,11 +170,49 @@ class DetailItem {
       saleType: data['sale_type']?.toString().trim().isNotEmpty == true
           ? data['sale_type'].toString().trim()
           : null,
-      termsAndConditions: data['terms_and_conditions']?.toString().trim().isNotEmpty == true
+      termsAndConditions:
+          data['terms_and_conditions']?.toString().trim().isNotEmpty == true
           ? data['terms_and_conditions'].toString().trim()
           : null,
       attributes: attrString,
+      specifications: _parseSpecifications(
+        data['specifications'] ?? data['specification'],
+      ),
     );
+  }
+
+  /// Selectable options for cart: color → size → other attributes.
+  /// Order: color (if any), size (if any), then all `attributes` keys.
+  Map<String, List<String>> get selectableAttributesMap {
+    final out = <String, List<String>>{};
+
+    if (color.isNotEmpty) {
+      out['color'] = List<String>.from(color);
+    }
+    if (size.isNotEmpty) {
+      out['size'] = List<String>.from(size);
+    }
+
+    attributesMap.forEach((key, values) {
+      final lower = key.toLowerCase().trim();
+      if (lower == 'color' ||
+          lower == 'colour' ||
+          lower == 'size' ||
+          lower == 'sizes' ||
+          lower == 'measurement') {
+        // Already covered by top-level color/size (or skip duplicate).
+        if (!out.containsKey(lower == 'colour' ? 'color' : lower) &&
+            values.isNotEmpty) {
+          out[key] = values;
+        }
+        return;
+      }
+      if (values.isNotEmpty) {
+        out[key] = values;
+      }
+    });
+
+    return out;
   }
 
   /// ✅ attributes string -> Map<String, List<String>>
@@ -196,6 +242,27 @@ class DetailItem {
 
       // empty keys remove
       out.removeWhere((k, v) => v.isEmpty);
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Map<String, String> _parseSpecifications(dynamic raw) {
+    if (raw == null) return {};
+    try {
+      final decoded = raw is String
+          ? (raw.trim().isEmpty ? null : jsonDecode(raw))
+          : raw;
+      if (decoded is! Map) return {};
+      final out = <String, String>{};
+      decoded.forEach((k, v) {
+        final key = k.toString().trim();
+        if (key.isEmpty || v == null) return;
+        final val = v.toString().trim();
+        if (val.isEmpty) return;
+        out[key] = val;
+      });
       return out;
     } catch (_) {
       return {};

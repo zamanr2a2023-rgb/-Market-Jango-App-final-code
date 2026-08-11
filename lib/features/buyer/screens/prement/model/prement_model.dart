@@ -5,11 +5,13 @@ class CartItem {
   final String imageUrl; // Network/Asset/file path
   final int qty;
   final double price;
+  final String? vendorName;
   CartItem({
     required this.title,
     required this.imageUrl,
     required this.qty,
     required this.price,
+    this.vendorName,
   });
 }
 
@@ -19,22 +21,15 @@ class ShippingOption {
   /// When set, shown instead of auto "Free" / currency formatting.
   final String? displayPrice;
 
-  ShippingOption({
-    required this.title,
-    required this.cost,
-    this.displayPrice,
-  });
+  ShippingOption({required this.title, required this.cost, this.displayPrice});
 }
 
 /// Single payment option model
 class PaymentOption {
   final String label;
-  final IconData? icon;  // use when there is a Material icon (e.g., card, cash)
-  final String? asset;   // use when no icon available (e.g., GPay, PayPal png/svg)
+  final IconData? icon; // use when there is a Material icon (e.g., card, cash)
+  final String?
+  asset; // use when no icon available (e.g., GPay, PayPal png/svg)
 
-  PaymentOption({
-    required this.label,
-    this.icon,
-    this.asset,
-  });
+  PaymentOption({required this.label, this.icon, this.asset});
 }

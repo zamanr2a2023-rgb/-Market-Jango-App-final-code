@@ -13,3 +13,6 @@ final productCategoryNameProvider = StateProvider<String>((ref) => '');
 final productKeywordsProvider = StateProvider<String>((ref) => '');
 final saleTypeProvider = StateProvider<String>((ref) => '');
 final termsAndConditionsProvider = StateProvider<String>((ref) => '');
+/// Custom product specs for `specifications` JSON, e.g. {"material":"cotton"}.
+final productSpecificationProvider =
+    StateProvider<Map<String, String>>((ref) => {});

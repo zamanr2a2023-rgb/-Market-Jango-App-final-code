@@ -6,108 +6,116 @@ import 'package:market_jango/features/vendor/screens/product_edit/model/product_
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/selecd_color_size_list.dart';
 
 class GenericAttributePicker extends ConsumerStatefulWidget {
-  const GenericAttributePicker({
-    super.key,
-    required this.attributes,
-  });
+  const GenericAttributePicker({super.key, required this.attributes});
 
   final List<VendorProductAttribute> attributes;
 
   @override
-  ConsumerState<GenericAttributePicker> createState() => _GenericAttributePickerState();
+  ConsumerState<GenericAttributePicker> createState() =>
+      _GenericAttributePickerState();
 }
 
-class _GenericAttributePickerState extends ConsumerState<GenericAttributePicker> {
+class _GenericAttributePickerState
+    extends ConsumerState<GenericAttributePicker> {
+  void _addAttribute(String attrName) {
+    final current =
+        Map<String, List<String>>.from(ref.read(selectedAttributesProvider));
+    if (current.containsKey(attrName)) return;
+    current[attrName] = [];
+    ref.read(selectedAttributesProvider.notifier).state = current;
+  }
+
+  void _removeAttribute(String attrName) {
+    final current =
+        Map<String, List<String>>.from(ref.read(selectedAttributesProvider));
+    current.remove(attrName);
+    ref.read(selectedAttributesProvider.notifier).state = current;
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedAttributes = ref.watch(selectedAttributesProvider);
-    
-    // Get available attributes for dropdowns (excluding already selected ones)
     final selectedAttrNames = selectedAttributes.keys.toSet();
     final availableAttributes = widget.attributes
         .where((attr) => !selectedAttrNames.contains(attr.name.toLowerCase()))
         .toList();
-
-    // Get the two selected attributes to display (maintain order)
     final selectedAttrList = selectedAttributes.entries.toList();
-    final attr1Entry = selectedAttrList.isNotEmpty ? selectedAttrList[0] : null;
-    final attr2Entry = selectedAttrList.length > 1 ? selectedAttrList[1] : null;
 
-    // UX: when nothing is selected yet, show a single "Select Attribute" dropdown (no duplicate headers).
-    if (attr1Entry == null) {
+    if (selectedAttrList.isEmpty) {
       return _AttributeDropdown(
         availableAttributes: availableAttributes,
-        onSelected: (attrName) {
-          final current = Map<String, List<String>>.from(selectedAttributes);
-          current[attrName] = [];
-          ref.read(selectedAttributesProvider.notifier).state = current;
-        },
+        onSelected: _addAttribute,
       );
     }
 
-    return IntrinsicHeight(
-      child: Row(
-        children: [
-          /// ==== LEFT: FIRST ATTRIBUTE ====
-          Expanded(
-            child: Column(
+    // Pair selected attributes into rows of 2 (supports more than two).
+    final rows = <List<MapEntry<String, List<String>>>>[];
+    for (var i = 0; i < selectedAttrList.length; i += 2) {
+      rows.add(
+        selectedAttrList.sublist(
+          i,
+          i + 2 > selectedAttrList.length ? selectedAttrList.length : i + 2,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final row in rows) ...[
+          IntrinsicHeight(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _CardHeader(
-                  label: _getAttributeDisplayName(attr1Entry.key),
-                ),
-                SizedBox(height: 10.h),
-                _AttributeValuePicker(
-                  attributeName: attr1Entry.key,
-                  selectedValues: attr1Entry.value,
-                  attributes: widget.attributes,
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(width: 14.w),
-
-          /// ==== RIGHT: SECOND ATTRIBUTE ====
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (attr2Entry != null) ...[
-                  _CardHeader(
-                    label: _getAttributeDisplayName(attr2Entry.key),
+                for (var i = 0; i < row.length; i++) ...[
+                  if (i > 0) SizedBox(width: 14.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _CardHeader(
+                          label: _getAttributeDisplayName(row[i].key),
+                          onRemove: () => _removeAttribute(row[i].key),
+                        ),
+                        SizedBox(height: 10.h),
+                        _AttributeValuePicker(
+                          attributeName: row[i].key,
+                          selectedValues: row[i].value,
+                          attributes: widget.attributes,
+                        ),
+                      ],
+                    ),
                   ),
-                  SizedBox(height: 10.h),
-                  _AttributeValuePicker(
-                    attributeName: attr2Entry.key,
-                    selectedValues: attr2Entry.value,
-                    attributes: widget.attributes,
-                  ),
-                ] else ...[
-                  // Second attribute selector (appears only after first attribute is chosen).
-                  _AttributeDropdown(
-                    availableAttributes: availableAttributes,
-                    onSelected: (attrName) {
-                      final current =
-                          Map<String, List<String>>.from(selectedAttributes);
-                      current[attrName] = [];
-                      ref.read(selectedAttributesProvider.notifier).state =
-                          current;
-                    },
-                  ),
+                ],
+                // Keep layout balanced when odd count on last row.
+                if (row.length == 1) ...[
+                  SizedBox(width: 14.w),
+                  const Expanded(child: SizedBox.shrink()),
                 ],
               ],
             ),
           ),
+          SizedBox(height: 12.h),
         ],
-      ),
+        if (availableAttributes.isNotEmpty)
+          _AttributeDropdown(
+            availableAttributes: availableAttributes,
+            hintText: 'Add another attribute',
+            onSelected: _addAttribute,
+          ),
+      ],
     );
   }
 
   String _getAttributeDisplayName(String key) {
     final attr = widget.attributes.firstWhere(
       (a) => a.name.toLowerCase() == key,
-      orElse: () => VendorProductAttribute(id: 0, name: key, vendorId: 0, attributeValues: []),
+      orElse: () => VendorProductAttribute(
+        id: 0,
+        name: key,
+        vendorId: 0,
+        attributeValues: [],
+      ),
     );
     return 'Select ${attr.name}';
   }
@@ -118,10 +126,12 @@ class _AttributeDropdown extends StatelessWidget {
   const _AttributeDropdown({
     required this.availableAttributes,
     required this.onSelected,
+    this.hintText = 'Select Attribute',
   });
 
   final List<VendorProductAttribute> availableAttributes;
   final ValueChanged<String> onSelected;
+  final String hintText;
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +153,7 @@ class _AttributeDropdown extends StatelessWidget {
             BoxShadow(
               blurRadius: 14.r,
               offset: Offset(0, 6.h),
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
             ),
           ],
         ),
@@ -152,7 +162,7 @@ class _AttributeDropdown extends StatelessWidget {
             isExpanded: true,
             value: null,
             hint: Text(
-              'Select Attribute',
+              hintText,
               style: TextStyle(fontSize: 15.sp, color: Colors.grey),
             ),
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
@@ -214,26 +224,25 @@ class _AttributeValuePicker extends ConsumerWidget {
           onTap: () {
             final selectedAttributes = ref.read(selectedAttributesProvider);
             final current = Map<String, List<String>>.from(selectedAttributes);
-            final currentValues = List<String>.from(current[attributeName] ?? []);
-            
+            final currentValues = List<String>.from(
+              current[attributeName] ?? [],
+            );
+
             if (isSelected) {
               currentValues.remove(value);
             } else {
               currentValues.add(value);
             }
-            
+
             if (currentValues.isEmpty) {
               current.remove(attributeName);
             } else {
               current[attributeName] = currentValues;
             }
-            
+
             ref.read(selectedAttributesProvider.notifier).state = current;
           },
-          child: _ValueChip(
-            label: value,
-            selected: isSelected,
-          ),
+          child: _ValueChip(label: value, selected: isSelected),
         );
       }).toList(),
     );
@@ -242,14 +251,15 @@ class _AttributeValuePicker extends ConsumerWidget {
 
 /// Header box (same design as color/size)
 class _CardHeader extends StatelessWidget {
-  const _CardHeader({required this.label});
+  const _CardHeader({required this.label, this.onRemove});
   final String label;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 48.h,
-      padding: EdgeInsets.symmetric(horizontal: 14.w),
+      padding: EdgeInsets.only(left: 14.w, right: 4.w),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(5.r),
@@ -261,16 +271,28 @@ class _CardHeader extends StatelessWidget {
           ),
         ],
       ),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14.sp,
-            color: const Color(0xFF444444),
-            fontWeight: FontWeight.w500,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: const Color(0xFF444444),
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
+          if (onRemove != null)
+            IconButton(
+              onPressed: onRemove,
+              icon: Icon(Icons.close, size: 18.sp, color: Colors.grey),
+              padding: EdgeInsets.zero,
+              constraints: BoxConstraints(minWidth: 32.w, minHeight: 32.h),
+              tooltip: 'Remove',
+            ),
+        ],
       ),
     );
   }
@@ -296,7 +318,7 @@ class _ValueChip extends StatelessWidget {
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF4A7CFF).withOpacity(0.35),
+                    color: const Color(0xFF4A7CFF).withValues(alpha: 0.35),
                     blurRadius: 10.r,
                     offset: Offset(0, 3.h),
                   ),
@@ -315,4 +337,3 @@ class _ValueChip extends StatelessWidget {
     );
   }
 }
-

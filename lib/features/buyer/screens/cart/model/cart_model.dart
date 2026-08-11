@@ -7,6 +7,7 @@ class CartResponse {
   final Map<String, List<CartItem>> groups; // e.g. {"0":[...]}
   /// Ledger total in UGX.
   final double total;
+
   /// Buyer-facing total from API (`total_display`).
   final double totalDisplay;
   final String currency;
@@ -60,15 +61,14 @@ class CartResponse {
 
     if (data is Map<String, dynamic>) {
       total = toNum(data['total'])?.toDouble() ?? 0.0;
-      totalDisplay =
-          toNum(data['total_display'])?.toDouble() ?? total;
+      totalDisplay = toNum(data['total_display'])?.toDouble() ?? total;
       currency = data['currency']?.toString().trim().isNotEmpty == true
           ? data['currency'].toString().trim()
           : 'UGX';
       displayCurrency =
           data['display_currency']?.toString().trim().isNotEmpty == true
-              ? data['display_currency'].toString().trim()
-              : currency;
+          ? data['display_currency'].toString().trim()
+          : currency;
       exchangeRate = toNum(data['exchange_rate'])?.toDouble() ?? 1;
 
       data.forEach((k, v) {

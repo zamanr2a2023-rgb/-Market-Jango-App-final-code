@@ -143,14 +143,19 @@ class _CustomSearchBarState<R, T> extends ConsumerState<GlobalSearchBar<R, T>> {
                           if (items.isEmpty) {
                             return const Padding(
                               padding: EdgeInsets.all(12),
-                              child: Text('No products found'),
+                              child: Text('No products or vendors found'),
                             );
                           }
                           return ListView.separated(
                             itemCount: items.length,
-                            separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+                            separatorBuilder: (_, __) =>
+                                Divider(height: 1, color: Colors.grey.shade200),
                             itemBuilder: (context, i) {
                               final it = items[i];
+                              // Section headers are not tappable.
+                              if (it is GlobalSearchSuggestion && it.isHeader) {
+                                return widget.itemBuilder(context, it);
+                              }
                               return InkWell(
                                 onTap: () {
                                   widget.onItemSelected?.call(it);
@@ -258,26 +263,27 @@ class ProductSuggestionTile extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10.r),
-            child:      FirstTimeShimmerImage(imageUrl: p.image,height: 56.h,width: 56.w,fit: BoxFit.cover,)
-            // Image.network(
-            //   p.image,
-            //   width: 56.w,
-            //   height: 56.w,
-            //   fit: BoxFit.cover,
-            // ),
+            child: FirstTimeShimmerImage(
+              imageUrl: p.image,
+              height: 56.h,
+              width: 56.w,
+              fit: BoxFit.cover,
+            ),
           ),
           SizedBox(width: 10.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(p.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
-                    )),
+                Text(
+                  p.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 SizedBox(height: 2.h),
                 Text(
                   p.description,
@@ -297,6 +303,107 @@ class ProductSuggestionTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class VendorSuggestionTile extends StatelessWidget {
+  const VendorSuggestionTile({super.key, required this.v});
+  final GlobalSearchVendorHit v;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = [
+      if (v.country.trim().isNotEmpty) v.country.trim(),
+      if (v.address.trim().isNotEmpty) v.address.trim(),
+    ].join(' · ');
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(28.r),
+            child: FirstTimeShimmerImage(
+              imageUrl: v.avatarUrl,
+              height: 48.h,
+              width: 48.w,
+              fit: BoxFit.cover,
+            ),
+          ),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  v.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (subtitle.isNotEmpty) ...[
+                  SizedBox(height: 2.h),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+                SizedBox(height: 4.h),
+                Text(
+                  'Vendor',
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    color: AllColor.loginButtomColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.storefront_outlined, color: Colors.grey.shade500),
+        ],
+      ),
+    );
+  }
+}
+
+class SearchSuggestionTile extends StatelessWidget {
+  const SearchSuggestionTile({super.key, required this.item});
+  final GlobalSearchSuggestion item;
+
+  @override
+  Widget build(BuildContext context) {
+    if (item.isHeader) {
+      return Container(
+        width: double.infinity,
+        color: Colors.grey.shade50,
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+        child: Text(
+          item.header!,
+          style: TextStyle(
+            fontSize: 12.sp,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey.shade700,
+            letterSpacing: 0.2,
+          ),
+        ),
+      );
+    }
+    if (item.isVendor && item.vendor != null) {
+      return VendorSuggestionTile(v: item.vendor!);
+    }
+    if (item.isProduct && item.product != null) {
+      return ProductSuggestionTile(p: item.product!);
+    }
+    return const SizedBox.shrink();
   }
 }
 

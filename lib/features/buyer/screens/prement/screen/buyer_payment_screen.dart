@@ -24,6 +24,7 @@ class _RouteLineAgg {
   num total = 0;
   final List<String> productLines = <String>[];
   String skipReason = '';
+  String vendorName = '';
 }
 
 class BuyerPaymentScreen extends ConsumerStatefulWidget {
@@ -51,6 +52,18 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       return 'No matching delivery route for this vendor → buyer path.';
     }
     return _prettyKey(t);
+  }
+
+  /// e.g. `alu x1 - My Shop` from delivery-charges `line_items`.
+  String _deliveryLineProductVendorLabel(DeliveryChargeItem it) {
+    final name = it.productName.trim();
+    if (name.isEmpty) {
+      return it.vendorName.trim().isEmpty ? '' : it.vendorName.trim();
+    }
+    final qty = it.quantity > 0 ? it.quantity : 1;
+    final vendor = it.vendorName.trim();
+    if (vendor.isEmpty) return '$name x$qty';
+    return '$name x$qty - $vendor';
   }
 
   static const Color _deliveryTableBorder = Color(0xFF212121);
@@ -174,21 +187,54 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       var n = 0;
       for (final s in resp.routeSummaries) {
         n++;
-        final route = '${s.vendorTown} to ${s.buyerTown}';
-        final detailParts = <String>[];
+        final matching = resp.items.where((it) {
+          final vendorOk = s.vendorTown.isEmpty ||
+              it.vendorTown.isEmpty ||
+              it.vendorTown == s.vendorTown;
+          final buyerOk =
+              s.buyerTown.isEmpty || it.buyerTown == s.buyerTown;
+          return vendorOk && buyerOk;
+        }).toList();
+
+        final vendorNames = matching
+            .map((it) => it.vendorName.trim())
+            .where((n) => n.isNotEmpty)
+            .toSet()
+            .toList();
+        final routeCore = '${s.vendorTown} to ${s.buyerTown}'.trim();
+        final route = vendorNames.isEmpty
+            ? routeCore
+            : (vendorNames.length == 1
+                ? '${vendorNames.first} · $routeCore'
+                : '$routeCore · ${vendorNames.join(', ')}');
+
+        final productLines = matching
+            .map(_deliveryLineProductVendorLabel)
+            .where((s) => s.isNotEmpty)
+            .toList();
+        final chargeParts = <String>[];
         if (s.flat != 0) {
-          detailParts.add('Flat ${_fmtMoney(currency, s.flat)}');
+          chargeParts.add('Flat ${_fmtMoney(currency, s.flat)}');
         }
         if (s.weightBased != 0) {
-          detailParts.add('Weight ${_fmtMoney(currency, s.weightBased)}');
+          chargeParts.add('Weight ${_fmtMoney(currency, s.weightBased)}');
         }
-        final detail = detailParts.isEmpty ? null : detailParts.join(' · ');
+        final detailBits = <String>[
+          if (productLines.isNotEmpty) productLines.join(' · '),
+          if (chargeParts.isNotEmpty) chargeParts.join(' · '),
+        ];
+        final skipNote = matching
+            .map((it) => it.skipReason.trim())
+            .firstWhere((r) => r.isNotEmpty, orElse: () => '');
         routeRows.add(
           _deliveryTableDataRow(
             '$n',
             route,
             _fmtMoney(currency, s.townTotal),
-            detailLine: detail,
+            detailLine: detailBits.isEmpty ? null : detailBits.join('\n'),
+            warningLine: skipNote.isEmpty
+                ? null
+                : _humanizeSkipReason(skipNote),
           ),
         );
       }
@@ -197,14 +243,12 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
     } else {
       final byRoute = <String, _RouteLineAgg>{};
       for (final it in resp.items) {
-        final key = '${it.vendorTown}|${it.buyerTown}';
+        final key = '${it.vendorTown}|${it.buyerTown}|${it.vendorId}';
         final a = byRoute.putIfAbsent(key, _RouteLineAgg.new);
         a.total += it.finalDeliveryChargeDisplay;
-        final sub = StringBuffer('${it.productName} ×${it.quantity}');
-        if (it.vendorName.isNotEmpty) {
-          sub.write(' · ${it.vendorName}');
-        }
-        a.productLines.add(sub.toString());
+        a.vendorName = it.vendorName.trim();
+        final label = _deliveryLineProductVendorLabel(it);
+        if (label.isNotEmpty) a.productLines.add(label);
         if (it.skipReason.isNotEmpty) {
           a.skipReason = it.skipReason;
         }
@@ -215,8 +259,11 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
         final parts = e.key.split('|');
         final vt = parts.isNotEmpty ? parts[0] : '';
         final bt = parts.length > 1 ? parts[1] : '';
-        final route = '$vt to $bt';
         final a = e.value;
+        final routeCore = '$vt to $bt';
+        final route = a.vendorName.isEmpty
+            ? routeCore
+            : '${a.vendorName} · $routeCore';
         final skipNote = a.skipReason.isNotEmpty
             ? _humanizeSkipReason(a.skipReason)
             : null;
@@ -225,7 +272,9 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
             '$n',
             route,
             _fmtMoney(currency, a.total),
-            detailLine: a.productLines.join(' · '),
+            detailLine: a.productLines.isEmpty
+                ? null
+                : a.productLines.join(' · '),
             warningLine: skipNote,
           ),
         );
@@ -512,12 +561,16 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                   imageUrl: it.product.image,
                   qty: it.quantity,
                   // Buyer-facing display price from API (falls back to ledger).
-                  price: double.tryParse(
+                  price:
+                      double.tryParse(
                         it.priceDisplay.trim().isNotEmpty
                             ? it.priceDisplay
                             : it.price,
                       ) ??
                       0,
+                  vendorName: it.vendor.businessName.trim().isNotEmpty
+                      ? it.vendor.businessName.trim()
+                      : null,
                 ),
               )
               .toList();
@@ -525,7 +578,8 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
     final deliveryChargesAsync = ref.watch(cartDeliveryChargesProvider);
     final charges = deliveryChargesAsync.valueOrNull;
 
-    final displayCurrency = charges?.displayCurrency ??
+    final displayCurrency =
+        charges?.displayCurrency ??
         cartAsync.valueOrNull?.displayCurrency ??
         (args != null && args.items.isNotEmpty
             ? args.items.first.displayCurrency
@@ -556,10 +610,11 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
         checkoutTotal =
             (charges.merchandiseSubtotal + charges.platformFee + charges.tax)
                 .toDouble();
-        checkoutTotalDisplay = (charges.merchandiseSubtotalDisplay +
-                charges.platformFeeDisplay +
-                charges.taxDisplay)
-            .toDouble();
+        checkoutTotalDisplay =
+            (charges.merchandiseSubtotalDisplay +
+                    charges.platformFeeDisplay +
+                    charges.taxDisplay)
+                .toDouble();
       }
     } else {
       checkoutTotal = args?.grandTotal ?? 0;
@@ -617,7 +672,8 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                     },
                     currency: displayCurrency,
                     onShippingDetails: deliveryChargesAsync.maybeWhen(
-                      data: (resp) => () => _showDeliveryChargeDetails(
+                      data: (resp) =>
+                          () => _showDeliveryChargeDetails(
                             context,
                             resp,
                             resp.displayCurrency,
@@ -991,11 +1047,29 @@ class _CustomItemShowState extends State<CustomItemShow> {
           SizedBox(width: 12.w),
 
           Expanded(
-            child: Text(
-              item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if ((item.vendorName ?? '').trim().isNotEmpty) ...[
+                  SizedBox(height: 2.h),
+                  Text(
+                    'Sold by ${item.vendorName!.trim()}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w500,
+                      color: AllColor.black54,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           SizedBox(width: 8.w),

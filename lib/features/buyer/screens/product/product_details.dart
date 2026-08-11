@@ -38,7 +38,7 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
   final Map<String, String> _selectedAttrs = {};
 
   void _initializeSelections(DetailItem product) {
-    final attrs = product.attributesMap;
+    final attrs = product.selectableAttributesMap;
     if (attrs.isEmpty) return;
 
     bool changed = false;
@@ -158,7 +158,8 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
           data: (product) {
             _initializeSelections(product);
 
-            final attrs = product.attributesMap;
+            final attrs = product.selectableAttributesMap;
+            final specs = product.specifications;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,7 +167,7 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
                 ProductImage(product: product),
                 ProductTitleAndDescription(product: product),
 
-                /// ✅ ONLY attributes show (no size/color widgets)
+                /// Color → Size → other attributes (from API fields)
                 if (attrs.isNotEmpty) ...[
                   SizedBox(height: 16.h),
                   ProductAttributesSelector(
@@ -177,14 +178,20 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
                     },
                   ),
                 ],
+
+                /// Specifications key + value (display only)
+                if (specs.isNotEmpty) ...[
+                  SizedBox(height: 16.h),
+                  ProductSpecificationsSection(specifications: specs),
+                ],
                 SizedBox(height: 16.h),
                 ProductMaterialAndStoreInfo(
                   product: product,
+                  materials: const [],
                   userId: product.vendor.userId,
-                  storeName:
-                      product.vendor.user.name ??
-                      product.vendor.businessName ??
-                      '',
+                  storeName: product.vendor.businessName.trim().isNotEmpty
+                      ? product.vendor.businessName.trim()
+                      : product.vendor.user.name,
                   image: (product.vendor.user.image.isNotEmpty)
                       ? product.vendor.user.image
                       : "https://www.selikoff.net/blog-files/null-value.gif",
@@ -208,11 +215,10 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
                           partnerId: product.vendor.userId > 0
                               ? product.vendor.userId
                               : product.vendor.user.id,
-                          partnerName:
-                              product.vendor.user.name ??
-                              product.vendor.businessName ??
-                              '',
-                          partnerImage: product.vendor.user.image ?? '',
+                          partnerName: product.vendor.businessName.trim().isNotEmpty
+                              ? product.vendor.businessName.trim()
+                              : product.vendor.user.name,
+                          partnerImage: product.vendor.user.image,
                           myUserId: myId,
                         ),
                       );
@@ -292,8 +298,8 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
               // ✅ Ensure default selections exist
               _initializeSelections(data);
 
-              // ✅ Validate attributes (if exists)
-              final attrs = data.attributesMap;
+              // ✅ Validate selectable attributes (color/size/attrs)
+              final attrs = data.selectableAttributesMap;
               if (attrs.isNotEmpty) {
                 for (final key in attrs.keys) {
                   final v = (_selectedAttrs[key] ?? '').trim();
@@ -1079,13 +1085,16 @@ class ProductAttributesSelector extends StatelessWidget {
     // order: color, size, then others (UI consistent)
     entries.sort((a, b) {
       int rank(String k) {
-        if (k.toLowerCase() == 'color') return 0;
-        if (k.toLowerCase() == 'size') return 1;
+        final lower = k.toLowerCase();
+        if (lower == 'color' || lower == 'colour') return 0;
+        if (lower == 'size' || lower == 'sizes' || lower == 'measurement') {
+          return 1;
+        }
         return 2;
       }
 
-      final ra = rank(a.key.toLowerCase());
-      final rb = rank(b.key.toLowerCase());
+      final ra = rank(a.key);
+      final rb = rank(b.key);
       if (ra != rb) return ra.compareTo(rb);
       return a.key.compareTo(b.key);
     });
@@ -1098,11 +1107,12 @@ class ProductAttributesSelector extends StatelessWidget {
         if (options.isEmpty) return const SizedBox.shrink();
 
         final current = selected[key] ?? options.first;
+        final lower = key.toLowerCase();
 
         // Same UI pattern:
         // - size: capsule row like old CustomSize
         // - color + others: chip wrap like old CustomColor
-        if (key.toLowerCase() == 'size') {
+        if (lower == 'size' || lower == 'sizes' || lower == 'measurement') {
           return _SizeStyle(
             title: _cap(key),
             options: options,
@@ -1116,9 +1126,42 @@ class ProductAttributesSelector extends StatelessWidget {
           options: options,
           selectedValue: current,
           onTap: (v) => onSelected(key, v),
-          isColorKey: key.toLowerCase() == 'color',
+          isColorKey: lower == 'color' || lower == 'colour',
         );
       }).toList(),
+    );
+  }
+}
+
+/// Specifications display: key + value pills from API `specifications`.
+class ProductSpecificationsSection extends StatelessWidget {
+  const ProductSpecificationsSection({
+    super.key,
+    required this.specifications,
+  });
+
+  final Map<String, String> specifications;
+
+  @override
+  Widget build(BuildContext context) {
+    if (specifications.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 20.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizeColorAnd(text: 'Specifications'),
+          SizedBox(height: 8.h),
+          Wrap(
+            spacing: 8.w,
+            runSpacing: 8.h,
+            children: specifications.entries.map((e) {
+              return _MaterialPill(text: '${e.key} ${e.value}');
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1317,10 +1360,7 @@ class ProductMaterialAndStoreInfo extends ConsumerWidget {
   const ProductMaterialAndStoreInfo({
     super.key,
     required this.product,
-    this.materials = const [
-      MaterialChip(text: 'Cotton 95%'),
-      MaterialChip(text: 'Nylon 5%'),
-    ],
+    this.materials = const [],
     this.storeName = '___',
     this.rating = 4.6,
     this.reviewCount = 56,
@@ -1363,16 +1403,17 @@ class ProductMaterialAndStoreInfo extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizeColorAnd(text: ref.t(BKeys.specifications)),
-
-          Wrap(
-            spacing: 8.w,
-            runSpacing: 8.h,
-            children: materials
-                .map((m) => _MaterialPill(text: m.text))
-                .toList(),
-          ),
-          SizedBox(height: 10.h),
+          if (materials.isNotEmpty) ...[
+            SizeColorAnd(text: ref.t(BKeys.specifications)),
+            Wrap(
+              spacing: 8.w,
+              runSpacing: 8.h,
+              children: materials
+                  .map((m) => _MaterialPill(text: m.text))
+                  .toList(),
+            ),
+            SizedBox(height: 10.h),
+          ],
 
           // Vendor card
           Material(
