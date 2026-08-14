@@ -20,13 +20,6 @@ import 'package:market_jango/features/buyer/screens/cart/screen/shiping_address_
 
 import '../model/prement_page_data_model.dart'; // <-- PaymentPageData
 
-class _RouteLineAgg {
-  num total = 0;
-  final List<String> productLines = <String>[];
-  String skipReason = '';
-  String vendorName = '';
-}
-
 class BuyerPaymentScreen extends ConsumerStatefulWidget {
   const BuyerPaymentScreen({super.key});
   static const routeName = "/buyerPaymentScreen";
@@ -36,36 +29,6 @@ class BuyerPaymentScreen extends ConsumerStatefulWidget {
 }
 
 class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
-  String _prettyKey(String k) {
-    return k
-        .replaceAll('_', ' ')
-        .trim()
-        .split(RegExp(r'\s+'))
-        .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-        .join(' ');
-  }
-
-  String _humanizeSkipReason(String code) {
-    if (code.trim().isEmpty) return '';
-    final t = code.trim();
-    if (t == 'no_matching_route') {
-      return 'No matching delivery route for this vendor → buyer path.';
-    }
-    return _prettyKey(t);
-  }
-
-  /// e.g. `alu x1 - My Shop` from delivery-charges `line_items`.
-  String _deliveryLineProductVendorLabel(DeliveryChargeItem it) {
-    final name = it.productName.trim();
-    if (name.isEmpty) {
-      return it.vendorName.trim().isEmpty ? '' : it.vendorName.trim();
-    }
-    final qty = it.quantity > 0 ? it.quantity : 1;
-    final vendor = it.vendorName.trim();
-    if (vendor.isEmpty) return '$name x$qty';
-    return '$name x$qty - $vendor';
-  }
-
   static const Color _deliveryTableBorder = Color(0xFF212121);
 
   /// [currency] is a currency code (e.g. CDF/UGX); amounts come from API
@@ -170,6 +133,25 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
     );
   }
 
+  /// Route calc line per doc/details.md: Flat always; weight/cube when > 0.
+  String _routeCalculationLine({
+    required String currency,
+    required num flatDisplay,
+    required num weightBased,
+    required num weightBasedDisplay,
+    required num cubeBased,
+    required num cubeBasedDisplay,
+  }) {
+    final parts = <String>['Flat, ${_fmtMoney(currency, flatDisplay)}'];
+    if (weightBased > 0) {
+      parts.add('weight ${_fmtMoney(currency, weightBasedDisplay)}');
+    }
+    if (cubeBased > 0) {
+      parts.add('cube ${_fmtMoney(currency, cubeBasedDisplay)}');
+    }
+    return parts.join(', ');
+  }
+
   Widget _deliveryChargeDetailTables(
     DeliveryChargesResponse resp,
     String currency,
@@ -181,140 +163,82 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       2: FixedColumnWidth(76.w),
     };
 
-    // --- Route: prefer zone `per_town_breakdown`; else merge line_items by vendor→buyer ---
+    // --- Route: prefer `data.routes`; legacy `routeSummaries` only as fallback ---
     final routeRows = <TableRow>[_deliveryTableHeader('Route', 'Cost')];
-    if (resp.routeSummaries.isNotEmpty) {
+    if (resp.routes.isNotEmpty) {
+      var n = 0;
+      for (final r in resp.routes) {
+        n++;
+        final title = r.routeLabel.trim().isEmpty ? '—' : r.routeLabel.trim();
+        final detailBits = <String>[
+          if (r.vendorNames.isNotEmpty) r.vendorNames,
+          _routeCalculationLine(
+            currency: currency,
+            flatDisplay: r.flatDisplay,
+            weightBased: r.weightBased,
+            weightBasedDisplay: r.weightBasedDisplay,
+            cubeBased: r.cubeBased,
+            cubeBasedDisplay: r.cubeBasedDisplay,
+          ),
+        ];
+        routeRows.add(
+          _deliveryTableDataRow(
+            '$n',
+            title,
+            _fmtMoney(currency, r.costDisplay),
+            detailLine: detailBits.join('\n'),
+          ),
+        );
+      }
+    } else if (resp.routeSummaries.isNotEmpty) {
       var n = 0;
       for (final s in resp.routeSummaries) {
         n++;
-        final matching = resp.items.where((it) {
-          final vendorOk = s.vendorTown.isEmpty ||
-              it.vendorTown.isEmpty ||
-              it.vendorTown == s.vendorTown;
-          final buyerOk =
-              s.buyerTown.isEmpty || it.buyerTown == s.buyerTown;
-          return vendorOk && buyerOk;
-        }).toList();
-
-        final vendorNames = matching
-            .map((it) => it.vendorName.trim())
-            .where((n) => n.isNotEmpty)
-            .toSet()
-            .toList();
-        final routeCore = '${s.vendorTown} to ${s.buyerTown}'.trim();
-        final route = vendorNames.isEmpty
-            ? routeCore
-            : (vendorNames.length == 1
-                ? '${vendorNames.first} · $routeCore'
-                : '$routeCore · ${vendorNames.join(', ')}');
-
-        final productLines = matching
-            .map(_deliveryLineProductVendorLabel)
-            .where((s) => s.isNotEmpty)
-            .toList();
-        final chargeParts = <String>[];
-        if (s.flat != 0) {
-          chargeParts.add('Flat ${_fmtMoney(currency, s.flat)}');
-        }
-        if (s.weightBased != 0) {
-          chargeParts.add('Weight ${_fmtMoney(currency, s.weightBased)}');
-        }
-        final detailBits = <String>[
-          if (productLines.isNotEmpty) productLines.join(' · '),
-          if (chargeParts.isNotEmpty) chargeParts.join(' · '),
-        ];
-        final skipNote = matching
-            .map((it) => it.skipReason.trim())
-            .firstWhere((r) => r.isNotEmpty, orElse: () => '');
+        final title = '${s.vendorTown} to ${s.buyerTown}'.trim();
         routeRows.add(
           _deliveryTableDataRow(
             '$n',
-            route,
+            title.isEmpty ? '—' : title,
             _fmtMoney(currency, s.townTotal),
-            detailLine: detailBits.isEmpty ? null : detailBits.join('\n'),
-            warningLine: skipNote.isEmpty
-                ? null
-                : _humanizeSkipReason(skipNote),
+            detailLine: _routeCalculationLine(
+              currency: currency,
+              flatDisplay: s.flat,
+              weightBased: s.weightBased,
+              weightBasedDisplay: s.weightBased,
+              cubeBased: 0,
+              cubeBasedDisplay: 0,
+            ),
           ),
         );
       }
-    } else if (resp.items.isEmpty) {
-      routeRows.add(_deliveryTableDataRow('', '—', _fmtMoney(currency, 0)));
     } else {
-      final byRoute = <String, _RouteLineAgg>{};
+      routeRows.add(
+        _deliveryTableDataRow('', 'No delivery route', '—'),
+      );
+    }
+
+    // --- Extras: one row per `line_items` (product name + weight/cube) ---
+    final extraRows = <TableRow>[_deliveryTableHeader('Extras', 'Cost')];
+    if (resp.items.isEmpty) {
+      extraRows.add(_deliveryTableDataRow('', '—', '—'));
+    } else {
+      var ex = 0;
       for (final it in resp.items) {
-        final key = '${it.vendorTown}|${it.buyerTown}|${it.vendorId}';
-        final a = byRoute.putIfAbsent(key, _RouteLineAgg.new);
-        a.total += it.finalDeliveryChargeDisplay;
-        a.vendorName = it.vendorName.trim();
-        final label = _deliveryLineProductVendorLabel(it);
-        if (label.isNotEmpty) a.productLines.add(label);
-        if (it.skipReason.isNotEmpty) {
-          a.skipReason = it.skipReason;
-        }
-      }
-      var n = 0;
-      for (final e in byRoute.entries) {
-        n++;
-        final parts = e.key.split('|');
-        final vt = parts.isNotEmpty ? parts[0] : '';
-        final bt = parts.length > 1 ? parts[1] : '';
-        final a = e.value;
-        final routeCore = '$vt to $bt';
-        final route = a.vendorName.isEmpty
-            ? routeCore
-            : '${a.vendorName} · $routeCore';
-        final skipNote = a.skipReason.isNotEmpty
-            ? _humanizeSkipReason(a.skipReason)
-            : null;
-        routeRows.add(
+        ex++;
+        final name = it.productName.trim().isEmpty ? '—' : it.productName.trim();
+        final detailBits = <String>[
+          'weight ${it.effectiveWeightKg} kg',
+          if (it.effectiveCubeM3 != 0) 'Cube ${it.effectiveCubeM3}',
+        ];
+        extraRows.add(
           _deliveryTableDataRow(
-            '$n',
-            route,
-            _fmtMoney(currency, a.total),
-            detailLine: a.productLines.isEmpty
-                ? null
-                : a.productLines.join(' · '),
-            warningLine: skipNote,
+            '$ex',
+            name,
+            '—',
+            detailLine: detailBits.join('\n'),
           ),
         );
       }
-    }
-
-    // --- Extras: only merged `charges_applied` from `data.zones` (no weight row, no line surcharges) ---
-    final extraPairs = <(String, num)>[];
-    final zoneKeys = resp.zoneChargesApplied.keys.toList()
-      ..sort((a, b) {
-        const order = ['city_based', 'weight_based', 'cube_based'];
-        final ia = order.indexOf(a);
-        final ib = order.indexOf(b);
-        if (ia != -1 || ib != -1) {
-          final va = ia == -1 ? 999 : ia;
-          final vb = ib == -1 ? 999 : ib;
-          final c = va.compareTo(vb);
-          if (c != 0) return c;
-        }
-        return a.compareTo(b);
-      });
-    for (final k in zoneKeys) {
-      final v = resp.zoneChargesApplied[k]!;
-      extraPairs.add((_prettyKey(k), v));
-    }
-    if (extraPairs.isEmpty) {
-      extraPairs.add(('', 0));
-    }
-
-    final extraRows = <TableRow>[_deliveryTableHeader('Extras', 'Cost')];
-    var ex = 0;
-    for (final p in extraPairs) {
-      ex++;
-      extraRows.add(
-        _deliveryTableDataRow(
-          '$ex',
-          p.$1.isEmpty ? ' ' : p.$1,
-          _fmtMoney(currency, p.$2),
-        ),
-      );
     }
     extraRows.add(_deliveryTableDataRow('', ' ', ' '));
 
@@ -329,6 +253,8 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       _deliveryTableDataRow('1', 'Tax', _fmtMoney(currency, resp.taxDisplay)),
       _deliveryTableDataRow('', ' ', ' '),
     ];
+
+    final zoneWeight = resp.summaryZoneWeightKg;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -382,8 +308,7 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                         ? resp.grandTotalDisplay
                         : (resp.merchandiseSubtotalDisplay +
                               resp.cartTotalDeliveryChargeDisplay +
-                              resp.platformFeeDisplay +
-                              resp.taxDisplay),
+                              resp.summaryFeesDisplay),
                   ),
                   textAlign: TextAlign.right,
                   style: TextStyle(
@@ -399,8 +324,8 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
         Text(
           'Merchandise ${_fmtMoney(currency, resp.merchandiseSubtotalDisplay)} · '
           'Delivery ${_fmtMoney(currency, resp.cartTotalDeliveryChargeDisplay)} · '
-          'Fees ${_fmtMoney(currency, resp.platformFeeDisplay + resp.taxDisplay)}'
-          '${resp.zonesAggregatedWeightKg > 0 ? ' · Zone weight ${resp.zonesAggregatedWeightKg} kg' : ''}',
+          'Fees ${_fmtMoney(currency, resp.summaryFeesDisplay)}'
+          '${zoneWeight > 0 ? ' · Zone weight $zoneWeight kg' : ''}',
           textAlign: TextAlign.right,
           style: TextStyle(fontSize: 10.sp, color: Colors.black54),
         ),

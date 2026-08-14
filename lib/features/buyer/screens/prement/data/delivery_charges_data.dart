@@ -20,6 +20,8 @@ class DeliveryChargeItem {
   final int? routeId;
   final Map<String, num> chargesApplied;
   final num effectiveWeightKg;
+  /// Cube from API `effective_cube_m3` (hide in UI when 0).
+  final num effectiveCubeM3;
   /// Per-line delivery from API: `allocated_delivery_charge` (or legacy `final_delivery_charge`).
   final num finalDeliveryCharge;
   /// Buyer-facing per-line delivery (`allocated_delivery_charge_display`).
@@ -41,6 +43,7 @@ class DeliveryChargeItem {
     required this.routeId,
     required this.chargesApplied,
     required this.effectiveWeightKg,
+    this.effectiveCubeM3 = 0,
     required this.finalDeliveryCharge,
     required this.finalDeliveryChargeDisplay,
     required this.skipReason,
@@ -82,6 +85,7 @@ class DeliveryChargeItem {
       routeId: json['route_id'] == null ? null : asInt(json['route_id']),
       chargesApplied: charges,
       effectiveWeightKg: asNum(json['effective_weight_kg']),
+      effectiveCubeM3: asNum(json['effective_cube_m3']),
       finalDeliveryCharge: lineCharge,
       finalDeliveryChargeDisplay: lineChargeDisplay,
       skipReason: (json['skip_reason'] ?? '').toString(),
@@ -89,8 +93,72 @@ class DeliveryChargeItem {
   }
 }
 
-/// One row in the delivery “Route” table from `data.zones[].per_town_breakdown`
-/// (or legacy equivalents), one entry per vendor town.
+/// Preferred route row from `data.routes[]` (doc/details.md).
+class DeliveryRoute {
+  final int? routeId;
+  final String routeLabel;
+  final String vendorNames;
+  final num flat;
+  final num weightBased;
+  final num cubeBased;
+  final num cost;
+  final num flatDisplay;
+  final num weightBasedDisplay;
+  final num cubeBasedDisplay;
+  final num costDisplay;
+
+  const DeliveryRoute({
+    this.routeId,
+    required this.routeLabel,
+    this.vendorNames = '',
+    this.flat = 0,
+    this.weightBased = 0,
+    this.cubeBased = 0,
+    this.cost = 0,
+    this.flatDisplay = 0,
+    this.weightBasedDisplay = 0,
+    this.cubeBasedDisplay = 0,
+    this.costDisplay = 0,
+  });
+
+  factory DeliveryRoute.fromJson(Map<String, dynamic> json) {
+    num asNum(dynamic v) {
+      if (v is num) return v;
+      return num.tryParse('${v ?? ''}') ?? 0;
+    }
+
+    int? asIntOrNull(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse('$v');
+    }
+
+    final flat = asNum(json['flat']);
+    final weightBased = asNum(json['weight_based']);
+    final cubeBased = asNum(json['cube_based']);
+    final cost = asNum(json['cost']);
+
+    return DeliveryRoute(
+      routeId: asIntOrNull(json['route_id']),
+      routeLabel: (json['route_label'] ??
+              '${json['from_point'] ?? ''} to ${json['to_point'] ?? ''}')
+          .toString()
+          .trim(),
+      vendorNames: (json['vendor_names'] ?? '').toString().trim(),
+      flat: flat,
+      weightBased: weightBased,
+      cubeBased: cubeBased,
+      cost: cost,
+      flatDisplay: asNum(json['flat_display'] ?? flat),
+      weightBasedDisplay: asNum(json['weight_based_display'] ?? weightBased),
+      cubeBasedDisplay: asNum(json['cube_based_display'] ?? cubeBased),
+      costDisplay: asNum(json['cost_display'] ?? cost),
+    );
+  }
+}
+
+/// Legacy route row from `data.zones[].per_town_breakdown`.
 class DeliveryRouteSummary {
   final String vendorTown;
   final String buyerTown;
@@ -114,6 +182,8 @@ class DeliveryChargesResponse {
   final num merchandiseSubtotal;
   final num platformFee;
   final num tax;
+  /// `fees.total` / sum of platform + tax when API omits total.
+  final num feesTotal;
   /// `cart_total_with_delivery_and_fees` — amount customer pays (when provided).
   final num grandTotal;
 
@@ -122,15 +192,19 @@ class DeliveryChargesResponse {
   final num merchandiseSubtotalDisplay;
   final num platformFeeDisplay;
   final num taxDisplay;
+  final num feesTotalDisplay;
   final num grandTotalDisplay;
   /// `display_currency` (falls back to ledger `currency`, then UGX).
   final String displayCurrency;
-  /// Merged `charges_applied` from each entry in `data.zones` (zone-level surcharges).
+  /// Merged `charges_applied` from each entry in `data.zones` (legacy extras).
   final Map<String, num> zoneChargesApplied;
-  /// Sum of `aggregated_effective_weight_kg` across `data.zones` (informational).
+  /// Sum of `aggregated_effective_weight_kg` across `data.zones` (legacy).
   final num zonesAggregatedWeightKg;
-  /// When API sends `per_town_breakdown` (or similar), use this for route rows
-  /// instead of one row per cart line (avoids duplicate “KENYA to UAE” @ $0).
+  /// Preferred zone weight from `cart_total_weight_kg`.
+  final num cartTotalWeightKg;
+  /// Preferred: `data.routes[]` (doc/details.md).
+  final List<DeliveryRoute> routes;
+  /// Legacy fallback when `data.routes` is absent.
   final List<DeliveryRouteSummary> routeSummaries;
 
   const DeliveryChargesResponse({
@@ -139,21 +213,36 @@ class DeliveryChargesResponse {
     this.merchandiseSubtotal = 0,
     this.platformFee = 0,
     this.tax = 0,
+    this.feesTotal = 0,
     this.grandTotal = 0,
     this.cartTotalDeliveryChargeDisplay = 0,
     this.merchandiseSubtotalDisplay = 0,
     this.platformFeeDisplay = 0,
     this.taxDisplay = 0,
+    this.feesTotalDisplay = 0,
     this.grandTotalDisplay = 0,
     this.displayCurrency = 'UGX',
     this.zoneChargesApplied = const <String, num>{},
     this.zonesAggregatedWeightKg = 0,
+    this.cartTotalWeightKg = 0,
+    this.routes = const <DeliveryRoute>[],
     this.routeSummaries = const <DeliveryRouteSummary>[],
   });
+
+  /// Zone weight for summary: prefer `cart_total_weight_kg`.
+  num get summaryZoneWeightKg =>
+      cartTotalWeightKg > 0 ? cartTotalWeightKg : zonesAggregatedWeightKg;
+
+  /// Fees line for summary footer.
+  num get summaryFeesDisplay =>
+      feesTotalDisplay > 0 ? feesTotalDisplay : (platformFeeDisplay + taxDisplay);
 
   /// Best-effort delivery total when API root field is 0 but breakdown has values.
   num get effectiveDeliveryTotal {
     if (cartTotalDeliveryCharge > 0) return cartTotalDeliveryCharge;
+
+    final fromRoutesNew = routes.fold<num>(0, (sum, r) => sum + r.cost);
+    if (fromRoutesNew > 0) return fromRoutesNew;
 
     final fromLines =
         items.fold<num>(0, (sum, it) => sum + it.finalDeliveryCharge);
@@ -194,6 +283,7 @@ class DeliveryChargesResponse {
         grandTotal: 0,
         zoneChargesApplied: const <String, num>{},
         zonesAggregatedWeightKg: 0,
+        routes: const <DeliveryRoute>[],
         routeSummaries: const <DeliveryRouteSummary>[],
       );
     }
@@ -206,9 +296,19 @@ class DeliveryChargesResponse {
             .toList()
         : <DeliveryChargeItem>[];
 
+    // Preferred: `data.routes[]` (doc/details.md).
+    final routesRaw = data['routes'];
+    final routes = (routesRaw is List)
+        ? routesRaw
+            .whereType<Map<String, dynamic>>()
+            .map(DeliveryRoute.fromJson)
+            .toList()
+        : <DeliveryRoute>[];
+
     final zoneCharges = <String, num>{};
     num zonesAggWeight = 0;
     final routeSummaries = <DeliveryRouteSummary>[];
+    // Legacy zone breakdown — only used when `data.routes` is absent.
     final zonesRaw = data['zones'];
     if (zonesRaw is List) {
       for (final z in zonesRaw) {
@@ -222,6 +322,8 @@ class DeliveryChargesResponse {
           });
         }
 
+        if (routes.isNotEmpty) continue;
+
         final buyerTown = (z['buyer_town'] ?? '').toString();
         final ptb = z['per_town_breakdown'] ??
             z['per_town'] ??
@@ -229,7 +331,6 @@ class DeliveryChargesResponse {
             z['town_totals'];
         if (ptb is Map<String, dynamic> && ptb.isNotEmpty) {
           void addTown(String town, Map<String, dynamic> m) {
-            // Prefer buyer-facing display amounts when the API sends them.
             final flat = asNum(m['flat_display'] ?? m['flat']);
             final wb = asNum(m['weight_based_display'] ?? m['weight_based']);
             final explicit = m['town_total_display'] ?? m['town_total'];
@@ -274,15 +375,26 @@ class DeliveryChargesResponse {
 
     num platformFee = 0;
     num tax = 0;
+    num feesTotal = 0;
     num platformFeeDisplay = 0;
     num taxDisplay = 0;
+    num feesTotalDisplay = 0;
     final feesRaw = data['fees'];
     if (feesRaw is Map<String, dynamic>) {
       platformFee = asNum(feesRaw['platform_fee']);
       tax = asNum(feesRaw['tax']);
+      feesTotal = asNum(feesRaw['total']);
+      if (feesTotal == 0 && (platformFee != 0 || tax != 0)) {
+        feesTotal = platformFee + tax;
+      }
       platformFeeDisplay =
           displayOrLedger(feesRaw['platform_fee_display'], platformFee);
       taxDisplay = displayOrLedger(feesRaw['tax_display'], tax);
+      feesTotalDisplay = displayOrLedger(feesRaw['total_display'], feesTotal);
+      if (feesTotalDisplay == 0 &&
+          (platformFeeDisplay != 0 || taxDisplay != 0)) {
+        feesTotalDisplay = platformFeeDisplay + taxDisplay;
+      }
     }
 
     final delivery = asNum(data['cart_total_delivery_charge']);
@@ -319,21 +431,27 @@ class DeliveryChargesResponse {
     final displayCurrency =
         pickCurrency(data['display_currency'], ledgerCurrency);
 
+    final cartTotalWeightKg = asNum(data['cart_total_weight_kg']);
+
     return DeliveryChargesResponse(
       items: items,
       cartTotalDeliveryCharge: delivery,
       merchandiseSubtotal: merchandise,
       platformFee: platformFee,
       tax: tax,
+      feesTotal: feesTotal,
       grandTotal: grand,
       cartTotalDeliveryChargeDisplay: deliveryDisplay,
       merchandiseSubtotalDisplay: merchandiseDisplay,
       platformFeeDisplay: platformFeeDisplay,
       taxDisplay: taxDisplay,
+      feesTotalDisplay: feesTotalDisplay,
       grandTotalDisplay: grandDisplay,
       displayCurrency: displayCurrency,
       zoneChargesApplied: zoneCharges,
       zonesAggregatedWeightKg: zonesAggWeight,
+      cartTotalWeightKg: cartTotalWeightKg,
+      routes: routes,
       routeSummaries: routeSummaries,
     );
   }
@@ -357,4 +475,3 @@ final cartDeliveryChargesProvider =
   }
   return DeliveryChargesResponse.fromJson(map);
 });
-
