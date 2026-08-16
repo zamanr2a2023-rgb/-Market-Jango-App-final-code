@@ -1,126 +1,172 @@
-# Flutter: Buyer Delivery Charge Details
+# Flutter — Driver New Order Screen
 
-Short guide for the **Delivery charge details** screen.
+Use **Phase 6 delivery assignments**, not the legacy order list.
 
-**GET** `/api/cart/delivery-charges`
+| Do | Do not |
+|----|--------|
+| `GET /api/driver/deliveries?status=pending` | `GET /api/all-order/driver` (legacy raw dump) |
+| `GET /api/driver/deliveries/{assignment_id}` | Treat `invoice_item.id` as accept/reject id |
+| Accept / reject with **`assignment_id`** | |
 
-**Headers:** same as other buyer APIs (`token` / `Authorization`, `id`, `user_type: buyer`).
+Auth: `token` header (same as other driver APIs) + driver user.
 
-All money labels must use `*_display` + `display_currency`. Do not format the raw UGX fields.
+`{id}` on all `/driver/deliveries/{id}/*` routes is **`driver_assignments.id`** (`assignment_id` in the payload).
 
 ---
 
-## Screen mapping
-
-### 1. Delivery charge by route
-
-Loop `data.routes`.
-
-| UI | Property |
-|---|---|
-| `#` | index + 1 |
-| Route title | `route_label` |
-| Vendors | `vendor_names` |
-| Calculation line | build from `flat_display`, `weight_based_display`, `cube_based_display` |
-| Cost | `cost_display` + `display_currency` |
-
-Calculation text (skip any amount that is `0`):
+## Screen flow
 
 ```text
-Flat, {flat_display}{display_currency}
-+ if weight_based > 0:  , weight {weight_based_display} {display_currency}
-+ if cube_based > 0:    , cube {cube_based_display} {display_currency}
+Claim bin / outlet or vendor assigns
+        ↓
+assignment status = pending  →  NEW badge
+        ↓
+GET /driver/deliveries?status=pending   → list cards
+  OR claim response already returns the same card payload
+GET /driver/deliveries/{assignment_id}  → full New Order card
+        ↓
+POST .../accept  OR  POST .../reject { "reason": "..." }
+        ↓
+(after accept) pickup → deliver + live location
 ```
 
-Example: `Flat, 3000UGX, weight 10 UGX`
+### Outlet bin path (before Accept)
 
-If `routes` is empty, show the table empty (or “No delivery route”). Products, fees, and totals still render.
+| UI action | Method | Path | Response |
+|-----------|--------|------|----------|
+| Browse bin | `GET` | `/api/driver/outlet-bin/{outletId}/orders` | Outlet item preview (`distance_km`, vendor phone, pickup/dropoff…) |
+| Claim order | `POST` | `/api/driver/outlet-bin/orders/{itemId}/claim` | **Same New Order DTO** as deliveries (`assignment_id`, `is_new`, Accept/Decline flags) |
 
-### 2. Extras (products)
+After claim, use `data.assignment_id` for accept/reject — do not use the bin `itemId`.
 
-Loop `data.line_items`. “Phone” in the design is the **product name**.
-
-| UI | Property |
-|---|---|
-| Product name | `product_name` |
-| weight | `effective_weight_kg` |
-| Cube | `effective_cube_m3` (hide if `0`) |
-
-### 3. Fees
-
-From `data.fees`.
-
-| UI | Property |
-|---|---|
-| Platform fees | `fees.platform_fee_display` |
-| tax | `fees.tax_display` |
-
-### 4. Summary
-
-| UI | Property |
-|---|---|
-| Total (merchandise + delivery + fees) | `cart_total_with_delivery_and_fees_display` |
-| Merchandise | `cart_merchandise_subtotal_display` |
-| delivery | `cart_total_delivery_charge_display` |
-| fees | `fees.total_display` |
-| zone weight | `cart_total_weight_kg` + `kg` |
-| currency | `display_currency` |
+| UI action | Method | Path | Body |
+|-----------|--------|------|------|
+| New orders list | `GET` | `/api/driver/deliveries?status=pending` | — |
+| Order detail | `GET` | `/api/driver/deliveries/{assignment_id}` | — |
+| Accept | `POST` | `/api/driver/deliveries/{assignment_id}/accept` | — |
+| Decline | `POST` | `/api/driver/deliveries/{assignment_id}/reject` | `{ "reason": "Too far" }` (required) |
 
 ---
 
-## Example `data.routes[]` item
+## Field → UI widget mapping
+
+| Mockup widget | JSON path | Notes |
+|---------------|-----------|--------|
+| Order ID | `order_number` | Prefer invoice `order_number`; fallback `#` + line id |
+| **NEW** badge | `is_new` / `badge` | `true` / `"NEW"` only while `status === "pending"` |
+| Card accent color | `source_color_key` | See color table below |
+| From (Pickup) name | `pickup.name` | Vendor business name |
+| From address | `pickup.address` | + `pickup.latitude` / `longitude` for map pin |
+| To (Drop-off) name | `dropoff.name` | Buyer / receiver name |
+| To address | `dropoff.address` | + lat/lng |
+| Distance | `metrics.distance_km` | Number (km); format in UI |
+| Est. Time | `metrics.estimated_time_minutes` | Computed from distance ÷ avg speed (config) |
+| Payment | `metrics.payment_amount` | Driver-facing delivery charge; currency in `metrics.payment_currency` |
+| Product / package title | `package.title` | Product name |
+| Item count badge | `package.item_count` | Same as line `quantity` |
+| Product rows | `package.products[]` | `{ id, name, qty, image }` |
+| Vendor block | `vendor.business_name`, `vendor.contact_name`, `vendor.phone` | Phone from vendor’s user |
+| Buyer block | `buyer.name`, `buyer.phone` | |
+| Accept enabled | `actions.can_accept` | Only when pending |
+| Decline enabled | `actions.can_reject` | Only when pending |
+| Accept countdown | `accept_timeout_seconds` | Default `30` — **UI only**; server still accepts while pending |
+
+Detail (`GET .../{id}`) also includes `latest_location` (`latitude`, `longitude`, `heading`, `speed`, `recorded_at`) or `null`.
+
+---
+
+## `source_color_key` → suggested colors
+
+| `assignment_source` | `source_color_key` | Suggested use |
+|---------------------|--------------------|---------------|
+| `vendor_direct` | `vendor` | Vendor-assigned orders |
+| `outlet_direct` | `outlet_assigned` | Outlet assigned to driver |
+| `outlet_bin_claim` | `outlet_bin` | Driver claimed from outlet bin |
+| (unknown / future) | `other` | Fallback |
+
+Flutter should map keys to theme colors (buyer brief: different sources = different colors). Transport / “out late” sources are **not** in the API yet.
+
+---
+
+## Example — pending list item
 
 ```json
 {
-  "route_id": 12,
-  "route_label": "Masaka to Kampala",
-  "from_point": "Masaka",
-  "to_point": "Kampala",
-  "vendor_names": "Vendor A, Vendor B, Vendor C",
-  "vendors": [
-    { "vendor_id": 1, "vendor_name": "Vendor A" }
-  ],
-  "flat": 3000,
-  "weight_based": 10,
-  "cube_based": 0,
-  "cost": 3010,
-  "flat_display": 3000,
-  "weight_based_display": 10,
-  "cube_based_display": 0,
-  "cost_display": 3010,
-  "weight_kg": 10,
-  "cube_m3": 0,
-  "delivery_timeline": "2 hours"
+  "status": "success",
+  "message": "Your deliveries",
+  "data": {
+    "current_page": 1,
+    "data": [
+      {
+        "assignment_id": 12,
+        "status": "pending",
+        "is_new": true,
+        "badge": "NEW",
+        "order_number": "20260814-ABC123",
+        "invoice_item_id": 239,
+        "assignment_source": "outlet_bin_claim",
+        "source_color_key": "outlet_bin",
+        "accept_timeout_seconds": 30,
+        "pickup": {
+          "label": "From (Pickup)",
+          "name": "FreshMart Grocery",
+          "address": "123 Market St",
+          "latitude": -1.28,
+          "longitude": 36.82
+        },
+        "dropoff": {
+          "label": "To (Drop-off)",
+          "name": "Juan Dela Cruz",
+          "address": "88 Sampaguita St",
+          "latitude": -1.30,
+          "longitude": 36.85
+        },
+        "metrics": {
+          "distance_km": 5.6,
+          "estimated_time_minutes": 9,
+          "payment_amount": 120.0,
+          "total_pay": 20.0,
+          "payment_currency": "USD",
+          "payment_method": "PM"
+        },
+        "package": {
+          "title": "Grocery Items",
+          "subtitle": null,
+          "item_count": 3,
+          "quantity": 3,
+          "products": [
+            { "id": 1, "name": "Grocery Items", "qty": 3, "image": "img.jpg" }
+          ]
+        },
+        "vendor": {
+          "id": 1,
+          "business_name": "FreshMart Grocery",
+          "contact_name": "Maria Santos",
+          "phone": "09171234567"
+        },
+        "buyer": {
+          "name": "Juan Dela Cruz",
+          "phone": "09987654321",
+          "email": "buyer@example.com"
+        },
+        "actions": {
+          "can_accept": true,
+          "can_reject": true
+        }
+      }
+    ],
+    "per_page": 15,
+    "total": 1
+  }
 }
 ```
 
 ---
 
-## Empty route list
+## Notes / limits
 
-If a line has `skip_reason` (for example `vendor_town_not_configured` or `no_matching_route`), it still appears in `line_items` (extras table) but **not** in `routes`. Delivery cost will be `0` until admin sets vendor visibility town and a matching route.
-
----
-
-## Dart sketch
-
-```dart
-final data = json['data'] as Map<String, dynamic>;
-final currency = data['display_currency'] as String; // e.g. UGX
-final routes = (data['routes'] as List?) ?? [];
-final items = (data['line_items'] as List?) ?? [];
-final fees = data['fees'] as Map<String, dynamic>;
-
-String money(dynamic value) => '$value$currency';
-
-String calculation(Map route) {
-  final parts = <String>['Flat, ${money(route['flat_display'])}'];
-  if ((route['weight_based'] as num? ?? 0) > 0) {
-    parts.add('weight ${money(route['weight_based_display'])}');
-  }
-  if ((route['cube_based'] as num? ?? 0) > 0) {
-    parts.add('cube ${money(route['cube_based_display'])}');
-  }
-  return parts.join(', ');
-}
-```
+- **One invoice line = one assignment card.** Multi-product invoices appear as multiple deliveries if each line is assigned separately.
+- **Payment** is the stored line `delivery_charge` (single amount). Multi-driver split by distance/weight/volume is **not** returned yet.
+- **ETA** is estimated (`config/driver.php` → `avg_speed_kmh`, default 40). Not live traffic.
+- **Accept timer** is for UX; hard auto-reject after 30s is not enforced on the server.
+- After accept, continue with existing Phase 6 flow: `pickup` → `deliver` / `location` (see [OUTLET_API.md](OUTLET_API.md)).

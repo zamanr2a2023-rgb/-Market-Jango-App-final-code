@@ -7,7 +7,7 @@ import 'package:market_jango/core/screen/profile_screen/screen/global_profile_sc
 import 'package:market_jango/features/navbar/provider/shell_tab_index_providers.dart';
 
 import '../../../core/localization/tr.dart';
-import '../../driver/screen/driver_order/screen/driver_order.dart';
+import '../../driver/screen/deliveries/screen/driver_deliveries_screen.dart';
 import '../../driver/screen/home/screen/driver_home.dart';
 
 // Pages (swap these with your real screens)
@@ -15,7 +15,7 @@ final driverPagesProvider = Provider<List<Widget>>(
   (_) => const [
     DriverHomeScreen(),
     GlobalMassageScreen(),
-    DriverOrder(),
+    DriverDeliveriesScreen(asTab: true),
     GlobalSettingScreen(),
   ],
 );
