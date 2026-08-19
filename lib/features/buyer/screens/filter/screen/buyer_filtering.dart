@@ -23,22 +23,10 @@ class LocationFilteringTab extends ConsumerStatefulWidget {
 class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
   _FilterTab _tab = _FilterTab.location;
   String? _selectedZone;
+  String? _selectedState;
   String? _selectedTown;
   int? _selectedBusinessTypeId;
   String? _selectedBusinessTypeName;
-  late final TextEditingController _stateController;
-
-  @override
-  void initState() {
-    super.initState();
-    _stateController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _stateController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +164,7 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                 onChanged: (v) {
                   setState(() {
                     _selectedZone = v;
+                    _selectedState = null;
                     _selectedTown = null;
                   });
                 },
@@ -190,14 +179,46 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
           ),
         ),
         SizedBox(height: 5.h),
-        TextField(
-          controller: _stateController,
-          enabled: (_selectedZone ?? '').trim().isNotEmpty,
-          textCapitalization: TextCapitalization.words,
-          decoration: buildInputDecoration().copyWith(
-            hintText: 'Type state (optional)',
-          ),
-        ),
+        ref
+            .watch(
+              visibilityStatesByZoneProvider(
+                (_selectedZone ?? '').trim(),
+              ),
+            )
+            .when(
+              loading: () => const LinearProgressIndicator(),
+              error: (e, _) => DropdownButtonFormField<String>(
+                decoration: buildInputDecoration(),
+                items: const [],
+                onChanged: null,
+                hint: Text(
+                  e.toString().replaceFirst('Exception: ', ''),
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+              data: (states) => DropdownButtonFormField<String>(
+                initialValue: _selectedState != null &&
+                        states.contains(_selectedState)
+                    ? _selectedState
+                    : null,
+                decoration: buildInputDecoration(),
+                hint: const Text('Select state (optional)'),
+                items: states
+                    .map(
+                      (s) => DropdownMenuItem<String>(
+                        value: s,
+                        child: Text(s),
+                      ),
+                    )
+                    .toList(),
+                onChanged: ((_selectedZone ?? '').trim().isEmpty)
+                    ? null
+                    : (v) => setState(() {
+                          _selectedState = v;
+                          _selectedTown = null;
+                        }),
+              ),
+            ),
         SizedBox(height: 12.h),
         Align(
           alignment: Alignment.centerLeft,
@@ -361,7 +382,7 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
   void _onApply() {
     if (_tab == _FilterTab.location) {
       final zone = (_selectedZone ?? '').trim();
-      final st = _stateController.text.trim();
+      final st = (_selectedState ?? '').trim();
       final town = (_selectedTown ?? '').trim();
 
       if (zone.isEmpty) {

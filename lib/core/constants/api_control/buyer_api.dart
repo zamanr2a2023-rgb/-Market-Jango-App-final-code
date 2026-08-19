@@ -165,7 +165,12 @@ class BuyerAPIController {
   static String get visibilityZones =>
       '$_base_api/buyer/delivery-charge-locations/zones';
 
-  /// GET …/towns?zone_name= — `data.items` = town names (no separate states API).
+  /// GET …/states?zone= — `data.items` = state names for the zone.
+  static String visibilityStatesByZone({required String zone}) => Uri.parse(
+        '$_base_api/buyer/delivery-charge-locations/states',
+      ).replace(queryParameters: {'zone': zone.trim()}).toString();
+
+  /// GET …/towns?zone_name= — `data.items` = town names.
   static String visibilityTownsByZone({required String zoneName}) => Uri.parse(
         '$_base_api/buyer/delivery-charge-locations/towns',
       ).replace(queryParameters: {'zone_name': zoneName.trim()}).toString();

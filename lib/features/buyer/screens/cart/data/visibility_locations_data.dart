@@ -39,6 +39,32 @@ final visibilityZonesProvider = FutureProvider.autoDispose<List<String>>(
   },
 );
 
+/// States for a delivery zone (`GET …/states?zone=`).
+final visibilityStatesByZoneProvider =
+    FutureProvider.autoDispose.family<List<String>, String>(
+  (ref, zone) async {
+    final token = await ref.watch(authTokenProvider.future);
+    if (token == null || token.isEmpty) throw Exception('Not logged in');
+    if (zone.trim().isEmpty) return [];
+
+    final uri = Uri.parse(
+      BuyerAPIController.visibilityStatesByZone(zone: zone.trim()),
+    );
+    final res = await http.get(
+      uri,
+      headers: {'Accept': 'application/json', 'token': token},
+    );
+    final map = jsonDecode(res.body);
+    if (res.statusCode != 200) {
+      final msg = (map is Map<String, dynamic>)
+          ? (map['message']?.toString() ?? 'Failed to load states')
+          : 'Failed to load states';
+      throw Exception(msg);
+    }
+    return _parseItemsList(map);
+  },
+);
+
 /// Towns for a delivery zone (`GET …/towns?zone_name=`).
 final visibilityTownsByZoneProvider =
     FutureProvider.autoDispose.family<List<String>, String>(
