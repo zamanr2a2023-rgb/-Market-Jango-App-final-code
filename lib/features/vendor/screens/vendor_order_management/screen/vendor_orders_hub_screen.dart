@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/utils/get_user_type.dart';
+import 'package:market_jango/core/utils/order_source_color.dart';
 import 'package:market_jango/core/widget/vendor_role_guard.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
@@ -1358,21 +1359,38 @@ class _MarketplaceOrderGroupTile extends StatelessWidget {
         : first.invoice.orderNumber;
     final totalQty = lines.fold<int>(0, (s, l) => s + l.quantity);
     final customer = _marketplaceGroupCustomer(lines);
+    final accent = OrderSourceColor.resolve(
+      orderColorKey: first.resolvedOrderColorKey,
+      suggestedColor: first.suggestedColor,
+    );
 
     return Card(
       margin: EdgeInsets.only(bottom: 10.h),
-      child: ListTile(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         onTap: onTap,
-        title: Text(
-          customer,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 4.w, color: accent),
+              Expanded(
+                child: ListTile(
+                  title: Text(
+                    customer,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    'Order Number: $orderNo\n'
+                    '${lines.length} product(s) · $totalQty qty',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                ),
+              ),
+            ],
+          ),
         ),
-        subtitle: Text(
-          'Order Number: $orderNo\n'
-          '${lines.length} product(s) · $totalQty qty',
-        ),
-        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

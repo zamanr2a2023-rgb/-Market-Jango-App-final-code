@@ -202,7 +202,7 @@ class _LocationFilteringTabState extends ConsumerState<LocationFilteringTab> {
                     ? _selectedState
                     : null,
                 decoration: buildInputDecoration(),
-                hint: const Text('Select state (optional)'),
+                hint: const Text('Select state'),
                 items: states
                     .map(
                       (s) => DropdownMenuItem<String>(

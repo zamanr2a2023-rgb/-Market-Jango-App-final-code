@@ -347,7 +347,11 @@ class DriverAssignmentRow {
   final bool isNew;
   final String badge;
   final String assignmentSource;
+  /// Canonical accent key (`order_color_key`; `source_color_key` is an alias).
   final String sourceColorKey;
+  final String? suggestedColor;
+  final String jobType;
+  final int? shipmentId;
   final int acceptTimeoutSeconds;
   final int? invoiceItemId;
   final DriverAssignmentPlace pickup;
@@ -368,6 +372,9 @@ class DriverAssignmentRow {
     required this.badge,
     required this.assignmentSource,
     required this.sourceColorKey,
+    this.suggestedColor,
+    required this.jobType,
+    this.shipmentId,
     required this.acceptTimeoutSeconds,
     this.invoiceItemId,
     required this.pickup,
@@ -381,11 +388,27 @@ class DriverAssignmentRow {
     required this.raw,
   });
 
+  bool get isTransport => jobType == 'transport';
+
+  /// Id used for detail GET / lifecycle posts.
+  int get detailId => isTransport ? (shipmentId ?? id) : id;
+
   factory DriverAssignmentRow.fromJson(Map<String, dynamic> j) {
     final status = _s(j['status']).toLowerCase();
-    final id = _toInt(j['assignment_id'] ?? j['id']);
+    final jobType = _s(j['job_type']).toLowerCase().isEmpty
+        ? 'marketplace'
+        : _s(j['job_type']).toLowerCase();
+    final assignmentId = _toIntOrNull(j['assignment_id'] ?? j['id']);
+    final shipmentId = _toIntOrNull(j['shipment_id']);
+    final id = jobType == 'transport'
+        ? (shipmentId ?? assignmentId ?? 0)
+        : (assignmentId ?? shipmentId ?? 0);
     final orderNumber = _s(j['order_number']);
     final loc = _map(j['latest_location']);
+    final colorKeyRaw = _s(j['order_color_key']).isNotEmpty
+        ? _s(j['order_color_key'])
+        : _s(j['source_color_key']);
+    final suggested = _s(j['suggested_color']);
     return DriverAssignmentRow(
       id: id,
       status: status,
@@ -393,9 +416,10 @@ class DriverAssignmentRow {
       isNew: _toBool(j['is_new']),
       badge: _s(j['badge']),
       assignmentSource: _s(j['assignment_source']),
-      sourceColorKey: _s(j['source_color_key']).isEmpty
-          ? 'other'
-          : _s(j['source_color_key']),
+      sourceColorKey: colorKeyRaw.isEmpty ? 'single_vendor' : colorKeyRaw,
+      suggestedColor: suggested.isEmpty ? null : suggested,
+      jobType: jobType,
+      shipmentId: shipmentId,
       acceptTimeoutSeconds: _toInt(j['accept_timeout_seconds'], d: 30),
       invoiceItemId: _toIntOrNull(j['invoice_item_id']),
       pickup: DriverAssignmentPlace.fromJson(

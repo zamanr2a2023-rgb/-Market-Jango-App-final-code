@@ -41,8 +41,8 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
   bool _submitting = false;
 
   String? _selectedZone;
+  String? _selectedState;
   String? _selectedTown;
-  late final TextEditingController _stateController;
 
   @override
   void initState() {
@@ -52,27 +52,20 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
     final zone = b?.shipZone?.trim();
     _selectedZone = (zone != null && zone.isNotEmpty && zone != 'null') ? zone : null;
     final st = b?.shipState?.trim();
-    final stateText =
-        (st != null && st.isNotEmpty && st != 'null') ? st : '';
-    _stateController = TextEditingController(text: stateText);
+    _selectedState =
+        (st != null && st.isNotEmpty && st != 'null') ? st : null;
     final town = b?.shipTown?.trim();
     _selectedTown = (town != null && town.isNotEmpty && town != 'null') ? town : null;
   }
 
-  @override
-  void dispose() {
-    _stateController.dispose();
-    super.dispose();
-  }
-
   Future<void> _submit() async {
-    final stateText = _stateController.text.trim();
+    final stateText = (_selectedState ?? '').trim();
     if ((_selectedZone ?? '').trim().isEmpty ||
         stateText.isEmpty ||
         (_selectedTown ?? '').trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select zone and town, and type your state'),
+          content: Text('Please select zone, state, and town'),
         ),
       );
       return;
@@ -203,6 +196,7 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
                           onChanged: (v) {
                             setState(() {
                               _selectedZone = v;
+                              _selectedState = null;
                               _selectedTown = null;
                             });
                           },
@@ -217,12 +211,51 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
                         ),
                       ),
                       SizedBox(height: 6.h),
-                      TextField(
-                        controller: _stateController,
-                        enabled: (_selectedZone ?? '').trim().isNotEmpty,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: _dec('Type your state'),
-                      ),
+                      (_selectedZone ?? '').trim().isEmpty
+                          ? DropdownButtonFormField<String>(
+                              initialValue: null,
+                              decoration: _dec('Select state'),
+                              items: const [],
+                              onChanged: null,
+                            )
+                          : ref
+                              .watch(
+                                visibilityStatesByZoneProvider(
+                                  (_selectedZone ?? '').trim(),
+                                ),
+                              )
+                              .when(
+                                loading: () => const LinearProgressIndicator(),
+                                error: (e, _) => Text(
+                                  e.toString().replaceFirst('Exception: ', ''),
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 12.sp,
+                                  ),
+                                ),
+                                data: (states) => DropdownButtonFormField<String>(
+                                  initialValue: _selectedState != null &&
+                                          states.contains(_selectedState)
+                                      ? _selectedState
+                                      : null,
+                                  decoration: _dec('Select state'),
+                                  items: states
+                                      .map(
+                                        (s) => DropdownMenuItem<String>(
+                                          value: s,
+                                          child: Text(
+                                            s,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (v) => setState(() {
+                                    _selectedState = v;
+                                    _selectedTown = null;
+                                  }),
+                                ),
+                              ),
                       SizedBox(height: 14.h),
                       Align(
                         alignment: Alignment.centerLeft,

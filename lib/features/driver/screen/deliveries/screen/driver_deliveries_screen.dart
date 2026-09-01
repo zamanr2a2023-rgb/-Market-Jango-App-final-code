@@ -140,7 +140,10 @@ class DriverDeliveriesScreen extends ConsumerWidget {
                         return AssignmentOrderCard(
                           row: row,
                           onTap: () => context.push(
-                            DriverDeliveryDetailScreen.routePath(row.id),
+                            DriverDeliveryDetailScreen.routePath(
+                              row.detailId,
+                              jobType: row.isTransport ? 'transport' : null,
+                            ),
                           ),
                         );
                       },

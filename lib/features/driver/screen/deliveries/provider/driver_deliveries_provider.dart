@@ -4,7 +4,8 @@ import 'package:market_jango/features/driver/screen/deliveries/model/driver_assi
 
 final driverDeliveriesPageProvider = StateProvider<int>((ref) => 1);
 
-final driverDeliveriesStatusFilterProvider = StateProvider<String?>((ref) => null);
+final driverDeliveriesStatusFilterProvider =
+    StateProvider<String?>((ref) => null);
 
 final driverDeliveriesListProvider =
     FutureProvider.autoDispose<DriverAssignmentsPage>((ref) async {
@@ -16,7 +17,33 @@ final driverDeliveriesListProvider =
   );
 });
 
-final driverDeliveryDetailProvider =
-    FutureProvider.autoDispose.family<DriverAssignmentRow, int>((ref, id) async {
-  return DriverDeliveriesApi.instance.fetchDelivery(id);
+class DriverDeliveryDetailArgs {
+  const DriverDeliveryDetailArgs({
+    required this.id,
+    this.jobType,
+  });
+
+  final int id;
+  final String? jobType;
+
+  bool get isTransport =>
+      (jobType ?? '').trim().toLowerCase() == 'transport';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DriverDeliveryDetailArgs &&
+          id == other.id &&
+          (jobType ?? '') == (other.jobType ?? '');
+
+  @override
+  int get hashCode => Object.hash(id, jobType ?? '');
+}
+
+final driverDeliveryDetailProvider = FutureProvider.autoDispose
+    .family<DriverAssignmentRow, DriverDeliveryDetailArgs>((ref, args) async {
+  return DriverDeliveriesApi.instance.fetchDelivery(
+    args.id,
+    jobType: args.isTransport ? 'transport' : null,
+  );
 });

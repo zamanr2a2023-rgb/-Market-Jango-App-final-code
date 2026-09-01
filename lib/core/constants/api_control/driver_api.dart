@@ -60,7 +60,12 @@ class DriverAPIController {
         .toString();
   }
 
-  static String driverDelivery(int id) => '$_base_api/driver/deliveries/$id';
+  static String driverDelivery(int id, {String? jobType}) {
+    final path = '$_base_api/driver/deliveries/$id';
+    final jt = jobType?.trim();
+    if (jt == null || jt.isEmpty) return path;
+    return Uri.parse(path).replace(queryParameters: {'job_type': jt}).toString();
+  }
 
   static String driverDeliveryAccept(int id) =>
       '$_base_api/driver/deliveries/$id/accept';

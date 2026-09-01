@@ -11,7 +11,6 @@ import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/global_pagination.dart';
 import 'package:market_jango/features/transport/screens/driver/screen/driver_details_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_asign_to_order_driver/screen/asign_to_order_driver.dart';
-import 'package:market_jango/features/navbar/provider/shell_tab_index_providers.dart';
 import 'package:market_jango/features/vendor/screens/vendor_driver_list/data/driver_list_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_driver_list/model/driver_list_model.dart';
 import 'package:market_jango/features/vendor/screens/vendor_outlets/data/vendor_outlets_api.dart';
@@ -42,22 +41,15 @@ class _VendorDriverListState extends ConsumerState<VendorDriverList> {
     final driverAsync = ref.watch(driverNotifierProvider);
     final driverNotifier = ref.read(driverNotifierProvider.notifier);
     final searchQuery = _search.text.trim().toLowerCase();
+    final showBack = context.canPop();
     
     return Scaffold(
       backgroundColor: AllColor.white,
       body: SafeArea(
         child: Column(
           children: [
-            CustomBackButton(
-              onTap: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  ref.read(vendorShellTabIndexProvider.notifier).state = 0;
-                }
-              },
-            ),
-            SizedBox(height: 20.h),
+            if (showBack) const CustomBackButton(),
+            SizedBox(height: showBack ? 20.h : 12.h),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.h),
               child: TextField(

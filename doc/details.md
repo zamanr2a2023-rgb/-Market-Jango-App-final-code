@@ -54,7 +54,7 @@ After claim, use `data.assignment_id` for accept/reject — do not use the bin `
 |---------------|-----------|--------|
 | Order ID | `order_number` | Prefer invoice `order_number`; fallback `#` + line id |
 | **NEW** badge | `is_new` / `badge` | `true` / `"NEW"` only while `status === "pending"` |
-| Card accent color | `source_color_key` | See color table below |
+| Card accent color | `order_color_key` / `suggested_color` | Prefer these; `source_color_key` mirrors `order_color_key` |
 | From (Pickup) name | `pickup.name` | Vendor business name |
 | From address | `pickup.address` | + `pickup.latitude` / `longitude` for map pin |
 | To (Drop-off) name | `dropoff.name` | Buyer / receiver name |
@@ -62,9 +62,10 @@ After claim, use `data.assignment_id` for accept/reject — do not use the bin `
 | Distance | `metrics.distance_km` | Number (km); format in UI |
 | Est. Time | `metrics.estimated_time_minutes` | Computed from distance ÷ avg speed (config) |
 | Payment | `metrics.payment_amount` | Driver-facing delivery charge; currency in `metrics.payment_currency` |
-| Product / package title | `package.title` | Product name |
-| Item count badge | `package.item_count` | Same as line `quantity` |
-| Product rows | `package.products[]` | `{ id, name, qty, image }` |
+| Product / package title | `package.title` | First product, or `Name + N more` when multi-line |
+| Item count badge | `package.item_count` | Sum of quantities across trip lines |
+| Line count | `package.line_count` | Number of products / invoice lines on the trip |
+| Product rows | `package.products[]` | `{ id, name, qty, image, invoice_item_id, assignment_id }` — all lines on the trip |
 | Vendor block | `vendor.business_name`, `vendor.contact_name`, `vendor.phone` | Phone from vendor’s user |
 | Buyer block | `buyer.name`, `buyer.phone` | |
 | Accept enabled | `actions.can_accept` | Only when pending |
@@ -75,16 +76,42 @@ Detail (`GET .../{id}`) also includes `latest_location` (`latitude`, `longitude`
 
 ---
 
-## `source_color_key` → suggested colors
+## `order_color_key` → strip / accent colors (buyer brief)
 
-| `assignment_source` | `source_color_key` | Suggested use |
-|---------------------|--------------------|---------------|
-| `vendor_direct` | `vendor` | Vendor-assigned orders |
-| `outlet_direct` | `outlet_assigned` | Outlet assigned to driver |
-| `outlet_bin_claim` | `outlet_bin` | Driver claimed from outlet bin |
-| (unknown / future) | `other` | Fallback |
+| `order_color_key` | Hex (`suggested_color`) | When |
+|-------------------|-------------------------|------|
+| `single_vendor` | `#2196F3` (blue) | Marketplace assignment; invoice has **1** vendor |
+| `multi_vendor` | `#4CAF50` (green) | Marketplace assignment; invoice has **2+** vendors |
+| `outlet` | `#FF9800` (orange) | `assignment_source` is `outlet_direct` or `outlet_bin_claim` |
+| `transport` | `#F44336` (red) | Transport shipment job (`job_type: transport`) |
 
-Flutter should map keys to theme colors (buyer brief: different sources = different colors). Transport / “out late” sources are **not** in the API yet.
+Priority if more than one applies: **outlet > transport > multi/single vendor**.
+
+`source_color_key` is kept as an **alias** of `order_color_key` (same values). Do not map old keys `vendor` / `outlet_bin` / `outlet_assigned` anymore.
+
+### Transport on the same list
+
+`GET /api/driver/deliveries` returns **marketplace** cards and **transport** shipments together.
+
+| Field | Marketplace | Transport |
+|-------|-------------|-----------|
+| `job_type` | `marketplace` | `transport` |
+| `assignment_id` | set | `null` |
+| `shipment_id` | `null` | set |
+| Detail | `GET .../deliveries/{assignment_id}` | `GET .../deliveries/{shipment_id}?job_type=transport` |
+
+Shipment `booked` maps to list `status: pending` for the Pending tab.
+
+---
+
+## Legacy `assignment_source` (logic only, not accent color)
+
+| `assignment_source` | Meaning |
+|---------------------|---------|
+| `vendor_direct` | Vendor-assigned |
+| `outlet_direct` | Outlet assigned to driver |
+| `outlet_bin_claim` | Driver claimed from outlet bin |
+| `transport` | Transport shipment |
 
 ---
 
@@ -104,8 +131,11 @@ Flutter should map keys to theme colors (buyer brief: different sources = differ
         "badge": "NEW",
         "order_number": "20260814-ABC123",
         "invoice_item_id": 239,
+        "job_type": "marketplace",
         "assignment_source": "outlet_bin_claim",
-        "source_color_key": "outlet_bin",
+        "order_color_key": "outlet",
+        "source_color_key": "outlet",
+        "suggested_color": "#FF9800",
         "accept_timeout_seconds": 30,
         "pickup": {
           "label": "From (Pickup)",
@@ -165,7 +195,7 @@ Flutter should map keys to theme colors (buyer brief: different sources = differ
 
 ## Notes / limits
 
-- **One invoice line = one assignment card.** Multi-product invoices appear as multiple deliveries if each line is assigned separately.
+- **One vendor order trip = one assignment card.** Assigning any line via `POST /vendor/orders/{item_id}/assign-driver` also assigns every other unassigned line on the same invoice for that vendor. The driver list collapses those lines into one card; Accept / Decline / Pickup / Deliver advances the whole trip.
 - **Payment** is the stored line `delivery_charge` (single amount). Multi-driver split by distance/weight/volume is **not** returned yet.
 - **ETA** is estimated (`config/driver.php` → `avg_speed_kmh`, default 40). Not live traffic.
 - **Accept timer** is for UX; hard auto-reject after 30s is not enforced on the server.

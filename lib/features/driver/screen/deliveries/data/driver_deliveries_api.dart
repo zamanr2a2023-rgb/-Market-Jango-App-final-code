@@ -99,9 +99,14 @@ class DriverDeliveriesApi {
     return DriverAssignmentsPage.parse(data);
   }
 
-  Future<DriverAssignmentRow> fetchDelivery(int id) async {
+  Future<DriverAssignmentRow> fetchDelivery(
+    int id, {
+    String? jobType,
+  }) async {
     final h = await _headers();
-    final uri = Uri.parse(DriverAPIController.driverDelivery(id));
+    final uri = Uri.parse(
+      DriverAPIController.driverDelivery(id, jobType: jobType),
+    );
     final res = await http.get(uri, headers: h);
     _throwIfBad(res);
     final top = _decodeObj(res.body);

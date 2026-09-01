@@ -265,6 +265,10 @@ class VendorMarketplaceLine {
   final int? outletId;
   final String? outletStatus;
 
+  /// Buyer-brief accent (`doc/details.md`); optional from API.
+  final String? orderColorKey;
+  final String? suggestedColor;
+
   VendorMarketplaceLine({
     required this.id,
     required this.quantity,
@@ -287,7 +291,17 @@ class VendorMarketplaceLine {
     this.parentOrderStatus,
     this.outletId,
     this.outletStatus,
+    this.orderColorKey,
+    this.suggestedColor,
   });
+
+  /// Prefer API key; else outlet → `outlet`, else `single_vendor`.
+  String get resolvedOrderColorKey {
+    final api = (orderColorKey ?? '').trim();
+    if (api.isNotEmpty) return api;
+    if (outletId != null) return 'outlet';
+    return 'single_vendor';
+  }
 
   factory VendorMarketplaceLine.fromJson(Map<String, dynamic> j) {
     String? vendorFromNested;
@@ -307,6 +321,10 @@ class VendorMarketplaceLine {
       final alt = _s(j['order_status']);
       if (alt.isNotEmpty) parentOrderStatus = alt;
     }
+    final colorKey = _s(j['order_color_key']).isNotEmpty
+        ? _s(j['order_color_key'])
+        : _s(j['source_color_key']);
+    final suggested = _s(j['suggested_color']);
     return VendorMarketplaceLine(
       id: _toInt(j['id']),
       quantity: _toInt(j['quantity'], d: 1),
@@ -344,6 +362,8 @@ class VendorMarketplaceLine {
               j['outlet_status'].toString().trim().isEmpty)
           ? null
           : j['outlet_status'].toString(),
+      orderColorKey: colorKey.isEmpty ? null : colorKey,
+      suggestedColor: suggested.isEmpty ? null : suggested,
     );
   }
 }
@@ -376,6 +396,8 @@ class VendorMarketplaceLineDetail extends VendorMarketplaceLine {
     super.parentOrderStatus,
     super.outletId,
     super.outletStatus,
+    super.orderColorKey,
+    super.suggestedColor,
     required this.allowedNextStatuses,
     this.lineItems = const [],
   });
@@ -417,6 +439,8 @@ class VendorMarketplaceLineDetail extends VendorMarketplaceLine {
       parentOrderStatus: base.parentOrderStatus,
       outletId: base.outletId,
       outletStatus: base.outletStatus,
+      orderColorKey: base.orderColorKey,
+      suggestedColor: base.suggestedColor,
       allowedNextStatuses: next,
       lineItems: lineItems,
     );

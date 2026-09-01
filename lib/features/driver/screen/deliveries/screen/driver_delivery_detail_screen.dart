@@ -20,12 +20,22 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 /// `GET/POST .../api/driver/deliveries/{id}/...` — `doc/details.md`.
 class DriverDeliveryDetailScreen extends ConsumerStatefulWidget {
-  const DriverDeliveryDetailScreen({super.key, required this.assignmentId});
+  const DriverDeliveryDetailScreen({
+    super.key,
+    required this.assignmentId,
+    this.jobType,
+  });
 
   final int assignmentId;
+  final String? jobType;
 
   /// Use with GoRouter path `/driver/deliveries/:assignmentId`.
-  static String routePath(int id) => '/driver/deliveries/$id';
+  static String routePath(int id, {String? jobType}) {
+    final base = '/driver/deliveries/$id';
+    final jt = jobType?.trim();
+    if (jt == null || jt.isEmpty || jt == 'marketplace') return base;
+    return Uri(path: base, queryParameters: {'job_type': jt}).toString();
+  }
 
   @override
   ConsumerState<DriverDeliveryDetailScreen> createState() =>
@@ -39,6 +49,11 @@ class _DriverDeliveryDetailScreenState
   Timer? _acceptTimer;
   bool _autoLocation = false;
   int _acceptSeconds = 0;
+
+  DriverDeliveryDetailArgs get _detailArgs => DriverDeliveryDetailArgs(
+        id: widget.assignmentId,
+        jobType: widget.jobType,
+      );
 
   @override
   void dispose() {
@@ -78,9 +93,9 @@ class _DriverDeliveryDetailScreenState
   }
 
   Future<void> _invalidate() async {
-    ref.invalidate(driverDeliveryDetailProvider(widget.assignmentId));
+    ref.invalidate(driverDeliveryDetailProvider(_detailArgs));
     ref.invalidate(driverDeliveriesListProvider);
-    await ref.read(driverDeliveryDetailProvider(widget.assignmentId).future);
+    await ref.read(driverDeliveryDetailProvider(_detailArgs).future);
   }
 
   Future<void> _run(Future<void> Function() fn) async {
@@ -218,7 +233,7 @@ class _DriverDeliveryDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(driverDeliveryDetailProvider(widget.assignmentId), (prev, next) {
+    ref.listen(driverDeliveryDetailProvider(_detailArgs), (prev, next) {
       if (!next.hasValue) return;
       final row = next.value!;
       _syncAcceptTimer(row);
@@ -232,7 +247,7 @@ class _DriverDeliveryDetailScreenState
       }
     });
 
-    final async = ref.watch(driverDeliveryDetailProvider(widget.assignmentId));
+    final async = ref.watch(driverDeliveryDetailProvider(_detailArgs));
 
     return Scaffold(
       backgroundColor: AllColor.white,
@@ -248,9 +263,9 @@ class _DriverDeliveryDetailScreenState
         children: [
           RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(driverDeliveryDetailProvider(widget.assignmentId));
+              ref.invalidate(driverDeliveryDetailProvider(_detailArgs));
               await ref.read(
-                driverDeliveryDetailProvider(widget.assignmentId).future,
+                driverDeliveryDetailProvider(_detailArgs).future,
               );
             },
             child: async.when(
@@ -344,7 +359,10 @@ class _OrderHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = AssignmentSourceStyle.accent(row.sourceColorKey);
+    final accent = AssignmentSourceStyle.accent(
+      row.sourceColorKey,
+      suggestedColor: row.suggestedColor,
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [

@@ -2,7 +2,7 @@
 
 // String api = "http://103.208.183.250:9000";
 
-// String api = "https://backend.jangomarketvc.ae";
+//  String api = "https://backend.jangomarketvc.ae";
 String api = "http://103.208.183.250:9000";
 // php artisan serve --host=103.208.183.250 --port=9000
 

@@ -19,7 +19,10 @@ class AssignmentOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = AssignmentSourceStyle.accent(row.sourceColorKey);
+    final accent = AssignmentSourceStyle.accent(
+      row.sourceColorKey,
+      suggestedColor: row.suggestedColor,
+    );
 
     return Material(
       color: AllColor.white,

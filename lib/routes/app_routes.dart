@@ -784,7 +784,11 @@ final GoRouter router = GoRouter(
             body: Center(child: Text('Invalid assignment id')),
           );
         }
-        return DriverDeliveryDetailScreen(assignmentId: id);
+        final jobType = state.uri.queryParameters['job_type'];
+        return DriverDeliveryDetailScreen(
+          assignmentId: id,
+          jobType: jobType,
+        );
       },
     ),
 
