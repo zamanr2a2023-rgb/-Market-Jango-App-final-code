@@ -73,6 +73,10 @@ class VendorAPIController {
   static String weekly_sell = '$_base_api/vendor/weekly-sell';
   static String sell_top_product = '$_base_api/vendor/sell-top-product';
 
+  /// Vendor analytics (profit) — Step 02 / Section 2.5.
+  static String get vendorDashboardAnalytics =>
+      '$_base_api/vendor-dashboard/analytics';
+
   /// Product Visibility (Vendor)
   static String productVisibilitySet = '$_base_api/product-visibility/set';
   static String productVisibilityProduct(int productId) =>
@@ -172,6 +176,8 @@ class VendorAPIController {
     String? toDate,
     String? orderNumber,
     String? status,
+    String? paymentMethod,
+    String? debtStatus,
   }) {
     final q = <String, String>{
       'page': '$page',
@@ -183,6 +189,12 @@ class VendorAPIController {
       q['order_number'] = orderNumber.trim();
     }
     if (status != null && status.trim().isNotEmpty) q['status'] = status.trim();
+    if (paymentMethod != null && paymentMethod.trim().isNotEmpty) {
+      q['payment_method'] = paymentMethod.trim();
+    }
+    if (debtStatus != null && debtStatus.trim().isNotEmpty) {
+      q['debt_status'] = debtStatus.trim();
+    }
     return Uri.parse('$_base_api/vendor/manual-orders')
         .replace(queryParameters: q)
         .toString();
@@ -201,6 +213,27 @@ class VendorAPIController {
 
   static String vendorManualOrderDeliver(int invoiceId) =>
       '$_base_api/vendor/manual-orders/$invoiceId/deliver';
+
+  /// STEP_03 — full/partial debt payment on a walk-in invoice.
+  static String vendorManualOrderPayDebt(int invoiceId) =>
+      '$_base_api/vendor/manual-orders/$invoiceId/pay-debt';
+
+  /// STEP_04 — customer-facing POS payload for a saved walk-in invoice.
+  static String vendorManualOrderPosDisplay(int invoiceId) =>
+      '$_base_api/vendor/manual-orders/$invoiceId/pos-display';
+
+  /// STEP_04 — sales/orders export (`xlsx` | `pdf`). Contract: `format` only.
+  static String vendorOrdersExport({required String format}) {
+    return Uri.parse('$_base_api/vendor/orders/export')
+        .replace(queryParameters: {'format': format})
+        .toString();
+  }
+
+  /// Admin-configurable walk-in credit policy (limit / due days / late fee).
+  static String get adminCreditPolicy => '$_base_api/admin/credit-policy';
+
+  /// Vendor read of the same policy (when admin write is separate).
+  static String get vendorCreditPolicy => '$_base_api/vendor/credit-policy';
 
   /// Wallet (vendor)
   static String get vendorWallet => '$_base_api/vendor/wallet';

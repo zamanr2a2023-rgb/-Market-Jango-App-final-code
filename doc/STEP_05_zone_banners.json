@@ -1,0 +1,91 @@
+{
+  "info": {
+    "name": "STEP_05_zone_banners",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Guest home global",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/buyer/home"
+      }
+    },
+    {
+      "name": "Guest home zone query",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/buyer/home?zone_id=7"
+      }
+    },
+    {
+      "name": "List visibility zones for register",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/buyer/visibility-locations/zones"
+      }
+    },
+    {
+      "name": "Logged-in home from ship_zone",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{buyerId}}" },
+          { "key": "user_type", "value": "buyer" }
+        ],
+        "url": "{{baseUrl}}/api/buyer/home"
+      }
+    },
+    {
+      "name": "Register password with zone",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "id", "value": "{{buyerId}}" },
+          { "key": "user_type", "value": "buyer" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"secret12\",\n  \"password_confirmation\": \"secret12\",\n  \"ship_zone\": \"UGANDA\"\n}"
+        },
+        "url": "{{baseUrl}}/api/register-password"
+      }
+    },
+    {
+      "name": "Submit promo",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "id", "value": "{{vendorId}}" },
+          { "key": "user_type", "value": "vendor" }
+        ],
+        "url": "{{baseUrl}}/api/vendor/promotions",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Sale\",\"zone\":\"Kampala\"}"
+        }
+      }
+    },
+    {
+      "name": "Approve promo",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "user_type", "value": "admin" }],
+        "url": "{{baseUrl}}/api/admin/promotions/1/approve"
+      }
+    },
+    {
+      "name": "Notify followers",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "id", "value": "{{vendorId}}" },
+          { "key": "user_type", "value": "vendor" }
+        ],
+        "url": "{{baseUrl}}/api/vendor/products/1/notify-followers"
+      }
+    }
+  ]
+}

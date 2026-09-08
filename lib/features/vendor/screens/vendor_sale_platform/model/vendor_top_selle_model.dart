@@ -46,21 +46,67 @@ class TopProductItem {
   final int totalQuantity;
   final double totalRevenue;
 
+  /// Historical / sale-time unit buying cost from API (never current product cost).
+  final double? buyingPrice;
+
+  /// Prefer API profit when present (already uses old cost).
+  final double? profit;
+
   TopProductItem({
     required this.productId,
     required this.name,
     required this.totalQuantity,
     required this.totalRevenue,
+    this.buyingPrice,
+    this.profit,
   });
 
+  /// Total cost for sold qty when unit buying price is known.
+  double? get totalCost {
+    if (buyingPrice == null) return null;
+    return buyingPrice! * totalQuantity;
+  }
+
+  /// Historical-safe profit:
+  /// 1) API `profit` / `total_profit`
+  /// 2) else revenue − (unitCost × qty)
+  double? get displayProfit {
+    if (profit != null) return profit;
+    final cost = totalCost;
+    if (cost == null) return null;
+    return totalRevenue - cost;
+  }
+
   factory TopProductItem.fromJson(Map<String, dynamic> j) {
+    final buy = _firstDouble(j, const [
+      'buying_price',
+      'unit_buying_price',
+      'historical_buying_price',
+      'cost',
+      'unit_cost',
+    ]);
+    final profitVal = _firstDouble(j, const [
+      'profit',
+      'total_profit',
+    ]);
+
     return TopProductItem(
       productId: j['product_id'] == null ? null : _toInt(j['product_id']),
       name: (j['name'] ?? '').toString(),
       totalQuantity: _toInt(j['total_quantity']),
       totalRevenue: _toDouble(j['total_revenue']),
+      buyingPrice: buy,
+      profit: profitVal,
     );
   }
+}
+
+double? _firstDouble(Map<String, dynamic> j, List<String> keys) {
+  for (final k in keys) {
+    if (!j.containsKey(k) || j[k] == null) continue;
+    return _toDouble(j[k]);
+  }
+  return null;
 }
 
 int _toInt(dynamic v) =>

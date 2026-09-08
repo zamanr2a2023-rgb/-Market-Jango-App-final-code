@@ -46,6 +46,7 @@ class UserUpdateService {
   static const Set<String> _allowedKeys = {
     'ship_address', 'ship_city', 'postcode', 'ship_zone', 'ship_state', 'ship_town', 'ship_country',
     'ship_name', 'ship_email', 'ship_phone', 'ship_location',
+    'sign_post',
     // চাইলে প্রোফাইলের জেনেরিক ফিল্ডও
     'address', 'state', 'country', 'location', 'name', 'email', 'phone',
   };

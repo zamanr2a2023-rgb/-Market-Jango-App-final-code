@@ -12,15 +12,26 @@ class PaginatedBanners {
   });
 
   factory PaginatedBanners.fromJson(Map<String, dynamic> json) {
+    final raw = json['data'];
+    final banners = <BannerItem>[];
+    if (raw is List) {
+      for (final e in raw) {
+        if (e is Map) {
+          banners.add(BannerItem.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
     return PaginatedBanners(
-      currentPage: json['current_page'] ?? 1,
-      lastPage: json['last_page'] ?? 1,
-      total: json['total'] ?? 0,
-      banners:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => BannerItem.fromJson(e))
-              .toList() ??
-          [],
+      currentPage: json['current_page'] is int
+          ? json['current_page'] as int
+          : int.tryParse('${json['current_page'] ?? ''}') ?? 1,
+      lastPage: json['last_page'] is int
+          ? json['last_page'] as int
+          : int.tryParse('${json['last_page'] ?? ''}') ?? 1,
+      total: json['total'] is int
+          ? json['total'] as int
+          : int.tryParse('${json['total'] ?? ''}') ?? 0,
+      banners: banners,
     );
   }
 }
@@ -51,19 +62,27 @@ class BannerItem {
   });
 
   factory BannerItem.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic>? productMap;
+    final rawProduct = json['product'];
+    if (rawProduct is Map) {
+      productMap = Map<String, dynamic>.from(rawProduct);
+    }
+
     return BannerItem(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
-      discount: json['discount'] ?? '',
-      image: json['image'] ?? '',
-      publicId: json['public_id'] ?? '',
-      productId: json['product_id'] ?? 0,
-      createdAt: json['created_at'] ?? '',
-      updatedAt: json['updated_at'] ?? '',
-      product: json['product'] != null
-          ? BenarProduct.fromJson(json['product'])
-          : null,
+      id: json['id'] is int
+          ? json['id'] as int
+          : int.tryParse('${json['id'] ?? ''}') ?? 0,
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      discount: json['discount']?.toString() ?? '',
+      image: json['image']?.toString() ?? '',
+      publicId: json['public_id']?.toString() ?? '',
+      productId: json['product_id'] is int
+          ? json['product_id'] as int
+          : int.tryParse('${json['product_id'] ?? ''}') ?? 0,
+      createdAt: json['created_at']?.toString() ?? '',
+      updatedAt: json['updated_at']?.toString() ?? '',
+      product: productMap != null ? BenarProduct.fromJson(productMap) : null,
     );
   }
 }
@@ -110,11 +129,13 @@ class BenarProduct {
   factory BenarProduct.fromJson(Map<String, dynamic> json) {
     // color এবং size কখনো array, কখনো string — তাই normalize করা হয়েছে
     List<String> parseDynamicList(dynamic data) {
-      if (data == null) return [];
+      if (data == null) return <String>[];
       if (data is List) {
         return data
             .expand((e) => e.toString().split(','))
             .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .map((e) => e.toString())
             .toList();
       }
       if (data is String) {
@@ -122,29 +143,36 @@ class BenarProduct {
             .replaceAll('"', '')
             .split(',')
             .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
             .toList();
       }
-      return [];
+      return <String>[];
+    }
+
+    int toInt(dynamic v) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v?.toString() ?? '') ?? 0;
     }
 
     return BenarProduct(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
-      regularPrice: json['regular_price'] ?? '',
-      sellPrice: json['sell_price'] ?? '',
-      discount: json['discount'] ?? 0,
-      publicId: json['public_id'] ?? '',
-      star: json['star'] ?? 0,
-      image: json['image'] ?? '',
+      id: toInt(json['id']),
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      regularPrice: json['regular_price']?.toString() ?? '',
+      sellPrice: json['sell_price']?.toString() ?? '',
+      discount: toInt(json['discount']),
+      publicId: json['public_id']?.toString() ?? '',
+      star: toInt(json['star']),
+      image: json['image']?.toString() ?? '',
       color: parseDynamicList(json['color']),
       size: parseDynamicList(json['size']),
-      remark: json['remark'] ?? '',
-      isActive: json['is_active'] ?? 0,
-      vendorId: json['vendor_id'] ?? 0,
-      categoryId: json['category_id'] ?? 0,
-      createdAt: json['created_at'] ?? '',
-      updatedAt: json['updated_at'] ?? '',
+      remark: json['remark']?.toString() ?? '',
+      isActive: toInt(json['is_active']),
+      vendorId: toInt(json['vendor_id']),
+      categoryId: toInt(json['category_id']),
+      createdAt: json['created_at']?.toString() ?? '',
+      updatedAt: json['updated_at']?.toString() ?? '',
     );
   }
 }

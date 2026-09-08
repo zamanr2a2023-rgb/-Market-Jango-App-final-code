@@ -23,21 +23,25 @@ class Tuppertextandbackbutton extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: 16.h),
           child: Row(
             children: [
-              InkWell(
-                onTap: () {
-                  if (onBack != null) {
-                    onBack!();
-                  } else {
-                    _defaultBack(context);
-                  }
-                },
-                child: CircleAvatar(
-                  radius: 15.r,
-                  backgroundColor: AllColor.grey300,
-                  child: Icon(
-                    Icons.arrow_back_ios,
-                    size: 8.sp,
-                    color: AllColor.black,
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    if (onBack != null) {
+                      onBack!();
+                    } else {
+                      _defaultBack(context);
+                    }
+                  },
+                  customBorder: const CircleBorder(),
+                  child: CircleAvatar(
+                    radius: 15.r,
+                    backgroundColor: AllColor.grey300,
+                    child: Icon(
+                      Icons.arrow_back_ios,
+                      size: 8.sp,
+                      color: AllColor.black,
+                    ),
                   ),
                 ),
               ),

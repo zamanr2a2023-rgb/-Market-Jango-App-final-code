@@ -346,6 +346,9 @@ class Buyer {
   final String? shipPhone;
   final String? shipLocation;
 
+  /// Optional delivery landmark (`sign_post` via POST /api/user/update).
+  final String? signPost;
+
   // misc
   final String? description;
   final String? location;
@@ -371,6 +374,7 @@ class Buyer {
     required this.shipCountry,
     required this.shipPhone,
     required this.shipLocation,
+    this.signPost,
     required this.description,
     required this.location,
     required this.userId,
@@ -401,6 +405,7 @@ class Buyer {
       shipCountry: s(json['ship_country']),
       shipPhone: s(json['ship_phone']),
       shipLocation: s(json['ship_location']),
+      signPost: s(json['sign_post']).isEmpty ? null : s(json['sign_post']),
 
       description: s(json['description']),
       location: s(json['location']),

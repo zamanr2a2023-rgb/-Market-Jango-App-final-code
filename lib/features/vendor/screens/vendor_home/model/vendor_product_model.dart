@@ -6,6 +6,8 @@ class VendorProduct {
   final String description;
   final String regularPrice;
   final String sellPrice;
+  /// Cost — present for vendor owners; staff responses may omit it.
+  final String? buyingPrice;
   final String regularPriceDisplay;
   final String sellPriceDisplay;
   final String currency;
@@ -39,6 +41,7 @@ class VendorProduct {
     required this.description,
     required this.regularPrice,
     required this.sellPrice,
+    this.buyingPrice,
     this.regularPriceDisplay = '',
     this.sellPriceDisplay = '',
     this.currency = 'UGX',
@@ -96,6 +99,12 @@ class VendorProduct {
       description: json['description']?.toString() ?? '',
       regularPrice: json['regular_price']?.toString() ?? '',
       sellPrice: json['sell_price']?.toString() ?? '',
+      buyingPrice: () {
+        final v = json['buying_price'];
+        if (v == null) return null;
+        final s = v.toString().trim();
+        return s.isEmpty ? null : s;
+      }(),
       regularPriceDisplay:
           (json['regular_price_display'] ?? json['regular_price'])
                   ?.toString() ??

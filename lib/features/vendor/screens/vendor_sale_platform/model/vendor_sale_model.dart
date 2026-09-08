@@ -36,21 +36,42 @@ class VendorIncomeData {
   /// API: "conversion_rate": 0
   final double conversionRate;
 
+  /// STEP_03 optional debt KPIs when backend includes them.
+  final double? debtSales;
+  final double? outstandingDebt;
+  final double? paidDebt;
+
   VendorIncomeData({
     required this.totalDays,
     required this.totalRevenue,
     required this.totalOrders,
     required this.totalClicks,
     required this.conversionRate,
+    this.debtSales,
+    this.outstandingDebt,
+    this.paidDebt,
   });
 
   factory VendorIncomeData.fromJson(Map<String, dynamic> j) {
+    double? opt(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString());
+    }
+
     return VendorIncomeData(
       totalDays: _toInt(j['total_days']),
       totalRevenue: _toDouble(j['total_revenue']),
       totalOrders: _toInt(j['total_orders']),
       totalClicks: _toInt(j['total_clicks']),
       conversionRate: _toDouble(j['conversion_rate']),
+      debtSales: opt(
+        j['debt_sales'] ?? j['total_debt_sales'] ?? j['debt_revenue'],
+      ),
+      outstandingDebt: opt(
+        j['outstanding_debt'] ?? j['debt_outstanding'] ?? j['remaining_debt'],
+      ),
+      paidDebt: opt(j['paid_debt'] ?? j['debt_paid'] ?? j['total_debt_paid']),
     );
   }
 }

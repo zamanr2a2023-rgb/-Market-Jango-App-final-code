@@ -33,14 +33,11 @@ class TopCategoriesNotifier extends AsyncNotifier<CategoryResponse?> {
       }
 
       final decoded = jsonDecode(res.body);
-      // Handle case where response might be a List or Map
-      final jsonData = decoded is Map<String, dynamic>
-          ? decoded
-          : <String, dynamic>{
-              'status': 'success',
-              'message': '',
-              'data': decoded is List ? decoded : [],
-            };
+      // Only accept real object payloads — list error bodies must not be wrapped.
+      if (decoded is! Map) {
+        throw Exception('Failed: invalid categories response');
+      }
+      final jsonData = Map<String, dynamic>.from(decoded);
       
       return CategoryResponse.fromJson(jsonData);
     } catch (e) {

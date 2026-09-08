@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,18 +8,32 @@ import 'package:market_jango/core/widget/sreeen_brackground.dart';
 import 'package:market_jango/features/auth/screens/login/logic/email_validator.dart';
 import 'package:market_jango/features/auth/screens/login/logic/login_riverpod.dart';
 import 'package:market_jango/features/auth/screens/login/logic/obscureText_controller.dart';
-import 'package:market_jango/features/auth/screens/user_type_screen.dart' show UserScreen;
-import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
+import 'package:market_jango/features/auth/screens/user_type_screen.dart'
+    show UserScreen;
+import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
 import '../../forgot_password_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   static const String routeName = '/loginScreen';
 
   @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    TextEditingController controllerEmail = TextEditingController();
-    TextEditingController controllerPassword = TextEditingController();
     return Scaffold(
       body: ScreenBackground(
         child: SingleChildScrollView(
@@ -29,11 +42,13 @@ class LoginScreen extends StatelessWidget {
             child: Column(
               children: [
                 SizedBox(height: 30.h),
-                CustomBackButton(),
-                LoginHereText(),
+                const CustomBackButton(
+                  fallbackRoute: BuyerBottomNavBar.routeName,
+                ),
+                const LoginHereText(),
                 LoginTextFormField(
-                  controllerEmail: controllerEmail,
-                  controllerPassword: controllerPassword,
+                  controllerEmail: _emailController,
+                  controllerPassword: _passwordController,
                 ),
               ],
             ),
@@ -44,18 +59,34 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
-class LoginTextFormField extends ConsumerWidget {
-  LoginTextFormField({
+class LoginTextFormField extends ConsumerStatefulWidget {
+  const LoginTextFormField({
     super.key,
     required this.controllerEmail,
     required this.controllerPassword,
   });
+
   final TextEditingController controllerEmail;
   final TextEditingController controllerPassword;
-  final _formKey = GlobalKey<FormState>();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LoginTextFormField> createState() =>
+      _LoginTextFormFieldState();
+}
+
+class _LoginTextFormFieldState extends ConsumerState<LoginTextFormField> {
+  final _formKey = GlobalKey<FormState>();
+
+  void _goToSignUp() {
+    context.push(UserScreen.routeName);
+  }
+
+  void _goToForgotPassword() {
+    context.push(ForgotPasswordScreen.routeName);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isObscure = ref.watch(passwordVisibilityProvider);
     return Form(
       key: _formKey,
@@ -65,7 +96,7 @@ class LoginTextFormField extends ConsumerWidget {
           TextFormField(
             autovalidateMode: AutovalidateMode.disabled,
             textInputAction: TextInputAction.next,
-            controller: controllerEmail,
+            controller: widget.controllerEmail,
             keyboardType: TextInputType.text,
             validator: loginEmailOrPhoneValidator,
             decoration: InputDecoration(
@@ -77,16 +108,11 @@ class LoginTextFormField extends ConsumerWidget {
           ),
           SizedBox(height: 29.h),
           TextFormField(
-            controller: controllerPassword,
+            controller: widget.controllerPassword,
             textInputAction: TextInputAction.done,
             autovalidateMode: AutovalidateMode.disabled,
-            validator: (_) {
-              return null;
-            },
-            // passwordValidator,
-            // তোমার existing function
+            validator: (_) => null,
             obscureText: isObscure,
-
             decoration: InputDecoration(
               hintText: "Password",
               isDense: true,
@@ -107,9 +133,7 @@ class LoginTextFormField extends ConsumerWidget {
             children: [
               SizedBox(height: 30.h),
               InkWell(
-                onTap: () {
-                  goToForgotPasswordScreen(context);
-                },
+                onTap: _goToForgotPassword,
                 child: Text(
                   "Forgot your Password?",
                   style: Theme.of(context).textTheme.titleSmall,
@@ -123,11 +147,12 @@ class LoginTextFormField extends ConsumerWidget {
                   return CustomAuthButton(
                     buttonText: isLoading ? "Logging in..." : "Login",
                     onTap: () {
-                      if (!isLoading && _formKey.currentState!.validate()) {
+                      if (!isLoading &&
+                          _formKey.currentState!.validate()) {
                         ref.read(loginStateProvider.notifier).login(
                               context: context,
-                              email: controllerEmail.text,
-                              password: controllerPassword.text,
+                              email: widget.controllerEmail.text,
+                              password: widget.controllerPassword.text,
                             );
                       }
                     },
@@ -135,43 +160,41 @@ class LoginTextFormField extends ConsumerWidget {
                 },
               ),
               SizedBox(height: 50.h),
-              Text.rich(
-                TextSpan(
-                  text: "Don't have an account? ",
-                  style: Theme.of(context).textTheme.titleSmall,
-                  children: [
-                    TextSpan(
-                      text: "Sign up",
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AllColor.loginButtomColor,
-                        fontWeight: FontWeight.w300,
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.center,
+                children: [
+                  Text(
+                    "Don't have an account? ",
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  InkWell(
+                    onTap: _goToSignUp,
+                    borderRadius: BorderRadius.circular(4.r),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 4.w,
+                        vertical: 4.h,
                       ),
-                      recognizer: TapGestureRecognizer()
-                        ..onTap = () {
-                          goToSignUpScreen(context);
-                        },
+                      child: Text(
+                        "Sign up",
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(
+                              color: AllColor.loginButtomColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
         ],
       ),
     );
-  }
-  // Login handled by Riverpod loginStateProvider
-
-  void gotoHomeScreen(BuildContext content) {
-    content.push(BuyerHomeScreen.routeName);
-  }
-
-  void goToForgotPasswordScreen(BuildContext context) {
-    context.push(ForgotPasswordScreen.routeName);
-  }
-
-  void goToSignUpScreen(BuildContext context) {
-    context.push(UserScreen.routeName);
   }
 }
 

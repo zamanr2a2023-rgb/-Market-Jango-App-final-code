@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/TupperTextAndBackButton.dart';
 import 'package:market_jango/core/widget/custom_total_checkout_section.dart';
+import 'package:market_jango/core/widget/login_required_view.dart';
 import 'package:market_jango/features/buyer/screens/prement/logic/prement_done_logic.dart';
 import 'package:market_jango/features/buyer/screens/prement/logic/prement_reverpod.dart';
 import 'package:market_jango/features/buyer/screens/prement/model/prement_model.dart';
@@ -393,6 +395,30 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loggedInAsync = ref.watch(isLoggedInProvider);
+    return loggedInAsync.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => const LoginRequiredView(
+        title: 'Login required',
+        message: 'Please log in to checkout and place an order.',
+        redirectTo: BuyerPaymentScreen.routeName,
+      ),
+      data: (loggedIn) {
+        if (!loggedIn) {
+          return const LoginRequiredView(
+            title: 'Login required',
+            message: 'Please log in to checkout and place an order.',
+            redirectTo: BuyerPaymentScreen.routeName,
+          );
+        }
+        return _buildPaymentBody(context);
+      },
+    );
+  }
+
+  Widget _buildPaymentBody(BuildContext context) {
     final args = GoRouterState.of(context).extra as PaymentPageData?;
 
     // Watch cart provider to get updated buyer data after address update
@@ -511,6 +537,7 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
             : 'UGX');
 
     /// Buyer-facing delivery amount from GET /cart/delivery-charges when loaded.
+    /// (Guests never reach this screen / never call that API.)
     final deliveryCost = charges != null
         ? charges.cartTotalDeliveryChargeDisplay.toDouble()
         : (args?.deliveryTotal ?? 0).toDouble();
@@ -596,15 +623,13 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                       ref.read(shippingMethodIndexProvider.notifier).state = i;
                     },
                     currency: displayCurrency,
-                    onShippingDetails: deliveryChargesAsync.maybeWhen(
-                      data: (resp) =>
-                          () => _showDeliveryChargeDetails(
-                            context,
-                            resp,
-                            resp.displayCurrency,
-                          ),
-                      orElse: () => null,
-                    ),
+                    onShippingDetails: charges == null
+                        ? null
+                        : () => _showDeliveryChargeDetails(
+                              context,
+                              charges,
+                              charges.displayCurrency,
+                            ),
                   ),
 
                   // buildPaymentMethodText(theme, context),

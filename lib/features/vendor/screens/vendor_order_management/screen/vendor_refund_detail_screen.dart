@@ -37,7 +37,9 @@ class _VendorRefundDetailScreenState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'The customer will receive a wallet credit for this amount.',
+                'Approve this refund using the selected refund method '
+                '(Cash, Wallet, Reduce Debt, or Store Credit). '
+                'Stock restoration is applied by the backend on approval.',
                 style: TextStyle(fontSize: 13.sp, color: AllColor.grey500),
               ),
               SizedBox(height: 12.h),
@@ -250,7 +252,11 @@ class _VendorRefundDetailScreenState
               ),
             ),
             child: Text(
-              'If you approve, the customer receives a wallet credit for this refund amount — not your vendor wallet.',
+              d.refundMethodLabel == '—'
+                  ? 'Approve applies the refund using the method chosen on the return request (Cash / Wallet / Reduce Debt / Store Credit). Stock is restored by the backend when approved.'
+                  : 'Refund method: ${d.refundMethodLabel}. '
+                      'Approve settles via that method — not assumed wallet credit. '
+                      'Stock restoration is backend-controlled on approval.',
               style: TextStyle(fontSize: 13.sp, height: 1.35),
             ),
           ),
@@ -259,6 +265,15 @@ class _VendorRefundDetailScreenState
             children: [
               _kv('Status', d.status),
               _kv('Amount', d.amount.toString()),
+              _kv('Refund method', d.refundMethodLabel),
+              if (d.quantity != null) _kv('Quantity', '${d.quantity}'),
+              if (d.stockRestored == true)
+                _kv(
+                  'Stock restored',
+                  d.stockRestoredQty != null
+                      ? '${d.stockRestoredQty} unit(s)'
+                      : 'Yes',
+                ),
               if (d.requestedBy != null && d.requestedBy!.isNotEmpty)
                 _kv('Requested by', d.requestedBy!),
               _kv('Product', d.productName.isEmpty ? '—' : d.productName),

@@ -286,7 +286,9 @@ class _RefundTile extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.sp),
         ),
         subtitle: Text(
-          '${item.status} · ${item.amount}\n'
+          '${item.status} · ${item.amount}'
+          '${item.refundMethod != null && item.refundMethod!.isNotEmpty ? ' · ${item.refundMethod}' : ''}'
+          '${item.quantity != null ? ' · qty ${item.quantity}' : ''}\n'
           '${item.orderNumber.isNotEmpty ? 'Order ${item.orderNumber}\n' : ''}'
           '${item.customerName.isNotEmpty ? item.customerName : ''}',
           style: TextStyle(fontSize: 12.sp, height: 1.35),

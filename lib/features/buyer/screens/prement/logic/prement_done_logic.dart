@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/buyer_api.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/cart_data.dart';
 import 'package:market_jango/features/buyer/screens/prement/data/delivery_charges_data.dart';
@@ -12,6 +13,7 @@ import 'package:market_jango/features/buyer/screens/prement/logic/global_logger.
 import 'package:market_jango/features/buyer/screens/prement/logic/prement_reverpod.dart';
 import 'package:market_jango/features/buyer/screens/prement/model/prement_line_items.dart';
 import 'package:market_jango/features/buyer/screens/prement/model/prement_page_data_model.dart';
+import 'package:market_jango/features/buyer/screens/prement/screen/buyer_payment_screen.dart';
 import 'package:market_jango/features/buyer/screens/prement/screen/payment_complete_screen.dart';
 import 'package:market_jango/features/buyer/screens/prement/screen/web_view_screen.dart';
 import 'package:market_jango/features/buyer/screens/wallet/data/buyer_wallet_api.dart';
@@ -69,6 +71,12 @@ Future<void> _showMessagePopup(BuildContext context, String message) {
 }
 
 Future<void> startCheckout(BuildContext context) async {
+  final ok = await AuthGate.requireAuth(
+    context,
+    redirectTo: BuyerPaymentScreen.routeName,
+  );
+  if (!ok || !context.mounted) return;
+
   final container = ProviderScope.containerOf(context, listen: false);
   final selectedIndex = container.read(shippingMethodIndexProvider);
 

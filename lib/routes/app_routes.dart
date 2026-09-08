@@ -96,6 +96,8 @@ import 'package:market_jango/features/vendor/screens/vendor_order_management/scr
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_marketplace_order_detail_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_orders_hub_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_refund_detail_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_credit_policy_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_pos_customer_display_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_hub_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_product_detail_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_scan_screen.dart';
@@ -128,9 +130,26 @@ import '../features/auth/screens/login/screen/login_screen.dart';
 import '../features/vendor/screens/vendor_home/model/vendor_product_model.dart';
 import '../features/vendor/screens/vendor_my_product_size/screen/my_product_size.dart';
 import '../features/vendor/screens/vendor_product_add_page/screen/product_add_page.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 
 final GoRouter router = GoRouter(
   initialLocation: SplashScreen.routeName,
+
+  redirect: (context, state) async {
+    final loc = state.matchedLocation;
+    // Never bounce auth/splash flows.
+    if (loc == SplashScreen.routeName ||
+        loc == LoginScreen.routeName ||
+        loc.startsWith(LoginScreen.routeName)) {
+      return null;
+    }
+    if (!AuthGate.isProtectedBuyerPath(loc)) return null;
+
+    final loggedIn = await AuthGate.isLoggedIn();
+    if (loggedIn) return null;
+
+    return AuthGate.loginLocation(redirectTo: state.uri.toString());
+  },
 
   errorBuilder: (context, state) =>
       Scaffold(body: Center(child: Text('Error: ${state.error} '))),
@@ -310,6 +329,22 @@ final GoRouter router = GoRouter(
       builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
         return VendorRefundDetailScreen(refundId: id);
+      },
+    ),
+    GoRoute(
+      path: VendorCreditPolicyScreen.routeName,
+      name: 'vendorCreditPolicy',
+      builder: (context, state) => const VendorCreditPolicyScreen(),
+    ),
+    GoRoute(
+      path: VendorPosCustomerDisplayScreen.routeName,
+      name: 'vendorPosCustomerDisplay',
+      builder: (context, state) {
+        final q = state.uri.queryParameters['invoiceId'];
+        final id = int.tryParse(q ?? '');
+        return VendorPosCustomerDisplayScreen(
+          invoiceId: (id != null && id > 0) ? id : null,
+        );
       },
     ),
     // Must be registered BEFORE `/vendor/manual-order/:id` or `create` is parsed as :id → 0.
@@ -944,8 +979,14 @@ final GoRouter router = GoRouter(
     GoRoute(
       path: ProductDetails.routeName,
       name: ProductDetails.routeName,
-      builder: (context, state) =>
-          ProductDetails(productId: state.extra as int),
+      builder: (context, state) {
+        final extraId = state.extra;
+        final queryId = int.tryParse(state.uri.queryParameters['id'] ?? '');
+        final id = extraId is int
+            ? extraId
+            : (queryId ?? int.tryParse('${extraId ?? ''}') ?? 0);
+        return ProductDetails(productId: id);
+      },
     ),
     GoRoute(
       path: BuyerPaymentScreen.routeName,

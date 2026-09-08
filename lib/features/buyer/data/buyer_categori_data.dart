@@ -24,7 +24,13 @@ class CategoryRepository {
     );
 
     if (res.statusCode == 200) {
-      return CategoryResponse.fromJson(jsonDecode(res.body));
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map) {
+        throw Exception(
+          'Failed to fetch categories: invalid response',
+        );
+      }
+      return CategoryResponse.fromJson(Map<String, dynamic>.from(decoded));
     }
     throw Exception(
       'Failed to fetch categories: ${res.statusCode} ${res.reasonPhrase}',

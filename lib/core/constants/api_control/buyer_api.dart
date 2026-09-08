@@ -4,6 +4,8 @@ class BuyerAPIController {
   static final String _base_api = "$api/api";
   static String buyer_product = "$_base_api/product";
   static String banner = "$_base_api/banner";
+  /// Guest / logged-in home (`GET /api/buyer/home`) — Step 01.
+  static String get buyerHome => "$_base_api/buyer/home";
   static String cart = "$_base_api/cart";
   static String get cartDeliveryCharges => "$_base_api/cart/delivery-charges";
   static String cartDelete(int id) => "$_base_api/cart/$id";

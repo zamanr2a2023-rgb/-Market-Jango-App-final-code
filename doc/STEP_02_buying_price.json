@@ -1,0 +1,44 @@
+{
+  "info": {
+    "name": "Jango Step 02 Buying Price",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "{{baseUrl}}" },
+    { "key": "token", "value": "" },
+    { "key": "productId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Owner product list (includes buying_price)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "token", "value": "{{token}}" }],
+        "url": "{{baseUrl}}/api/vendor/product"
+      }
+    },
+    {
+      "name": "Update buying price (owner)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"buying_price\": 120 }"
+        },
+        "url": "{{baseUrl}}/api/product/update/{{productId}}"
+      }
+    },
+    {
+      "name": "Vendor analytics (profit)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "token", "value": "{{token}}" }],
+        "url": "{{baseUrl}}/api/vendor-dashboard/analytics"
+      }
+    }
+  ]
+}

@@ -10,7 +10,7 @@ import '../model/cart_model.dart'; // এখানে CartResponse/CartItem আ�
 final cartProvider = FutureProvider<CartResponse>((ref) async {
   final token = await ref.read(authTokenProvider.future);
   if (token == null || token.isEmpty) {
-    throw Exception('Token not found');
+    throw Exception('Please log in to view your cart.');
   }
 
   final url = Uri.parse(BuyerAPIController.cart);

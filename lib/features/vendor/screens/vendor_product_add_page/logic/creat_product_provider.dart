@@ -72,6 +72,7 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
     required String description,
     required String regularPrice,
     required String sellPrice,
+    String? buyingPrice,
     required int categoryId,
     required Map<String, List<String>> attributes,
     Map<String, String> specification = const {},
@@ -113,6 +114,9 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
       request.fields['description'] = description;
       request.fields['regular_price'] = regularPrice;
       request.fields['sell_price'] = sellPrice;
+      if (buyingPrice != null && buyingPrice.trim().isNotEmpty) {
+        request.fields['buying_price'] = buyingPrice.trim();
+      }
       request.fields['category_id'] = categoryId.toString();
       request.fields['stock'] = stock;
       request.fields['weight'] = weight;

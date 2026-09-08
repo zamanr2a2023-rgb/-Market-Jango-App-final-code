@@ -13,28 +13,30 @@ FutureProvider.autoDispose.family<GlobalSearchResponse, String>((ref, query) asy
   // 1) খালি কুয়েরি: সোজা empty() রেসপন্স দিন
   if (query.trim().isEmpty) return GlobalSearchResponse.empty();
 
-  // 2) টোকেন/ইউজার টাইপ
+  // 2) Token optional for guest buyer browse; vendor search still prefers auth.
   final token = await ref.read(authTokenProvider.future);
-  if (token == null) throw Exception('Token not found');
-
   final userType = await ref.read(getUserTypeProvider.future);
 
   final vendorUrl = VendorAPIController.search_by_vendor(query);
-  final buyerUrl  = BuyerAPIController.buyer_search_product(query);
+  final buyerUrl = BuyerAPIController.buyer_search_product(query);
   final url = (userType == 'vendor') ? vendorUrl : buyerUrl;
 
-  // 3) API কল
-  final resp = await http.get(Uri.parse(url), headers: {'token': token});
+  final resp = await http.get(
+    Uri.parse(url),
+    headers: {
+      'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'token': token,
+    },
+  );
 
-  // 4) রেসপন্স
   if (resp.statusCode == 200) {
     final decoded = jsonDecode(resp.body);
-    // Safely convert to Map<String, dynamic> to avoid type casting errors
-    final body = decoded is Map<String, dynamic> 
-        ? decoded 
+    final body = decoded is Map<String, dynamic>
+        ? decoded
         : Map<String, dynamic>.from(decoded as Map);
     return GlobalSearchResponse.fromJson(body);
-  } else {
-    throw Exception('Search failed: ${resp.statusCode} ${resp.body}');
   }
+
+  // Guest-friendly: empty results instead of raw token errors.
+  return GlobalSearchResponse.empty();
 });

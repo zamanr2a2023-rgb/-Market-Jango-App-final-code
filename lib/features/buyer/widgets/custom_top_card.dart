@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/features/buyer/data/buyer_top_data.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/widget/highlighted_product_shell.dart';
+import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
 
 class CustomTopProducts extends ConsumerWidget {
   const CustomTopProducts({super.key});
@@ -34,7 +36,12 @@ class CustomTopProducts extends ConsumerWidget {
               return Column(
                 children: [
                   InkWell(
-                    onTap: () {
+                    onTap: () async {
+                      final ok = await AuthGate.requireAuth(
+                        context,
+                        redirectTo: BuyerBottomNavBar.routeName,
+                      );
+                      if (!ok || !context.mounted) return;
                       context.push(
                         BuyerVendorProfileScreen.routeName,
                         extra: buyerVendorProfileExtra(

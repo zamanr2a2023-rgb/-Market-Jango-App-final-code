@@ -1,0 +1,8 @@
+{
+  "info": { "name": "Jango Step 04 Downloads POS", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "item": [
+    { "name": "Vendor Excel export", "request": { "method": "GET", "header": [{ "key": "token", "value": "{{token}}" }], "url": "{{baseUrl}}/api/vendor/orders/export?format=xlsx" } },
+    { "name": "Vendor PDF export", "request": { "method": "GET", "header": [{ "key": "token", "value": "{{token}}" }], "url": "{{baseUrl}}/api/vendor/orders/export?format=pdf" } },
+    { "name": "POS customer display", "request": { "method": "GET", "header": [{ "key": "token", "value": "{{token}}" }], "url": "{{baseUrl}}/api/vendor/manual-orders/1/pos-display" } }
+  ]
+}

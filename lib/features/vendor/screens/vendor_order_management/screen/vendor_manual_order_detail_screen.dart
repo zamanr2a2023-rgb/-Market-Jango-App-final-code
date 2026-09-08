@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/provider/vendor_orders_provider.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_pos_customer_display_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_assign_driver_sheet.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_order_document_local_save.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_marketplace_line_product_card.dart';
@@ -509,6 +512,280 @@ class _VendorManualOrderDetailScreenState
       }
     } finally {
       if (mounted) setState(() => _docLoadingKey = null);
+    }
+  }
+
+  Future<void> _payDebt(VendorManualOrderInvoice inv) async {
+    final remaining = inv.remainingDebt;
+    final amountCtl = TextEditingController(
+      text: remaining > 0 ? remaining.toStringAsFixed(2) : '',
+    );
+    try {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Collect debt payment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Remaining: ${remaining.toStringAsFixed(2)}. '
+                'Enter a full or partial amount.',
+                style: TextStyle(fontSize: 13.sp, color: AllColor.grey500),
+              ),
+              SizedBox(height: 12.h),
+              TextField(
+                controller: amountCtl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Amount *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Pay'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+      final amt = double.tryParse(amountCtl.text.trim().replaceAll(',', ''));
+      if (amt == null || amt <= 0) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Invalid amount',
+          message: 'Enter a payment greater than zero.',
+          type: CustomSnackType.error,
+        );
+        return;
+      }
+      if (amt > remaining + 0.009) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Too much',
+          message: 'Amount cannot exceed remaining debt.',
+          type: CustomSnackType.error,
+        );
+        return;
+      }
+      setState(() => _busy = true);
+      try {
+        final updated = await VendorOrderApi.instance.payManualOrderDebt(
+          invoiceId: inv.id,
+          amount: amt,
+        );
+        ref.invalidate(vendorManualOrdersProvider);
+        if (!mounted) return;
+        setState(() => _inv = updated);
+        GlobalSnackbar.show(
+          context,
+          title: 'Payment recorded',
+          message: updated.isDebtFullyPaid
+              ? 'Debt is fully Paid.'
+              : 'Remaining ${updated.remainingDebt.toStringAsFixed(2)}',
+          type: CustomSnackType.success,
+        );
+        await _load();
+      } catch (e) {
+        if (mounted) {
+          GlobalSnackbar.show(
+            context,
+            title: 'Error',
+            message: e.toString().replaceFirst('Exception: ', ''),
+            type: CustomSnackType.error,
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    } finally {
+      amountCtl.dispose();
+    }
+  }
+
+  Future<void> _openWalkInReturn(VendorManualOrderInvoice inv) async {
+    if (inv.items.isEmpty) return;
+    VendorManualLineItem selected = inv.items.first;
+    final qtyCtl = TextEditingController(text: '1');
+    final reasonCtl = TextEditingController();
+    var refundMethod = 'cash';
+    const methods = <(String, String)>[
+      ('cash', 'Cash'),
+      ('wallet', 'Wallet'),
+      ('reduce_debt', 'Reduce Debt'),
+      ('store_credit', 'Store Credit'),
+    ];
+
+    try {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setLocal) {
+              final maxQty = selected.quantity;
+              return AlertDialog(
+                title: const Text('Walk-in return'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      DropdownButtonFormField<int>(
+                        initialValue: selected.id,
+                        decoration: const InputDecoration(
+                          labelText: 'Product *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: inv.items
+                            .map(
+                              (it) => DropdownMenuItem<int>(
+                                value: it.id,
+                                child: Text(
+                                  '${it.productName ?? 'Item #${it.productId}'} (qty ${it.quantity})',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (id) {
+                          if (id == null) return;
+                          final match = inv.items.firstWhere((e) => e.id == id);
+                          setLocal(() {
+                            selected = match;
+                            qtyCtl.text = '1';
+                          });
+                        },
+                      ),
+                      SizedBox(height: 12.h),
+                      TextField(
+                        controller: qtyCtl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Quantity * (max $maxQty)',
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      SizedBox(height: 12.h),
+                      TextField(
+                        controller: reasonCtl,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Reason *',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      SizedBox(height: 12.h),
+                      DropdownButtonFormField<String>(
+                        initialValue: refundMethod,
+                        decoration: const InputDecoration(
+                          labelText: 'Refund / adjustment *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: methods
+                            .map(
+                              (m) => DropdownMenuItem(
+                                value: m.$1,
+                                child: Text(m.$2),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) setLocal(() => refundMethod = v);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Submit return'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+      if (ok != true || !mounted) return;
+      final qty = int.tryParse(qtyCtl.text.trim());
+      final reason = reasonCtl.text.trim();
+      if (reason.isEmpty) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Reason required',
+          message: 'Please enter a return reason.',
+          type: CustomSnackType.error,
+        );
+        return;
+      }
+      if (qty == null || qty < 1) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Invalid quantity',
+          message: 'Enter a return quantity of at least 1.',
+          type: CustomSnackType.error,
+        );
+        return;
+      }
+      if (qty > selected.quantity) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Too many',
+          message: 'Cannot return more than ${selected.quantity}.',
+          type: CustomSnackType.error,
+        );
+        return;
+      }
+      setState(() => _busy = true);
+      try {
+        await VendorOrderApi.instance.requestMarketplaceLineRefund(
+          invoiceItemId: selected.id,
+          reason: reason,
+          quantity: qty,
+          refundMethod: refundMethod,
+        );
+        ref.invalidate(vendorRefundsPayloadProvider);
+        ref.invalidate(vendorManualOrdersProvider);
+        if (!mounted) return;
+        GlobalSnackbar.show(
+          context,
+          title: 'Return submitted',
+          message:
+              'Pending approval. Stock restores when approved (backend).',
+          type: CustomSnackType.success,
+        );
+        await _load();
+      } catch (e) {
+        if (mounted) {
+          GlobalSnackbar.show(
+            context,
+            title: 'Error',
+            message: e.toString().replaceFirst('Exception: ', ''),
+            type: CustomSnackType.error,
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    } finally {
+      qtyCtl.dispose();
+      reasonCtl.dispose();
     }
   }
 
@@ -1061,8 +1338,66 @@ class _VendorManualOrderDetailScreenState
                     _kv('Payment', _payment(inv)),
                     _kv('Mode', _modeFromItems(inv)),
                     _kv('Destination', '—'),
+                    if (inv.isDebtPayment) ...[
+                      _kv('Debt status', inv.debtStatusLabel),
+                      _kv(
+                        'Debt total',
+                        inv.summary.debtAmount ??
+                            inv.summary.payable,
+                      ),
+                      _kv(
+                        'Remaining',
+                        inv.summary.debtRemaining ??
+                            inv.remainingDebt.toStringAsFixed(2),
+                      ),
+                      if (inv.summary.debtPaid != null &&
+                          inv.summary.debtPaid!.isNotEmpty)
+                        _kv('Paid so far', inv.summary.debtPaid!),
+                    ],
                   ],
                 ),
+                if (inv.isDebtPayment && !inv.isDebtFullyPaid) ...[
+                  SizedBox(height: 10.h),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : () => _payDebt(inv),
+                    icon: const Icon(Icons.payments_outlined),
+                    label: const Text('Collect debt payment'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AllColor.loginButtomColor,
+                      minimumSize: Size(double.infinity, 44.h),
+                    ),
+                  ),
+                ],
+                if (inv.items.isNotEmpty) ...[
+                  SizedBox(height: 10.h),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : () => _openWalkInReturn(inv),
+                    icon: const Icon(Icons.assignment_return_outlined),
+                    label: const Text('Return product'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AllColor.loginButtomColor,
+                      side: BorderSide(color: AllColor.loginButtomColor),
+                      minimumSize: Size(double.infinity, 44.h),
+                    ),
+                  ),
+                  SizedBox(height: 10.h),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      context.push(
+                        VendorPosCustomerDisplayScreen.routePathForInvoice(
+                          inv.id,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.tv_outlined),
+                    label: const Text('Customer display'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AllColor.loginButtomColor,
+                      side: BorderSide(color: AllColor.loginButtomColor),
+                      minimumSize: Size(double.infinity, 44.h),
+                    ),
+                  ),
+                ],
                 Padding(
                   padding: EdgeInsets.fromLTRB(2.w, 4.h, 2.w, 0),
                   child: VendorOrderDocumentDownloadRow(

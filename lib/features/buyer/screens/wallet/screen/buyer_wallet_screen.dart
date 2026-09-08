@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/core/widget/login_required_view.dart';
 import 'package:market_jango/features/buyer/screens/prement/model/prement_line_items.dart';
 import 'package:market_jango/features/buyer/screens/prement/screen/web_view_screen.dart';
 import 'package:market_jango/features/buyer/screens/wallet/data/buyer_wallet_api.dart';
@@ -27,6 +29,30 @@ class BuyerWalletScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loggedInAsync = ref.watch(isLoggedInProvider);
+    return loggedInAsync.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => const LoginRequiredView(
+        title: 'Login required',
+        message: 'Please log in to view your wallet.',
+        redirectTo: BuyerWalletScreen.routeName,
+      ),
+      data: (loggedIn) {
+        if (!loggedIn) {
+          return const LoginRequiredView(
+            title: 'Login required',
+            message: 'Please log in to view your wallet.',
+            redirectTo: BuyerWalletScreen.routeName,
+          );
+        }
+        return _buildWalletBody(context, ref);
+      },
+    );
+  }
+
+  Widget _buildWalletBody(BuildContext context, WidgetRef ref) {
     final overview = ref.watch(buyerWalletOverviewProvider);
     final txParams = ref.watch(buyerWalletTxParamsProvider);
     final tx = ref.watch(buyerWalletTransactionsProvider);

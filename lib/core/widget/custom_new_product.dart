@@ -311,11 +311,10 @@ class _CustomNewProductState extends State<CustomNewProduct> {
           ),
         ),
         Padding(
-          padding: EdgeInsets.only(top: 10.h, left: 15.w),
+          padding: EdgeInsets.only(top: 8.h, left: 8.w, right: 8.w),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: 3.h),
               Text(
                 widget.productName.length < 12
                     ? widget.productName
@@ -325,21 +324,26 @@ class _CustomNewProductState extends State<CustomNewProduct> {
                       fontWeight: widget.isHighlighted
                           ? FontWeight.w700
                           : FontWeight.w500,
+                      fontSize: 13.sp,
                     ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              SizedBox(height: 10.h),
-              Text(
-                widget.productPrices.length < 12
-                    ? widget.productPrices
-                    : "${widget.productPrices.substring(0, 12)}...",
-                style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                      fontSize: 18.sp,
-                      color: widget.isHighlighted ? accent : AllColor.black,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
+              if (widget.productPrices.trim().isNotEmpty) ...[
+                SizedBox(height: 6.h),
+                Text(
+                  widget.productPrices.length < 12
+                      ? widget.productPrices
+                      : "${widget.productPrices.substring(0, 12)}...",
+                  style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                        fontSize: 16.sp,
+                        color: widget.isHighlighted ? accent : AllColor.black,
+                        fontWeight: FontWeight.w700,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ],
           ),
         ),

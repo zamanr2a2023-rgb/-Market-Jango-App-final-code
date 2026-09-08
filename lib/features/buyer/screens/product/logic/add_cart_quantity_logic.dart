@@ -12,7 +12,11 @@ class CartService {
     required Map<String, String> attributes,
   }) async {
     final authStorage = AuthLocalStorage();
-    final token = await authStorage.getToken();
+    final hasLoggedIn = await authStorage.hasLoggedInBefore();
+    final token = await authStorage.getLoginToken();
+    if (!hasLoggedIn || token == null || token.isEmpty) {
+      throw Exception('Please log in to add items to your cart');
+    }
 
     final uri = Uri.parse(BuyerAPIController.cart_create);
 
@@ -22,7 +26,7 @@ class CartService {
     // Set headers
     request.headers.addAll({
       'Accept': 'application/json',
-      if (token != null && token.isNotEmpty) 'token': token,
+      'token': token,
     });
 
     // ✅ Convert attributes to JSON format with arrays

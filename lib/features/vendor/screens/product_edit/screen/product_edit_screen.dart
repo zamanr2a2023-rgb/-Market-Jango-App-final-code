@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/get_user_type.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/global_save_botton.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
@@ -519,6 +520,41 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                       ),
                     ],
                   ),
+                  if (ref.watch(isVendorOwnerProvider).valueOrNull == true) ...[
+                    SizedBox(height: 10.h),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Label(
+                          'Buying price (UGX)',
+                          color: const Color(0xFF2B6CB0),
+                        ),
+                        SizedBox(height: 6.h),
+                        TextFormField(
+                          controller: buyingPriceController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            fillColor: AllColor.white,
+                            hintText: 'Buying Price / Cost (UGX)',
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AllColor.grey,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AllColor.grey,
+                                width: 1.2,
+                              ),
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   SizedBox(height: 10.h),
 
                   /// Stock and Weight row
@@ -808,6 +844,11 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                                   description: nn(descriptionController.text),
                                   regularPrice: nn(regularPriceController.text),
                                   sellPrice: nn(priceController.text),
+                                  buyingPrice:
+                                      ref.read(isVendorOwnerProvider).valueOrNull ==
+                                          true
+                                      ? nn(buyingPriceController.text)
+                                      : null,
                                   categoryId: _selectedCategoryId,
                                   attributes: selectedAttrs.isEmpty
                                       ? null
@@ -870,6 +911,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
   late TextEditingController descriptionController;
   late TextEditingController priceController;
   late TextEditingController regularPriceController;
+  late TextEditingController buyingPriceController;
   late TextEditingController stockController;
   late TextEditingController weightController;
   late TextEditingController lengthController;
@@ -895,6 +937,9 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     );
     regularPriceController = TextEditingController(
       text: widget.product.regularPrice.toString(),
+    );
+    buyingPriceController = TextEditingController(
+      text: widget.product.buyingPrice?.toString() ?? '',
     );
     stockController = TextEditingController(
       text: widget.product.stock?.toString() ?? '',
@@ -1039,6 +1084,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     descriptionController.dispose();
     priceController.dispose();
     regularPriceController.dispose();
+    buyingPriceController.dispose();
     stockController.dispose();
     weightController.dispose();
     lengthController.dispose();

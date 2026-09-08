@@ -6,7 +6,7 @@ import 'package:market_jango/features/buyer/model/banner_model.dart';
 import '../../../../../core/utils/get_token_sharedpefarens.dart';
 
 final bannerNotifierProvider =
-AsyncNotifierProvider<BannerNotifier, PaginatedBanners?>(BannerNotifier.new);
+    AsyncNotifierProvider<BannerNotifier, PaginatedBanners?>(BannerNotifier.new);
 
 class BannerNotifier extends AsyncNotifier<PaginatedBanners?> {
   int _page = 1;
@@ -25,13 +25,19 @@ class BannerNotifier extends AsyncNotifier<PaginatedBanners?> {
   }
 
   Future<PaginatedBanners> _fetchBanners() async {
+    // Guest browse: token optional — do not fail home when logged out.
     final token = await ref.read(authTokenProvider.future);
-    if (token == null) throw Exception('Token not found');
 
-    final baseUrl = BuyerAPIController.banner; // তোমার API route constant
+    final baseUrl = BuyerAPIController.banner;
     final uri = Uri.parse('$baseUrl?page=$_page');
 
-    final response = await http.get(uri, headers: {'token': token});
+    final response = await http.get(
+      uri,
+      headers: {
+        'Accept': 'application/json',
+        if (token != null && token.isNotEmpty) 'token': token,
+      },
+    );
 
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body);
@@ -45,8 +51,14 @@ class BannerNotifier extends AsyncNotifier<PaginatedBanners?> {
         );
       }
       return PaginatedBanners.fromJson(data);
-    } else {
-      throw Exception('Failed to fetch banners: ${response.statusCode}');
     }
+
+    // Soft-fail for guests / public catalog issues — empty strip, not crash.
+    return PaginatedBanners(
+      currentPage: 1,
+      lastPage: 1,
+      total: 0,
+      banners: [],
+    );
   }
 }

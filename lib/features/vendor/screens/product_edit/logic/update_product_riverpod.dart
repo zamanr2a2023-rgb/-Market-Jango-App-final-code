@@ -25,6 +25,7 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
     String? description,
     String? regularPrice, // regular_price
     String? sellPrice, // sell_price
+    String? buyingPrice, // buying_price (owner only)
     int? categoryId,
     Map<String, List<String>>? attributes,
     Map<String, String> specification = const {},
@@ -64,6 +65,7 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
       addField('description', description);
       addField('regular_price', regularPrice);
       addField('sell_price', sellPrice);
+      addField('buying_price', buyingPrice);
 
       if (categoryId != null) req.fields['category_id'] = '$categoryId';
       addField('stock', stock);

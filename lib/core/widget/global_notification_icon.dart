@@ -4,13 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/screen/global_notification/data/notification_data.dart';
 import 'package:market_jango/core/screen/global_notification/screen/global_notifications_screen.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 
 class GlobalNotificationIcon extends ConsumerWidget {
   const GlobalNotificationIcon({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(notificationUnreadCountProvider);
+    final isLoggedIn = ref.watch(isLoggedInProvider).valueOrNull ?? false;
+    final unread = isLoggedIn ? ref.watch(notificationUnreadCountProvider) : 0;
 
     return Container(
       height: 35.h,
@@ -31,11 +33,19 @@ class GlobalNotificationIcon extends ConsumerWidget {
         children: [
           IconButton(
             icon: Icon(Icons.notifications, size: 15.sp),
-            onPressed: () {
+            onPressed: () async {
+              if (!isLoggedIn) {
+                await AuthGate.requireAuth(
+                  context,
+                  redirectTo: GlobalNotificationsScreen.routeName,
+                );
+                return;
+              }
+              if (!context.mounted) return;
               context.push(GlobalNotificationsScreen.routeName);
             },
           ),
-          if (unread > 0)
+          if (isLoggedIn && unread > 0)
             Positioned(
               right: 2.w,
               top: 2.h,

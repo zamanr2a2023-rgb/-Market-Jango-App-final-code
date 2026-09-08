@@ -17,8 +17,12 @@ import 'package:market_jango/features/vendor/screens/vendor_barcode/data/vendor_
 import 'package:market_jango/features/vendor/screens/vendor_barcode/model/vendor_barcode_models.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/walk_in_barcode_search_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_scan_screen.dart';
+import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_pos_display_model.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/provider/vendor_pos_display_provider.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_pos_customer_display_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_walk_in_bill_print_flow.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_walk_in_bill_text.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_walk_in_bill_preview_dialog.dart';
@@ -26,7 +30,7 @@ import 'package:market_jango/features/vendor/screens/vendor_order_management/ven
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
 /// Walk-in / POS manual order — `POST /vendor/manual-orders` ([doc/details.md]).
-class VendorCreateManualOrderScreen extends StatefulWidget {
+class VendorCreateManualOrderScreen extends ConsumerStatefulWidget {
   const VendorCreateManualOrderScreen({super.key, this.presetProductId});
 
   final int? presetProductId;
@@ -34,7 +38,7 @@ class VendorCreateManualOrderScreen extends StatefulWidget {
   static const routeName = '/vendor/manual-order/create';
 
   @override
-  State<VendorCreateManualOrderScreen> createState() =>
+  ConsumerState<VendorCreateManualOrderScreen> createState() =>
       _VendorCreateManualOrderScreenState();
 }
 
@@ -79,14 +83,15 @@ class _CartLine {
 }
 
 class _VendorCreateManualOrderScreenState
-    extends State<VendorCreateManualOrderScreen> {
+    extends ConsumerState<VendorCreateManualOrderScreen> {
   final _customerName = TextEditingController();
   final _customerPhone = TextEditingController();
   final _customerPaid = TextEditingController();
+  String _vendorDisplayName = 'Store';
 
-  /// `true` = Cash; `false` = Card / Mobile (online).
+  /// `true` = Cash; `false` = Card / Mobile / Debt (see [_payMode]).
   bool _payCash = true;
-  /// Stored value must match API: `Card` or `Mobile`.
+  /// When not cash: `Card`, `Mobile`, or `Debt`.
   String _nonCashMethod = 'Card';
 
   final List<_CartLine> _lines = [];
@@ -99,13 +104,59 @@ class _VendorCreateManualOrderScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadVendorName();
       await _loadCatalog();
       if (!mounted) return;
+      _syncPosCustomerSession();
       final preset = widget.presetProductId;
       if (preset != null) {
         await _addProductById(preset);
       }
     });
+  }
+
+  Future<void> _loadVendorName() async {
+    try {
+      final storage = AuthLocalStorage();
+      final user = await storage.getUserJson();
+      final name = (user?['name'] ??
+              user?['shop_name'] ??
+              user?['store_name'] ??
+              user?['business_name'] ??
+              '')
+          .toString()
+          .trim();
+      if (name.isNotEmpty && mounted) {
+        setState(() => _vendorDisplayName = name);
+      }
+    } catch (_) {}
+  }
+
+  void _syncPosCustomerSession() {
+    final items = <VendorPosDisplayLine>[];
+    for (final l in _lines) {
+      final q = int.tryParse(l.qty.text.trim()) ?? 0;
+      if (q <= 0) continue;
+      items.add(
+        VendorPosDisplayLine(
+          productId: l.product.id,
+          name: l.product.name,
+          quantity: q,
+          unitPrice: l.product.sellPrice,
+        ),
+      );
+    }
+    final prev = ref.read(vendorPosCartSessionProvider);
+    ref.read(vendorPosCartSessionProvider.notifier).state = prev.copyWith(
+      vendorName: _vendorDisplayName,
+      items: items,
+    );
+  }
+
+  Future<void> _openCustomerDisplay() async {
+    _syncPosCustomerSession();
+    if (!mounted) return;
+    await context.push(VendorPosCustomerDisplayScreen.routeName);
   }
 
   @override
@@ -119,7 +170,9 @@ class _VendorCreateManualOrderScreenState
     super.dispose();
   }
 
-  /// API expects `Cash`, `Card`, or `Mobile` (see `createManualOrder`).
+  bool get _isDebt => !_payCash && _nonCashMethod == 'Debt';
+
+  /// API expects `Cash`, `Card`, `Mobile`, or `Debt` (STEP_03).
   String _paymentMethodApi() {
     if (_payCash) return 'Cash';
     return _nonCashMethod;
@@ -272,10 +325,12 @@ class _VendorCreateManualOrderScreenState
         final q = int.tryParse(l.qty.text.trim()) ?? 0;
         l.qty.text = '${q + 1}';
         setState(() {});
+        _syncPosCustomerSession();
         return;
       }
     }
     setState(() => _lines.add(_CartLine(product: p)));
+    _syncPosCustomerSession();
   }
 
   Future<void> _openScanner() async {
@@ -292,6 +347,7 @@ class _VendorCreateManualOrderScreenState
       _lines[i].dispose();
       _lines.removeAt(i);
     });
+    _syncPosCustomerSession();
   }
 
   Future<void> _submit({required bool showBill}) async {
@@ -364,6 +420,7 @@ class _VendorCreateManualOrderScreenState
         }
       }
     }
+    // Debt: no tender — full cart total is recorded as outstanding debt.
 
     final phone = _customerPhone.text.trim();
     if (phone.length > 30) {
@@ -386,6 +443,13 @@ class _VendorCreateManualOrderScreenState
         items: items,
       );
       if (!mounted) return;
+      _syncPosCustomerSession();
+      ref.read(vendorPosCartSessionProvider.notifier).state =
+          ref.read(vendorPosCartSessionProvider).copyWith(
+                invoiceId: inv.id,
+                orderNumber: inv.orderNumber,
+                vendorName: _vendorDisplayName,
+              );
       if (showBill) {
         await _showBillSheet(inv);
       }
@@ -503,6 +567,16 @@ class _VendorCreateManualOrderScreenState
             color: AllColor.black,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Customer display',
+            onPressed: _openCustomerDisplay,
+            icon: Icon(
+              Icons.tv_outlined,
+              color: AllColor.loginButtomColor,
+            ),
+          ),
+        ],
       ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 28.h),
@@ -699,7 +773,7 @@ class _VendorCreateManualOrderScreenState
           ),
           SizedBox(height: 4.h),
           Text(
-            'Choose how the customer paid, then enter cash tender if needed.',
+            'Choose Cash, Card/Mobile, or Debt (walk-in credit — no app account needed).',
             style: TextStyle(fontSize: 12.sp, color: AllColor.grey500, height: 1.3),
           ),
           SizedBox(height: 12.h),
@@ -715,7 +789,7 @@ class _VendorCreateManualOrderScreenState
               SizedBox(width: 10.w),
               Expanded(
                 child: _payOptionTile(
-                  label: 'Pay online / card',
+                  label: 'Card / Mobile / Debt',
                   selected: !_payCash,
                   onTap: () => setState(() => _payCash = false),
                 ),
@@ -733,11 +807,36 @@ class _VendorCreateManualOrderScreenState
                   value: 'Mobile',
                   child: Text('Mobile money'),
                 ),
+                DropdownMenuItem(value: 'Debt', child: Text('Debt')),
               ],
               onChanged: (v) {
                 if (v != null) setState(() => _nonCashMethod = v);
               },
             ),
+            if (_isDebt) ...[
+              SizedBox(height: 10.h),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: AllColor.loginButtomColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10.r),
+                  border: Border.all(
+                    color: AllColor.loginButtomColor.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Text(
+                  'Debt amount: USD ${_cartTotal.toStringAsFixed(2)}. '
+                  'Customer can pay later (full or partial). '
+                  'Name (+ phone) is enough — no buyer app account.',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    height: 1.35,
+                    color: AllColor.black,
+                  ),
+                ),
+              ),
+            ],
           ],
           if (_payCash) ...[
             SizedBox(height: 14.h),
@@ -1154,7 +1253,10 @@ class _VendorCreateManualOrderScreenState
                             contentPadding: EdgeInsets.symmetric(vertical: 6),
                             border: OutlineInputBorder(),
                           ),
-                          onChanged: (_) => setState(() {}),
+                          onChanged: (_) {
+                            setState(() {});
+                            _syncPosCustomerSession();
+                          },
                         ),
                       ),
                       SizedBox(width: 4.w),

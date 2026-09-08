@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:market_jango/core/localization/translation_providers.dart';
+import 'package:market_jango/core/localization/translation_repository.dart';
 
 extension RefTranslationsX on WidgetRef {
   String t(String key, {String? fallback}) {
@@ -7,7 +8,7 @@ extension RefTranslationsX on WidgetRef {
     final async = watch(appTranslationsProvider);
     return async.maybeWhen(
       data: (tr) => tr.get(key, fallback: fallback),
-      orElse: () => fallback ?? key,
+      orElse: () => AppTranslations.empty().get(key, fallback: fallback),
     );
   }
 }

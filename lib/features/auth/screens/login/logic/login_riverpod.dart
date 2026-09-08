@@ -17,6 +17,7 @@ import '../../../../../core/utils/auth_local_storage.dart';
 import '../../../../../core/utils/auth_session_utils.dart';
 import '../../../../../core/utils/get_token_sharedpefarens.dart';
 import '../../../../../core/utils/get_user_type.dart';
+import '../../../../../core/utils/navigate_to_shell_profile_after_reset.dart';
 import '../../../../../core/utils/session_cache_invalidation.dart';
 import '../../../../../core/widget/global_snackbar.dart';
 
@@ -211,6 +212,30 @@ class LoginNotifier extends StateNotifier<AsyncValue<void>> {
       message: "Login successful!",
       type: CustomSnackType.success,
     );
+
+    // Prefer return path from auth gate (?redirect=...) when present.
+    String? redirectTo;
+    try {
+      redirectTo = GoRouterState.of(context).uri.queryParameters['redirect'];
+    } catch (_) {
+      redirectTo = null;
+    }
+
+    if (!context.mounted) return;
+
+    if (redirectTo != null && redirectTo.trim().isNotEmpty) {
+      // Settings / chat / etc. must open inside the role bottom-nav shell,
+      // otherwise the navigation bar is missing after login.
+      final handled = navigatePostLoginRedirectToShell(
+        context: context,
+        userTypeRaw: userType ?? '',
+        redirectTo: redirectTo.trim(),
+      );
+      if (!handled) {
+        context.go(redirectTo);
+      }
+      return;
+    }
 
     // Navigate based on user type
     final homeRoute = await AuthSessionUtils.getHomeRouteForUserType();

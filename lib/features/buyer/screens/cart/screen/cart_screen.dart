@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/custom_total_checkout_section.dart';
+import 'package:market_jango/core/widget/login_required_view.dart';
 import 'package:market_jango/features/buyer/screens/cart/data/cart_inc_dec_logic.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/buyer_shiping_update_logic.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/cart_data.dart';
@@ -17,6 +19,18 @@ import 'package:market_jango/features/buyer/screens/prement/model/prement_page_d
 import 'package:market_jango/features/buyer/screens/prement/screen/buyer_payment_screen.dart';
 import 'package:market_jango/features/navbar/provider/shell_tab_index_providers.dart';
 import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
+
+String _friendlyCartError(Object e) {
+  final raw = e.toString().replaceFirst('Exception: ', '');
+  final lower = raw.toLowerCase();
+  if (lower.contains('token') ||
+      lower.contains('not logged') ||
+      lower.contains('unauthorized') ||
+      lower.contains('401')) {
+    return 'Please log in to view your cart.';
+  }
+  return raw;
+}
 
 void _handleCartBack(BuildContext context, WidgetRef ref) {
   final routePath = GoRouterState.of(context).uri.path;
@@ -64,6 +78,32 @@ class CartScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loggedInAsync = ref.watch(isLoggedInProvider);
+    return loggedInAsync.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => const LoginRequiredView(
+        title: 'Login required',
+        message: 'Please log in to view your cart and checkout.',
+        redirectTo: CartScreen.routeName,
+        showBack: false,
+      ),
+      data: (loggedIn) {
+        if (!loggedIn) {
+          return const LoginRequiredView(
+            title: 'Login required',
+            message: 'Please log in to view your cart and checkout.',
+            redirectTo: CartScreen.routeName,
+            showBack: false,
+          );
+        }
+        return _buildCartScaffold(context, ref);
+      },
+    );
+  }
+
+  Widget _buildCartScaffold(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context).textTheme;
     final cartAsync = ref.watch(cartProvider);
 
@@ -87,9 +127,13 @@ class CartScreen extends ConsumerWidget {
             children: [
               _buildCartBackButton(context, ref),
               SizedBox(width: 12.w),
-              Text(
-                "Error $e",
-                style: theme.titleLarge!.copyWith(fontSize: 22.sp),
+              Expanded(
+                child: Text(
+                  _friendlyCartError(e),
+                  style: theme.titleLarge!.copyWith(fontSize: 16.sp),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -150,8 +194,15 @@ class CartScreen extends ConsumerWidget {
               },
               child: cartAsync.when(
                 loading: () => const Center(child: Text('Loading...')),
-                error: (error, stackTrace) =>
-                    Center(child: Text(error.toString())),
+                error: (error, stackTrace) => Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24.w),
+                    child: Text(
+                      _friendlyCartError(error),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
                 data: (dat) {
                   final data = dat.items;
                   if (data.isEmpty) {
@@ -191,7 +242,12 @@ class CartScreen extends ConsumerWidget {
                 items.displayCurrency,
               ),
               context: context,
-              onCheckout: () {
+              onCheckout: () async {
+                final ok = await AuthGate.requireAuth(
+                  context,
+                  redirectTo: BuyerPaymentScreen.routeName,
+                );
+                if (!ok || !context.mounted) return;
                 final pd = _buildPaymentData(items.items, items.total);
                 context.push(BuyerPaymentScreen.routeName, extra: pd);
               },
@@ -510,6 +566,13 @@ class CartScreen extends ConsumerWidget {
             final town = buyer.shipTown?.trim();
             if (town != null && town.isNotEmpty && town != 'null') {
               lines.add(town);
+            }
+
+            final signPost = buyer.signPost?.trim();
+            if (signPost != null &&
+                signPost.isNotEmpty &&
+                signPost != 'null') {
+              lines.add(signPost);
             }
 
             // Fallback if none provided yet

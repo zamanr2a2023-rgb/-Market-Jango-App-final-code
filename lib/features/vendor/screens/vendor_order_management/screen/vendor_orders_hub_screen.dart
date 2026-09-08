@@ -14,6 +14,7 @@ import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 import 'vendor_create_manual_order_screen.dart';
 import 'vendor_manual_order_detail_screen.dart';
 import 'vendor_marketplace_order_detail_screen.dart';
+import 'vendor_refunds_tab.dart';
 
 /// Entry: marketplace orders (date range), walk-in orders, wallet — see doc/VENDOR_ORDER_MANAGEMENT_AND_BILLING.md
 class VendorOrdersHubScreen extends ConsumerStatefulWidget {
@@ -33,11 +34,13 @@ class _VendorOrdersHubScreenState extends ConsumerState<VendorOrdersHubScreen>
   final _orderNoMan = TextEditingController();
   String? _statusMp;
   String? _statusMan;
+  String? _paymentMan;
+  String? _debtStatusMan;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -109,6 +112,11 @@ class _VendorOrdersHubScreenState extends ConsumerState<VendorOrdersHubScreen>
             status: _statusMp ?? '',
           );
     } else {
+      final debtSt = _debtStatusMan;
+      var pay = _paymentMan;
+      if (debtSt != null && debtSt.isNotEmpty && (pay == null || pay.isEmpty)) {
+        pay = 'Debt';
+      }
       final n = ref.read(vendorManualListParamsProvider.notifier);
       n.state = ref
           .read(vendorManualListParamsProvider)
@@ -116,6 +124,8 @@ class _VendorOrdersHubScreenState extends ConsumerState<VendorOrdersHubScreen>
             page: 1,
             orderNumber: _orderNoMan.text.trim(),
             status: _statusMan ?? '',
+            paymentMethod: pay ?? '',
+            debtStatus: debtSt ?? '',
           );
     }
   }
@@ -154,6 +164,7 @@ class _VendorOrdersHubScreenState extends ConsumerState<VendorOrdersHubScreen>
             tabs: const [
               Tab(text: 'Marketplace'),
               Tab(text: 'Walk-in'),
+              Tab(text: 'Returns'),
             ],
           ),
         ),
@@ -173,11 +184,16 @@ class _VendorOrdersHubScreenState extends ConsumerState<VendorOrdersHubScreen>
               orderNoController: _orderNoMan,
               statusValue: _statusMan,
               onStatusChanged: (v) => setState(() => _statusMan = v),
+              paymentValue: _paymentMan,
+              onPaymentChanged: (v) => setState(() => _paymentMan = v),
+              debtStatusValue: _debtStatusMan,
+              onDebtStatusChanged: (v) => setState(() => _debtStatusMan = v),
               statusesAsync: statusesAsync,
               onPickDate: (from) => _pickDate(isFrom: from, marketplace: false),
               onClearDates: () => _clearDates(false),
               onApply: () => _applySearch(false),
             ),
+            const VendorRefundsTab(),
           ],
         ),
       ),
@@ -302,6 +318,10 @@ class _WalkInTab extends ConsumerWidget {
     required this.orderNoController,
     required this.statusValue,
     required this.onStatusChanged,
+    required this.paymentValue,
+    required this.onPaymentChanged,
+    required this.debtStatusValue,
+    required this.onDebtStatusChanged,
     required this.statusesAsync,
     required this.onPickDate,
     required this.onClearDates,
@@ -311,6 +331,10 @@ class _WalkInTab extends ConsumerWidget {
   final TextEditingController orderNoController;
   final String? statusValue;
   final ValueChanged<String?> onStatusChanged;
+  final String? paymentValue;
+  final ValueChanged<String?> onPaymentChanged;
+  final String? debtStatusValue;
+  final ValueChanged<String?> onDebtStatusChanged;
   final AsyncValue<VendorOrderStatusesPayload> statusesAsync;
   final void Function(bool from) onPickDate;
   final VoidCallback onClearDates;
@@ -337,6 +361,11 @@ class _WalkInTab extends ConsumerWidget {
               onPickTo: () => onPickDate(false),
               onClearDates: onClearDates,
               onApply: onApply,
+              paymentValue: paymentValue,
+              onPaymentChanged: onPaymentChanged,
+              debtStatusValue: debtStatusValue,
+              onDebtStatusChanged: onDebtStatusChanged,
+              showDebtFilters: true,
             ),
             Expanded(
               child: RefreshIndicator(
@@ -1172,6 +1201,11 @@ class _FilterCard extends StatelessWidget {
     required this.onPickTo,
     required this.onClearDates,
     required this.onApply,
+    this.paymentValue,
+    this.onPaymentChanged,
+    this.debtStatusValue,
+    this.onDebtStatusChanged,
+    this.showDebtFilters = false,
   });
 
   final TextEditingController orderNoController;
@@ -1184,6 +1218,11 @@ class _FilterCard extends StatelessWidget {
   final VoidCallback onPickTo;
   final VoidCallback onClearDates;
   final VoidCallback onApply;
+  final String? paymentValue;
+  final ValueChanged<String?>? onPaymentChanged;
+  final String? debtStatusValue;
+  final ValueChanged<String?>? onDebtStatusChanged;
+  final bool showDebtFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -1230,6 +1269,45 @@ class _FilterCard extends StatelessWidget {
                   );
                 },
               ),
+              if (showDebtFilters) ...[
+                SizedBox(height: 8.h),
+                DropdownButtonFormField<String?>(
+                  initialValue: paymentValue,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment method',
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Any payment'),
+                    ),
+                    DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+                    DropdownMenuItem(value: 'Card', child: Text('Card')),
+                    DropdownMenuItem(value: 'Mobile', child: Text('Mobile')),
+                    DropdownMenuItem(value: 'Debt', child: Text('Debt')),
+                  ],
+                  onChanged: onPaymentChanged,
+                ),
+                SizedBox(height: 8.h),
+                DropdownButtonFormField<String?>(
+                  initialValue: debtStatusValue,
+                  decoration: const InputDecoration(
+                    labelText: 'Debt status',
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Any debt status'),
+                    ),
+                    DropdownMenuItem(value: 'unpaid', child: Text('Unpaid')),
+                    DropdownMenuItem(value: 'partial', child: Text('Partial')),
+                    DropdownMenuItem(value: 'paid', child: Text('Paid')),
+                  ],
+                  onChanged: onDebtStatusChanged,
+                ),
+              ],
               SizedBox(height: 8.h),
               Row(
                 children: [
@@ -1404,6 +1482,11 @@ class _ManualTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pay = (invoice.paymentMethod ?? '').trim();
+    final debtExtra = invoice.isDebtPayment
+        ? ' · Debt ${invoice.debtStatusLabel}'
+            '${invoice.isDebtFullyPaid ? '' : ' · rem ${invoice.remainingDebt.toStringAsFixed(2)}'}'
+        : '';
     return Card(
       margin: EdgeInsets.only(bottom: 10.h),
       child: ListTile(
@@ -1412,9 +1495,11 @@ class _ManualTile extends StatelessWidget {
           invoice.orderNumber.isEmpty ? '#${invoice.id}' : invoice.orderNumber,
         ),
         subtitle: Text(
-          '${invoice.customerName ?? "Customer"}\n'
-          'Payable ${invoice.summary.payable} · ${invoice.status}',
+          '${invoice.customerName ?? "Customer"}'
+          '${invoice.customerPhone != null && invoice.customerPhone!.isNotEmpty ? " · ${invoice.customerPhone}" : ""}\n'
+          '${pay.isEmpty ? "Payment —" : pay} · Payable ${invoice.summary.payable} · ${invoice.status}$debtExtra',
         ),
+        isThreeLine: true,
         trailing: const Icon(Icons.chevron_right),
       ),
     );

@@ -32,7 +32,7 @@ class SeeMoreButton extends ConsumerWidget {
               onPressed: seeMoreAction,
               child: isSeeMore
                   ? Text(
-                      ref.t(BKeys.seeAll),
+                      ref.t(BKeys.seeAll, fallback: 'See all'),
                       style: TextStyle(
                         color: AllColor.orange500,
                         fontWeight: FontWeight.w500,

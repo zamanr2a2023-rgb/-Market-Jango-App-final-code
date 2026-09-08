@@ -17,7 +17,14 @@ class ScreenBackground extends StatelessWidget {
           ImagePath.authBackground,
           fit: BoxFit.cover,
         ),
-        SafeArea(child: child),
+        // Material ancestor for InkWell / ListTile / IconButton when used
+        // without a Scaffold (e.g. profile tab shell).
+        SafeArea(
+          child: Material(
+            type: MaterialType.transparency,
+            child: child,
+          ),
+        ),
       ],
     );
   }

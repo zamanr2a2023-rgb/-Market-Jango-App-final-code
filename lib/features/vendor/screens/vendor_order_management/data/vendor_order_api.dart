@@ -342,6 +342,8 @@ class VendorOrderApi {
     String? toDate,
     String? orderNumber,
     String? status,
+    String? paymentMethod,
+    String? debtStatus,
   }) async {
     final headers = await vendorOrderApiHeaders();
     final uri = Uri.parse(
@@ -352,13 +354,57 @@ class VendorOrderApi {
         toDate: toDate,
         orderNumber: orderNumber,
         status: status,
+        paymentMethod: paymentMethod,
+        debtStatus: debtStatus,
       ),
     );
     final res = await http.get(uri, headers: headers);
     _throwIfBad(res);
     final top = _decodeObj(res.body);
     final data = _unwrapDataMap(top);
-    return VendorOrdersPage.parse(data, VendorManualOrderInvoice.fromJson);
+    var pageData =
+        VendorOrdersPage.parse(data, VendorManualOrderInvoice.fromJson);
+
+    // Client-side debt status filter when API ignores debt_status.
+    final ds = debtStatus?.trim().toLowerCase();
+    if (ds != null && ds.isNotEmpty) {
+      final filtered = pageData.items.where((inv) {
+        if (!inv.isDebtPayment) return false;
+        switch (ds) {
+          case 'paid':
+            return inv.isDebtFullyPaid;
+          case 'unpaid':
+            return !inv.isDebtFullyPaid &&
+                inv.debtStatusLabel.toLowerCase() == 'unpaid';
+          case 'partial':
+            return inv.debtStatusLabel.toLowerCase() == 'partial';
+          default:
+            return true;
+        }
+      }).toList();
+      pageData = VendorOrdersPage(
+        currentPage: pageData.currentPage,
+        lastPage: pageData.lastPage,
+        perPage: pageData.perPage,
+        total: filtered.length,
+        items: filtered,
+      );
+    } else if (paymentMethod != null &&
+        paymentMethod.trim().toLowerCase() == 'debt') {
+      // Ensure Debt-only list if API returns mixed when payment_method ignored.
+      final onlyDebt =
+          pageData.items.where((inv) => inv.isDebtPayment).toList();
+      if (onlyDebt.length != pageData.items.length) {
+        pageData = VendorOrdersPage(
+          currentPage: pageData.currentPage,
+          lastPage: pageData.lastPage,
+          perPage: pageData.perPage,
+          total: onlyDebt.length,
+          items: onlyDebt,
+        );
+      }
+    }
+    return pageData;
   }
 
   Future<VendorManualOrderInvoice> fetchManualOrderDetail(int invoiceId) async {
@@ -382,7 +428,7 @@ class VendorOrderApi {
   }
 
   /// `POST /api/vendor/manual-orders` — body per doc: `customer_name` (max 100),
-  /// optional `customer_phone` (max 30), `payment_method` ∈ `Cash`|`Card`|`Mobile`,
+  /// optional `customer_phone` (max 30), `payment_method` ∈ `Cash`|`Card`|`Mobile`|`Debt`,
   /// optional `customer_paid` (≥ 0), `items` (min 1).
   Future<VendorManualOrderInvoice> createManualOrder({
     required String customerName,
@@ -632,10 +678,14 @@ class VendorOrderApi {
   }
 
   /// `POST /vendor/orders/{item_id}/refund`
+  /// Marketplace: reason + optional amount.
+  /// Walk-in (STEP_03): also quantity + refund_method (cash|wallet|reduce_debt|store_credit).
   Future<void> requestMarketplaceLineRefund({
     required int invoiceItemId,
     required String reason,
     double? amount,
+    int? quantity,
+    String? refundMethod,
   }) async {
     final headers = await vendorOrderApiHeaders();
     final uri = Uri.parse(
@@ -643,9 +693,116 @@ class VendorOrderApi {
     );
     final body = <String, dynamic>{'reason': reason.trim()};
     if (amount != null) body['amount'] = amount;
+    if (quantity != null) body['quantity'] = quantity;
+    final method = refundMethod?.trim();
+    if (method != null && method.isNotEmpty) {
+      body['refund_method'] = method;
+    }
     final res = await http.post(uri, headers: headers, body: jsonEncode(body));
     _throwIfBad(res);
     _maybeAssertEnvelope(res.body);
+  }
+
+  /// `POST /api/vendor/manual-orders/{id}/pay-debt` — body `{ "amount": n }`.
+  Future<VendorManualOrderInvoice> payManualOrderDebt({
+    required int invoiceId,
+    required double amount,
+  }) async {
+    final headers = await vendorOrderApiHeaders();
+    final uri = Uri.parse(
+      VendorAPIController.vendorManualOrderPayDebt(invoiceId),
+    );
+    final res = await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode({'amount': amount}),
+    );
+    _throwIfBad(res);
+    final top = _decodeObj(res.body);
+    _assertJsonSuccess(top);
+    final data = _unwrapDataMap(top) ?? top;
+    if (data.containsKey('invoice') &&
+        data['invoice'] is Map<String, dynamic>) {
+      final inv = Map<String, dynamic>.from(
+        data['invoice'] as Map<String, dynamic>,
+      );
+      if (data['items'] is List) inv['items'] = data['items'];
+      if (data['summary'] is Map) inv['summary'] = data['summary'];
+      return VendorManualOrderInvoice.fromJson(inv);
+    }
+    if (data.containsKey('order_number') || data.containsKey('items')) {
+      return VendorManualOrderInvoice.fromJson(data);
+    }
+    return fetchManualOrderDetail(invoiceId);
+  }
+
+  /// Prefer vendor GET; fall back to admin GET.
+  /// Missing / HTML / non-JSON responses → empty policy (form still usable).
+  Future<VendorCreditPolicy> fetchCreditPolicy() async {
+    final headers = await vendorOrderApiHeaders();
+    Future<VendorCreditPolicy?> tryGet(String url) async {
+      try {
+        final res = await http.get(Uri.parse(url), headers: headers);
+        if (res.statusCode < 200 || res.statusCode >= 300) return null;
+        final raw = res.body.trimLeft();
+        if (raw.isEmpty) return null;
+        // HTML error pages (e.g. `<style>...`) are not credit-policy JSON.
+        if (raw.startsWith('<') || raw.startsWith('<!')) return null;
+        final top = _decodeObj(res.body);
+        final data = _unwrapDataMap(top) ?? top;
+        return VendorCreditPolicy.fromJson(data);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final fromVendor = await tryGet(VendorAPIController.vendorCreditPolicy);
+    if (fromVendor != null) return fromVendor;
+    final fromAdmin = await tryGet(VendorAPIController.adminCreditPolicy);
+    if (fromAdmin != null) return fromAdmin;
+    return VendorCreditPolicy.empty;
+  }
+
+  /// Admin write path for credit policy. Tries admin then vendor PUT/POST.
+  Future<VendorCreditPolicy> updateCreditPolicy(VendorCreditPolicy policy) async {
+    final headers = await vendorOrderApiHeaders();
+    final body = jsonEncode(policy.toJson());
+
+    Future<http.Response> put(String url) =>
+        http.put(Uri.parse(url), headers: headers, body: body);
+    Future<http.Response> post(String url) =>
+        http.post(Uri.parse(url), headers: headers, body: body);
+
+    http.Response res = await put(VendorAPIController.adminCreditPolicy);
+    if (res.statusCode == 404 || res.statusCode == 405) {
+      res = await post(VendorAPIController.adminCreditPolicy);
+    }
+    if (res.statusCode == 404 || res.statusCode == 405) {
+      res = await put(VendorAPIController.vendorCreditPolicy);
+    }
+    if (res.statusCode == 404 || res.statusCode == 405) {
+      res = await post(VendorAPIController.vendorCreditPolicy);
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final raw = res.body.trimLeft();
+      if (raw.startsWith('<')) {
+        throw Exception(
+          'Credit policy API is not available on the server yet '
+          '(${res.statusCode}). Ask backend to add /api/admin/credit-policy.',
+        );
+      }
+      _throwIfBad(res);
+    }
+    final raw = res.body.trimLeft();
+    if (raw.isEmpty || raw.startsWith('<')) return policy;
+    try {
+      final top = _decodeObj(res.body);
+      final data = _unwrapDataMap(top) ?? top;
+      if (data.isEmpty) return policy;
+      return VendorCreditPolicy.fromJson(data);
+    } catch (_) {
+      return policy;
+    }
   }
 
   /// Same vendor auth as other calls, plus `Accept: application/pdf` and

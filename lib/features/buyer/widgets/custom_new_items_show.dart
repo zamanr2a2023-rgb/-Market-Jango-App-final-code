@@ -4,11 +4,13 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
 import 'package:market_jango/features/buyer/data/new_items_data.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/widget/highlighted_product_shell.dart';
+import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
 
 class CustomNewItemsShow extends ConsumerWidget {
   const CustomNewItemsShow({super.key});
@@ -46,7 +48,12 @@ class CustomNewItemsShow extends ConsumerWidget {
                       productName: products[index].name.toString(),
                       imageHeight: 130,
                       image: products[index].image,
-                      onTap: () {
+                      onTap: () async {
+                        final ok = await AuthGate.requireAuth(
+                          context,
+                          redirectTo: BuyerBottomNavBar.routeName,
+                        );
+                        if (!ok || !context.mounted) return;
                         context.push(
                           BuyerVendorProfileScreen.routeName,
                           extra: buyerVendorProfileExtra(
@@ -88,7 +95,12 @@ class CustomNewItemsShow extends ConsumerWidget {
                   productName: product.name.toString(),
                   imageHeight: 130,
                   image: product.image,
-                  onTap: () {
+                  onTap: () async {
+                    final ok = await AuthGate.requireAuth(
+                      context,
+                      redirectTo: BuyerBottomNavBar.routeName,
+                    );
+                    if (!ok || !context.mounted) return;
                     context.push(
                       BuyerVendorProfileScreen.routeName,
                       extra: buyerVendorProfileExtra(

@@ -9,6 +9,7 @@ import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/buyer_massage/model/chat_history_route_model.dart';
 import 'package:market_jango/core/screen/buyer_massage/screen/global_chat_screen.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/utils/product_image_downloader.dart';
@@ -36,6 +37,7 @@ class ProductDetails extends ConsumerStatefulWidget {
 class _ProductDetailsState extends ConsumerState<ProductDetails> {
   /// ✅ only attributes selection (no size/color state anymore)
   final Map<String, String> _selectedAttrs = {};
+  bool _oosDialogShown = false;
 
   void _initializeSelections(DetailItem product) {
     final attrs = product.selectableAttributesMap;
@@ -274,7 +276,7 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
             );
           },
           loading: () => const Center(child: Text('Loading...')),
-          error: (error, stackTrace) => Center(child: Text(error.toString())),
+          error: (error, stackTrace) => _buildDetailError(context, error),
         ),
       ),
 
@@ -282,6 +284,15 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
         data: (data) {
           return QuantityBuyBar(
             onBuyNow: (qty) async {
+              // Guests must log in before cart API is called.
+              final redirect =
+                  '${ProductDetails.routeName}?id=${widget.productId}';
+              final ok = await AuthGate.requireAuth(
+                context,
+                redirectTo: redirect,
+              );
+              if (!ok || !mounted) return;
+
               // ✅ stock checks
               final stock = data.stock ?? 0;
               if (stock <= 0) {
@@ -338,8 +349,69 @@ class _ProductDetailsState extends ConsumerState<ProductDetails> {
             },
           );
         },
-        loading: () => const Center(child: Text('Loading...')),
-        error: (error, stackTrace) => Center(child: Text(error.toString())),
+        loading: () => const SizedBox.shrink(),
+        error: (error, stackTrace) => const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  Widget _buildDetailError(BuildContext context, Object error) {
+    final isOos = error is ProductOutOfStockException;
+    if (isOos && !_oosDialogShown) {
+      _oosDialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showOutOfStockDialog(context);
+      });
+    }
+
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(24.w),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isOos ? Icons.inventory_2_outlined : Icons.error_outline,
+              color: isOos ? AllColor.red : AllColor.black54,
+              size: 48.sp,
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              isOos ? 'Out of Stock' : 'Failed to load product',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w700,
+                color: AllColor.black,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              error.toString().replaceFirst('Exception: ', ''),
+              style: TextStyle(fontSize: 14.sp, color: AllColor.black87),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 20.h),
+            TextButton(
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(BuyerHomeScreen.routeName);
+                }
+              },
+              child: Text(
+                'Go back',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AllColor.orange,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

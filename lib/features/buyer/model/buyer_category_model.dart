@@ -17,12 +17,17 @@ class CategoryResponse {
 
   String toRawJson() => json.encode(toJson());
 
-  factory CategoryResponse.fromJson(Map<String, dynamic> json) =>
-      CategoryResponse(
-        status: json['status'] ?? '',
-        message: json['message'] ?? '',
-        data: CategoryPage.fromJson(json['data'] ?? {}),
-      );
+  factory CategoryResponse.fromJson(Map<String, dynamic> json) {
+    final rawData = json['data'];
+    final page = rawData is Map
+        ? CategoryPage.fromJson(Map<String, dynamic>.from(rawData))
+        : CategoryPage.empty();
+    return CategoryResponse(
+      status: json['status']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
+      data: page,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'status': status,
@@ -62,25 +67,53 @@ class CategoryPage {
     required this.total,
   });
 
-  factory CategoryPage.fromJson(Map<String, dynamic> json) => CategoryPage(
-    currentPage: json['current_page'] ?? 0,
-    data: (json['data'] as List<dynamic>? ?? [])
-        .map((e) => CategoryItem.fromJson(e))
-        .toList(),
-    firstPageUrl: json['first_page_url'] ?? '',
-    from: json['from'],
-    lastPage: json['last_page'] ?? 0,
-    lastPageUrl: json['last_page_url'] ?? '',
-    links: (json['links'] as List<dynamic>? ?? [])
-        .map((e) => PageLink.fromJson(e))
-        .toList(),
-    nextPageUrl: json['next_page_url'],
-    path: json['path'] ?? '',
-    perPage: _toInt(json['per_page']),
-    prevPageUrl: json['prev_page_url'],
-    to: json['to'],
-    total: _toInt(json['total']),
-  );
+  factory CategoryPage.fromJson(Map<String, dynamic> json) {
+    final rawList = json['data'];
+    final items = <CategoryItem>[];
+    if (rawList is List) {
+      for (final e in rawList) {
+        if (e is Map) {
+          items.add(CategoryItem.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    return CategoryPage(
+      currentPage: json['current_page'] ?? 0,
+      data: items,
+      firstPageUrl: json['first_page_url']?.toString() ?? '',
+      from: json['from'] is int ? json['from'] as int : int.tryParse('${json['from'] ?? ''}'),
+      lastPage: json['last_page'] ?? 0,
+      lastPageUrl: json['last_page_url']?.toString() ?? '',
+      links: (json['links'] is List)
+          ? (json['links'] as List)
+              .whereType<Map>()
+              .map((e) => PageLink.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : const [],
+      nextPageUrl: json['next_page_url']?.toString(),
+      path: json['path']?.toString() ?? '',
+      perPage: _toInt(json['per_page']),
+      prevPageUrl: json['prev_page_url']?.toString(),
+      to: json['to'] is int ? json['to'] as int : int.tryParse('${json['to'] ?? ''}'),
+      total: _toInt(json['total']),
+    );
+  }
+
+  factory CategoryPage.empty() => CategoryPage(
+        currentPage: 1,
+        data: const [],
+        firstPageUrl: '',
+        from: null,
+        lastPage: 1,
+        lastPageUrl: '',
+        links: const [],
+        nextPageUrl: null,
+        path: '',
+        perPage: 0,
+        prevPageUrl: null,
+        to: null,
+        total: 0,
+      );
 
   Map<String, dynamic> toJson() => {
     'current_page': currentPage,
@@ -120,20 +153,41 @@ class CategoryItem {
     required this.vendor,
   });
 
-  factory CategoryItem.fromJson(Map<String, dynamic> json) => CategoryItem(
-    id: json['id'] ?? 0,
-    name: json['name'] ?? '',
-    status: json['status'] ?? '',
-    vendorId: json['vendor_id'] ?? 0,
-    isTopCategory: _toInt(json['is_top_category']),
-    products: (json['products'] as List<dynamic>? ?? [])
-        .map((e) => Product.fromJson(e))
-        .toList(),
-    categoryImages: (json['category_images'] as List<dynamic>? ?? [])
-        .map((e) => CategoryImage.fromJson(e as Map<String, dynamic>))
-        .toList(),
-    vendor: VendorSummary.fromJson(json['vendor'] ?? {}),
-  );
+  factory CategoryItem.fromJson(Map<String, dynamic> json) {
+    final products = <Product>[];
+    final rawProducts = json['products'];
+    if (rawProducts is List) {
+      for (final e in rawProducts) {
+        if (e is Map) {
+          products.add(Product.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    final images = <CategoryImage>[];
+    final rawImages = json['category_images'];
+    if (rawImages is List) {
+      for (final e in rawImages) {
+        if (e is Map) {
+          images.add(CategoryImage.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    final vendorRaw = json['vendor'];
+    final vendor = vendorRaw is Map
+        ? VendorSummary.fromJson(Map<String, dynamic>.from(vendorRaw))
+        : VendorSummary(id: 0);
+
+    return CategoryItem(
+      id: json['id'] ?? 0,
+      name: json['name']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      vendorId: json['vendor_id'] ?? 0,
+      isTopCategory: _toInt(json['is_top_category']),
+      products: products,
+      categoryImages: images,
+      vendor: vendor,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -219,24 +273,36 @@ class Product {
     required this.vendor,
   });
 
-  factory Product.fromJson(Map<String, dynamic> json) => Product(
-    id: json['id'] ?? 0,
-    name: json['name'] ?? '',
-    description: json['description'] ?? '',
-    regularPrice: json['regular_price']?.toString() ?? '',
-    sellPrice: json['sell_price']?.toString() ?? '',
-    discount: json['discount'] ?? 0,
-    image: json['image'] ?? '',
-    color: _normalizeStrList(json['color']),
-    size: _normalizeStrList(json['size']),
-    vendorId: json['vendor_id'] ?? 0,
-    remark: json['remark'] ?? '',
-    categoryId: json['category_id'] ?? 0,
-    images: (json['images'] as List<dynamic>? ?? [])
-        .map((e) => ProductImage.fromJson(e))
-        .toList(),
-    vendor: json['vendor'] == null ? null : Vendor.fromJson(json['vendor']),
-  );
+  factory Product.fromJson(Map<String, dynamic> json) {
+    final images = <ProductImage>[];
+    final rawImages = json['images'];
+    if (rawImages is List) {
+      for (final e in rawImages) {
+        if (e is Map) {
+          images.add(ProductImage.fromJson(Map<String, dynamic>.from(e)));
+        }
+      }
+    }
+    final vendorRaw = json['vendor'];
+    return Product(
+      id: json['id'] ?? 0,
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      regularPrice: json['regular_price']?.toString() ?? '',
+      sellPrice: json['sell_price']?.toString() ?? '',
+      discount: json['discount'] ?? 0,
+      image: json['image']?.toString() ?? '',
+      color: _normalizeStrList(json['color']),
+      size: _normalizeStrList(json['size']),
+      vendorId: json['vendor_id'] ?? 0,
+      remark: json['remark']?.toString() ?? '',
+      categoryId: json['category_id'] ?? 0,
+      images: images,
+      vendor: vendorRaw is Map
+          ? Vendor.fromJson(Map<String, dynamic>.from(vendorRaw))
+          : null,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -399,15 +465,17 @@ int _toInt(dynamic v) {
 /// Handles cases like:
 /// ["yellow,blue"], ["L,XL"], "M", "\"x\"", or ["blue"]
 List<String> _normalizeStrList(dynamic raw) {
-  if (raw == null) return [];
+  if (raw == null) return <String>[];
   if (raw is List) {
-    final joined = raw.map((e) => e?.toString() ?? '').join(',');
-    return joined
-        .replaceAll('"', '')
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
+    final out = <String>[];
+    for (final e in raw) {
+      final parts = e?.toString().replaceAll('"', '').split(',') ?? const [];
+      for (final p in parts) {
+        final s = p.trim();
+        if (s.isNotEmpty) out.add(s);
+      }
+    }
+    return out;
   }
   if (raw is String) {
     return raw
@@ -417,5 +485,5 @@ List<String> _normalizeStrList(dynamic raw) {
         .where((s) => s.isNotEmpty)
         .toList();
   }
-  return [];
+  return <String>[];
 }

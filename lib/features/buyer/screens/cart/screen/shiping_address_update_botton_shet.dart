@@ -43,6 +43,7 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
   String? _selectedZone;
   String? _selectedState;
   String? _selectedTown;
+  late final TextEditingController _signPostController;
 
   @override
   void initState() {
@@ -56,6 +57,18 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
         (st != null && st.isNotEmpty && st != 'null') ? st : null;
     final town = b?.shipTown?.trim();
     _selectedTown = (town != null && town.isNotEmpty && town != 'null') ? town : null;
+    final signPost = b?.signPost?.trim();
+    _signPostController = TextEditingController(
+      text: (signPost != null && signPost.isNotEmpty && signPost != 'null')
+          ? signPost
+          : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _signPostController.dispose();
+    super.dispose();
   }
 
   Future<void> _submit() async {
@@ -73,12 +86,14 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
 
     setState(() => _submitting = true);
     try {
+      final signPost = _signPostController.text.trim();
       final fields = <String, String>{
         if (_selectedZone != null && _selectedZone!.trim().isNotEmpty)
           'ship_zone': _selectedZone!.trim(),
         'ship_state': stateText,
         if (_selectedTown != null && _selectedTown!.trim().isNotEmpty)
           'ship_town': _selectedTown!.trim(),
+        if (signPost.isNotEmpty) 'sign_post': signPost,
       };
 
       await ref
@@ -308,6 +323,21 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
                                       setState(() => _selectedTown = v),
                                 ),
                               ),
+                      SizedBox(height: 14.h),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Sign Post',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      SizedBox(height: 6.h),
+                      TextField(
+                        controller: _signPostController,
+                        textCapitalization: TextCapitalization.sentences,
+                        maxLines: 2,
+                        decoration: _dec('e.g. blue gate near mosque'),
+                      ),
                       SizedBox(height: 18.h),
                       SizedBox(
                         width: double.infinity,

@@ -8,11 +8,16 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/get_user_type.dart';
 
+import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/features/vendor/screens/vendor_sale_platform/data/vendor_dashboard_analytics_data.dart';
+import 'package:market_jango/features/vendor/screens/vendor_sale_platform/data/vendor_orders_export_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_sale_platform/data/vendor_sale_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_sale_platform/data/vendor_top_selle_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_sale_platform/data/vendor_weekly_sale_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_sale_platform/model/vendor_weekly_sele_modle.dart';
+import 'package:market_jango/features/vendor/screens/vendor_sale_platform/util/vendor_export_local_save.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
 class VendorSalePlatformScreen extends ConsumerWidget {
@@ -26,6 +31,8 @@ class VendorSalePlatformScreen extends ConsumerWidget {
     final selectedPaymentType = ref.watch(selectedPaymentTypeProvider);
     final incomeFilter = ref.watch(vendorIncomeFilterProvider);
     final asyncIncome = ref.watch(vendorIncomeProvider(incomeFilter));
+    final asyncAnalytics = ref.watch(vendorDashboardAnalyticsProvider);
+    final isOwner = ref.watch(isVendorOwnerProvider).valueOrNull ?? false;
 
     return Scaffold(
       backgroundColor: AllColor.white,
@@ -97,6 +104,7 @@ class VendorSalePlatformScreen extends ConsumerWidget {
                         label: 'Online pay',
                       ),
                       _FilterOption(value: 'cash_pay', label: 'Cash pay'),
+                      _FilterOption(value: 'debt_pay', label: 'Debt pay'),
                     ],
                     onChanged: (value) {
                       ref.read(selectedPaymentTypeProvider.notifier).state =
@@ -105,6 +113,8 @@ class VendorSalePlatformScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              SizedBox(height: 12.h),
+              const _SalesExportSection(),
               SizedBox(height: 14.h),
 
               /// KPI cards from API
@@ -125,31 +135,70 @@ class VendorSalePlatformScreen extends ConsumerWidget {
                   ),
                 ),
                 data: (income) {
-                  return _KpiGrid(
-                    items: [
+                  final profit = asyncAnalytics.valueOrNull?.totalProfit;
+                  final items = <_KpiData>[
+                    _KpiData(
+                      title: ref.t(BKeys.revenue),
+                      value: '৳${income.totalRevenue.toStringAsFixed(0)}',
+                      deltaText: '',
+                    ),
+                    _KpiData(
+                      title: ref.t(BKeys.order),
+                      value: income.totalOrders.toString(),
+                      deltaText: '',
+                    ),
+                    _KpiData(
+                      title: ref.t(BKeys.clicks),
+                      value: income.totalClicks.toString(),
+                      deltaText: '',
+                    ),
+                    _KpiData(
+                      title: ref.t(BKeys.conversionRate),
+                      value: '${income.conversionRate.toStringAsFixed(2)}%',
+                      deltaText: '',
+                    ),
+                  ];
+                  // Section 2.5: Profit from /api/vendor-dashboard/analytics
+                  if (isOwner && profit != null) {
+                    items.insert(
+                      1,
                       _KpiData(
-                        title: ref.t(BKeys.revenue),
-                        value: '৳${income.totalRevenue.toStringAsFixed(0)}',
-                        deltaText: '', // future e change korte parba
-                      ),
-                      _KpiData(
-                        title: ref.t(BKeys.order),
-                        value: income.totalOrders.toString(),
+                        title: 'Profit',
+                        value: '৳${profit.toStringAsFixed(0)}',
                         deltaText: '',
                       ),
+                    );
+                  }
+                  // STEP_03 debt KPIs when backend provides them.
+                  if (income.debtSales != null) {
+                    items.add(
                       _KpiData(
-                        title: ref.t(BKeys.clicks),
-                        value: income.totalClicks.toString(),
+                        title: 'Debt sales',
+                        value: '৳${income.debtSales!.toStringAsFixed(0)}',
                         deltaText: '',
                       ),
+                    );
+                  }
+                  if (income.outstandingDebt != null) {
+                    items.add(
                       _KpiData(
-                        title: ref.t(BKeys.conversionRate),
+                        title: 'Outstanding debt',
                         value:
-                        '${income.conversionRate.toStringAsFixed(2)}%',
+                            '৳${income.outstandingDebt!.toStringAsFixed(0)}',
                         deltaText: '',
                       ),
-                    ],
-                  );
+                    );
+                  }
+                  if (income.paidDebt != null) {
+                    items.add(
+                      _KpiData(
+                        title: 'Paid debt',
+                        value: '৳${income.paidDebt!.toStringAsFixed(0)}',
+                        deltaText: '',
+                      ),
+                    );
+                  }
+                  return _KpiGrid(items: items);
                 },
               ),
 
@@ -175,6 +224,210 @@ class VendorSalePlatformScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/* ------------------------ STEP_04 EXPORT --------------------------- */
+
+class _SalesExportSection extends StatefulWidget {
+  const _SalesExportSection();
+
+  @override
+  State<_SalesExportSection> createState() => _SalesExportSectionState();
+}
+
+class _SalesExportSectionState extends State<_SalesExportSection> {
+  DateTime? _from;
+  DateTime? _to;
+  bool _busyXlsx = false;
+  bool _busyPdf = false;
+
+  String _fmt(DateTime? d) {
+    if (d == null) return 'Any';
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
+  }
+
+  Future<void> _pick({required bool from}) async {
+    final now = DateTime.now();
+    final initial = from ? (_from ?? now) : (_to ?? now);
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 1),
+      initialDate: initial,
+    );
+    if (picked == null) return;
+    setState(() {
+      if (from) {
+        _from = picked;
+      } else {
+        _to = picked;
+      }
+    });
+  }
+
+  Future<void> _export(String format) async {
+    final isXlsx = format == 'xlsx';
+    setState(() {
+      if (isXlsx) {
+        _busyXlsx = true;
+      } else {
+        _busyPdf = true;
+      }
+    });
+    try {
+      // Contract (STEP_04): only `format` is supported — do not invent date query params.
+      final file = await VendorOrdersExportApi.instance.download(format: format);
+      if (!mounted) return;
+      await saveVendorExportLocallyAndShare(
+        context: context,
+        bytes: file.bytes,
+        contentType: file.contentType,
+        preferredFormat: format,
+        label: 'vendor_orders_export',
+      );
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Export ready',
+        message: format.toUpperCase() == 'PDF'
+            ? 'PDF downloaded — use the share sheet to save.'
+            : 'Excel downloaded — use the share sheet to save.',
+        type: CustomSnackType.success,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Export failed',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        type: CustomSnackType.error,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busyXlsx = false;
+          _busyPdf = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AllColor.grey200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Download sales / orders',
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w800,
+              color: AllColor.black,
+            ),
+          ),
+          SizedBox(height: 4.h),
+          Text(
+            'Exports revenue/sales orders via the vendor export API. '
+            'Date range is for your reference — the API currently accepts format only.',
+            style: TextStyle(
+              fontSize: 11.sp,
+              color: AllColor.grey500,
+              height: 1.35,
+            ),
+          ),
+          SizedBox(height: 10.h),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _pick(from: true),
+                  child: Text(
+                    'From ${_fmt(_from)}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _pick(from: false),
+                  child: Text(
+                    'To ${_fmt(_to)}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 10.h),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: (_busyXlsx || _busyPdf)
+                      ? null
+                      : () => _export('xlsx'),
+                  icon: _busyXlsx
+                      ? SizedBox(
+                          width: 16.w,
+                          height: 16.w,
+                          child: const CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.table_view_outlined, size: 18),
+                  label: const Text('Export Excel'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AllColor.loginButtomColor,
+                  ),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed:
+                      (_busyXlsx || _busyPdf) ? null : () => _export('pdf'),
+                  icon: _busyPdf
+                      ? SizedBox(
+                          width: 16.w,
+                          height: 16.w,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AllColor.loginButtomColor,
+                          ),
+                        )
+                      : Icon(
+                          Icons.picture_as_pdf_outlined,
+                          size: 18,
+                          color: AllColor.loginButtomColor,
+                        ),
+                  label: Text(
+                    'Export PDF',
+                    style: TextStyle(color: AllColor.loginButtomColor),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AllColor.loginButtomColor),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -488,20 +741,41 @@ class _TopRow {
   final String name;
   final int quantity;
   final double revenue;
+  final double? buyingPrice;
+  final double? profit;
 
-  _TopRow(this.name, this.quantity, this.revenue);
+  _TopRow(
+    this.name,
+    this.quantity,
+    this.revenue, {
+    this.buyingPrice,
+    this.profit,
+  });
 }
 
 class _TopSellingTable extends ConsumerWidget {
   final List<_TopRow> rows;
-  const _TopSellingTable({required this.rows});
+  final bool showBuyingPrice;
+  const _TopSellingTable({
+    required this.rows,
+    required this.showBuyingPrice,
+  });
+
+  String _fmt(double? v) {
+    if (v == null) return '—';
+    return v.toStringAsFixed(2);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final headerStyle = TextStyle(
       color: AllColor.black54,
       fontWeight: FontWeight.w700,
-      fontSize: 12.sp,
+      fontSize: 11.sp,
+    );
+    final cellStyle = TextStyle(
+      color: AllColor.black87,
+      fontSize: 11.sp,
     );
 
     return Container(
@@ -514,7 +788,7 @@ class _TopSellingTable extends ConsumerWidget {
         children: [
           // Header row
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
             child: Row(
               children: [
                 Expanded(
@@ -540,6 +814,23 @@ class _TopSellingTable extends ConsumerWidget {
                     style: headerStyle,
                   ),
                 ),
+                if (showBuyingPrice)
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Cost',
+                      textAlign: TextAlign.right,
+                      style: headerStyle,
+                    ),
+                  ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Profit',
+                    textAlign: TextAlign.right,
+                    style: headerStyle,
+                  ),
+                ),
               ],
             ),
           ),
@@ -547,8 +838,8 @@ class _TopSellingTable extends ConsumerWidget {
 
           // Rows
           ...rows.map(
-                (r) => Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+            (r) => Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
               child: Row(
                 children: [
                   Expanded(
@@ -558,7 +849,7 @@ class _TopSellingTable extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: AllColor.black,
-                        fontSize: 12.sp,
+                        fontSize: 11.sp,
                       ),
                     ),
                   ),
@@ -567,10 +858,7 @@ class _TopSellingTable extends ConsumerWidget {
                     child: Text(
                       r.quantity.toString(),
                       textAlign: TextAlign.right,
-                      style: TextStyle(
-                        color: AllColor.black87,
-                        fontSize: 12.sp,
-                      ),
+                      style: cellStyle,
                     ),
                   ),
                   Expanded(
@@ -578,11 +866,24 @@ class _TopSellingTable extends ConsumerWidget {
                     child: Text(
                       r.revenue.toStringAsFixed(2),
                       textAlign: TextAlign.right,
-                      style: TextStyle(
-                        color: AllColor.black87,
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
+                      style: cellStyle.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (showBuyingPrice)
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        _fmt(r.buyingPrice),
+                        textAlign: TextAlign.right,
+                        style: cellStyle,
                       ),
+                    ),
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      _fmt(r.profit),
+                      textAlign: TextAlign.right,
+                      style: cellStyle.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -601,6 +902,7 @@ class TopSellingSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncTop = ref.watch(vendorTopProductsProvider);
+    final isOwner = ref.watch(isVendorOwnerProvider).valueOrNull ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -634,14 +936,19 @@ class TopSellingSection extends ConsumerWidget {
             final rows = products
                 .map(
                   (p) => _TopRow(
-                p.name,
-                p.totalQuantity,
-                p.totalRevenue,
-              ),
-            )
+                    p.name,
+                    p.totalQuantity,
+                    p.totalRevenue,
+                    buyingPrice: p.buyingPrice,
+                    profit: p.displayProfit,
+                  ),
+                )
                 .toList();
 
-            return _TopSellingTable(rows: rows);
+            return _TopSellingTable(
+              rows: rows,
+              showBuyingPrice: isOwner,
+            );
           },
         ),
       ],
@@ -667,6 +974,7 @@ String _sellingModeLabel(String? value) {
 String _paymentTypeLabel(String? value) {
   if (value == 'online_pay') return 'Online pay';
   if (value == 'cash_pay') return 'Cash pay';
+  if (value == 'debt_pay') return 'Debt pay';
   return 'All payments';
 }
 

@@ -10,6 +10,10 @@ class VendorOrderListParams {
   final String? toDate;
   final String orderNumber;
   final String status;
+  /// Walk-in payment filter: `Cash` / `Card` / `Mobile` / `Debt`, or empty.
+  final String paymentMethod;
+  /// Debt payment status: `paid` / `unpaid` / `partial`, or empty.
+  final String debtStatus;
 
   const VendorOrderListParams({
     this.page = 1,
@@ -18,6 +22,8 @@ class VendorOrderListParams {
     this.toDate,
     this.orderNumber = '',
     this.status = '',
+    this.paymentMethod = '',
+    this.debtStatus = '',
   });
 
   VendorOrderListParams copyWith({
@@ -27,6 +33,8 @@ class VendorOrderListParams {
     String? toDate,
     String? orderNumber,
     String? status,
+    String? paymentMethod,
+    String? debtStatus,
     bool clearDates = false,
   }) {
     return VendorOrderListParams(
@@ -36,6 +44,8 @@ class VendorOrderListParams {
       toDate: clearDates ? null : (toDate ?? this.toDate),
       orderNumber: orderNumber ?? this.orderNumber,
       status: status ?? this.status,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      debtStatus: debtStatus ?? this.debtStatus,
     );
   }
 }
@@ -117,7 +127,14 @@ final vendorManualOrdersProvider =
     toDate: p.toDate,
     orderNumber: p.orderNumber.isEmpty ? null : p.orderNumber,
     status: p.status.isEmpty ? null : p.status,
+    paymentMethod: p.paymentMethod.isEmpty ? null : p.paymentMethod,
+    debtStatus: p.debtStatus.isEmpty ? null : p.debtStatus,
   );
+});
+
+final vendorCreditPolicyProvider =
+    FutureProvider.autoDispose<VendorCreditPolicy>((ref) async {
+  return VendorOrderApi.instance.fetchCreditPolicy();
 });
 
 final vendorWalletOverviewProvider =

@@ -62,22 +62,29 @@ class SplashSignUpButton extends StatelessWidget {
 
 
 class CustomBackButton extends StatelessWidget {
-  const CustomBackButton({super.key});
+  const CustomBackButton({super.key, this.fallbackRoute});
+
+  /// Used when there is nothing to pop (e.g. login opened with `go`).
+  final String? fallbackRoute;
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.topLeft,
-     
-        
-        child: IconButton(
-          onPressed: () {
+      child: IconButton(
+        onPressed: () {
+          if (context.canPop()) {
             context.pop();
-          },
-          icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black87),
-          tooltip: 'Back',
-        ),
-    
+            return;
+          }
+          final fallback = fallbackRoute;
+          if (fallback != null && fallback.isNotEmpty) {
+            context.go(fallback);
+          }
+        },
+        icon: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black87),
+        tooltip: 'Back',
+      ),
     );
   }
 }

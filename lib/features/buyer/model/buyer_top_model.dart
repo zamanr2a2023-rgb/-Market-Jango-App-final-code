@@ -568,23 +568,29 @@ String? _toStrN(dynamic v) {
 }
 
 List<String> _normalizeStringOrList(dynamic raw) {
-  if (raw == null) return const [];
+  if (raw == null) return const <String>[];
   if (raw is List) {
-    return raw
-        .expand((e) => e.toString().split(','))
-        .map((e) => e.replaceAll(RegExp(r'[\[\]\"]'), '').trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    final out = <String>[];
+    for (final e in raw) {
+      for (final part in e.toString().split(',')) {
+        final s = part.replaceAll(RegExp(r'[\[\]\"]'), '').trim();
+        if (s.isNotEmpty) out.add(s);
+      }
+    }
+    return out;
   }
   if (raw is String) {
     try {
       final d = jsonDecode(raw);
       if (d is List) {
-        return d
-            .expand((e) => e.toString().split(','))
-            .map((e) => e.replaceAll(RegExp(r'[\[\]\"]'), '').trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
+        final out = <String>[];
+        for (final e in d) {
+          for (final part in e.toString().split(',')) {
+            final s = part.replaceAll(RegExp(r'[\[\]\"]'), '').trim();
+            if (s.isNotEmpty) out.add(s);
+          }
+        }
+        return out;
       }
     } catch (_) {}
     return raw
@@ -593,5 +599,5 @@ List<String> _normalizeStringOrList(dynamic raw) {
         .where((e) => e.isNotEmpty)
         .toList();
   }
-  return const [];
+  return const <String>[];
 }

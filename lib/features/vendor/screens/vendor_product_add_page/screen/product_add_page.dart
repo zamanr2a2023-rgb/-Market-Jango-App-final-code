@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/get_user_type.dart';
 import 'package:market_jango/core/widget/TupperTextAndBackButton.dart';
 import 'package:market_jango/core/widget/global_save_botton.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
@@ -514,6 +515,7 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
     _termsC.dispose();
     _currentC.dispose();
     _previousC.dispose();
+    _buyingPriceC.dispose();
     _stockC.dispose();
     _weightC.dispose();
     _lengthC.dispose();
@@ -612,6 +614,24 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
               ),
             ],
           ),
+          // Buying price — vendor owner only (Section 2.5).
+          if (ref.watch(isVendorOwnerProvider).valueOrNull == true) ...[
+            SizedBox(height: 16.h),
+            _Labeled(
+              label: 'Buying price (UGX)',
+              labelColor: labelBlue,
+              child: TextField(
+                controller: _buyingPriceC,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  fillColor: AllColor.white,
+                  hintText: 'Buying Price / Cost (UGX)',
+                  enabledBorder: border(),
+                  focusedBorder: border(),
+                ),
+              ),
+            ),
+          ],
           SizedBox(height: 16.h),
           // Stock and Weight row
           Row(
@@ -949,6 +969,9 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                 description: desc,
                 regularPrice: _previousC.text,
                 sellPrice: _currentC.text,
+                buyingPrice: ref.read(isVendorOwnerProvider).valueOrNull == true
+                    ? _buyingPriceC.text
+                    : null,
                 categoryId: categoryId ?? 1,
                 attributes: selectedAttributes,
                 specification: specification,
@@ -989,6 +1012,7 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
 
   final _currentC = TextEditingController();
   final _previousC = TextEditingController();
+  final _buyingPriceC = TextEditingController();
   final _stockC = TextEditingController();
   final _weightC = TextEditingController();
   final _lengthC = TextEditingController();

@@ -18,10 +18,12 @@ import 'package:market_jango/core/screen/following/screen/my_following_screen.da
 import 'package:market_jango/core/screen/google_map/data/location_store.dart';
 import 'package:market_jango/core/screen/profile_screen/logic/user_data_update_riverpod.dart';
 import 'package:market_jango/core/screen/profile_screen/screen/global_profile_edit_screen.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/auth_session_utils.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/TupperTextAndBackButton.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/core/widget/login_required_view.dart';
 import 'package:market_jango/core/widget/sreeen_brackground.dart';
 import 'package:market_jango/features/buyer/screens/billing/screen/buyer_billing_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_history_screen.dart';
@@ -44,7 +46,12 @@ import 'package:market_jango/features/vendor/screens/vendor_followers/screen/ven
 import 'package:market_jango/features/vendor/staff_management/screen/vendor_staff_list_screen.dart';
 import 'package:market_jango/features/vendor/inventory/screen/vendor_inventory_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_business_types/screen/vendor_business_types_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_credit_policy_screen.dart';
 import 'package:market_jango/core/utils/get_user_type.dart';
+import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
+import 'package:market_jango/features/navbar/screen/driver_bottom_nav_bar.dart';
+import 'package:market_jango/features/navbar/screen/transport_bottom_nav_bar.dart';
+import 'package:market_jango/features/navbar/screen/vendor_bottom_nav.dart';
 import '../data/profile_data.dart';
 import '../model/profile_model.dart';
 
@@ -53,10 +60,21 @@ void _popOrShellHome(BuildContext context, WidgetRef ref) {
     context.pop();
     return;
   }
+  // Standalone /settingsScreen (no shell) — return to role home with bottom nav.
+  final ut = (ref.read(getUserTypeProvider).value ?? '').toLowerCase();
   ref.read(vendorShellTabIndexProvider.notifier).state = 0;
   ref.read(buyerShellTabIndexProvider.notifier).state = 0;
   ref.read(driverNavIndexProvider.notifier).state = 0;
   ref.read(transportNavIndexProvider.notifier).state = 0;
+  if (ut == 'vendor') {
+    context.go(VendorBottomNav.routeName);
+  } else if (ut == 'driver') {
+    context.go(DriverBottomNavBar.routeName);
+  } else if (ut == 'transport') {
+    context.go(TransportBottomNavBar.routeName);
+  } else {
+    context.go(BuyerBottomNavBar.routeName);
+  }
 }
 
 class GlobalSettingScreen extends ConsumerWidget {
@@ -70,6 +88,33 @@ class GlobalSettingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loggedInAsync = ref.watch(isLoggedInProvider);
+    return loggedInAsync.when(
+      loading: () => const ScreenBackground(
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => const LoginRequiredView(
+        title: 'Login required',
+        message: 'Sign in to manage your profile, wallet, and orders.',
+        redirectTo: GlobalSettingScreen.routeName,
+        showBack: false,
+      ),
+      data: (loggedIn) {
+        if (!loggedIn) {
+          return const LoginRequiredView(
+            title: 'Welcome, Guest',
+            message:
+                'Sign in to access your profile, wallet, orders, and settings.',
+            redirectTo: GlobalSettingScreen.routeName,
+            showBack: false,
+          );
+        }
+        return _buildLoggedInProfile(context, ref);
+      },
+    );
+  }
+
+  Widget _buildLoggedInProfile(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(
       userProvider(ref.watch(getUserIdProvider).value ?? ""),
     );
@@ -322,6 +367,30 @@ class GlobalSettingScreen extends ConsumerWidget {
                       fallback: 'Subscription',
                     ),
                     onTap: () => context.push(SubscriptionScreen.routeName),
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              );
+            },
+          ),
+        if (userTypeAsync.value == "vendor")
+          Consumer(
+            builder: (context, ref, _) {
+              final isOwner = ref.watch(isVendorOwnerProvider);
+              return isOwner.when(
+                data: (ok) {
+                  if (!ok) return const SizedBox.shrink();
+                  return Column(
+                    children: [
+                      _DividerLine(),
+                      _SettingsTile(
+                        leadingIcon: Icons.account_balance_outlined,
+                        title: 'Credit policy',
+                        onTap: () =>
+                            context.push(VendorCreditPolicyScreen.routeName),
+                      ),
+                    ],
                   );
                 },
                 loading: () => const SizedBox.shrink(),

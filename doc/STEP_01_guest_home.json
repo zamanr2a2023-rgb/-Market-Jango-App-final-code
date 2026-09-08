@@ -1,0 +1,101 @@
+{
+  "info": {
+    "name": "Jango Step 01 Guest Home",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "{{baseUrl}}" },
+    { "key": "token", "value": "" },
+    { "key": "vendorId", "value": "1" },
+    { "key": "inStockProductId", "value": "1" },
+    { "key": "outOfStockProductId", "value": "2" }
+  ],
+  "item": [
+    {
+      "name": "Guest home",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/buyer/home"
+      }
+    },
+    {
+      "name": "Logged-in home (prices visible)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "token", "value": "{{token}}" }],
+        "url": "{{baseUrl}}/api/buyer/home"
+      }
+    },
+    {
+      "name": "Public banners",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/banner"
+      }
+    },
+    {
+      "name": "Public popular by vendor",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/popular/product/{{vendorId}}"
+      }
+    },
+    {
+      "name": "Public product search",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/product/search"
+      }
+    },
+    {
+      "name": "In-stock product detail (guest, no prices)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/product/detail/{{inStockProductId}}"
+      }
+    },
+    {
+      "name": "Out-of-stock product detail (422)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/product/detail/{{outOfStockProductId}}"
+      }
+    },
+    {
+      "name": "Add to cart (must be logged in)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"product_id\": {{inStockProductId}}, \"quantity\": 1 }"
+        },
+        "url": "{{baseUrl}}/api/cart/create"
+      }
+    },
+    {
+      "name": "Update optional sign post",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"sign_post\": \"Blue gate near the mosque\" }"
+        },
+        "url": "{{baseUrl}}/api/user/update"
+      }
+    }
+  ]
+}

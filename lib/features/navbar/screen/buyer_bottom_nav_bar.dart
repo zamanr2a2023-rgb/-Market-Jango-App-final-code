@@ -5,6 +5,7 @@ import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/buyer_massage/screen/global_massage_screen.dart';
 import 'package:market_jango/core/screen/profile_screen/screen/global_profile_screen.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/features/buyer/screens/all_categori/screen/all_categori_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
 import 'package:market_jango/features/buyer/screens/cart/screen/cart_screen.dart';
@@ -15,64 +16,61 @@ class BuyerBottomNavBar extends ConsumerWidget {
 
   static const String routeName = '/bottom_nav_bar';
 
-  // Define your pages/screens here
   static const List<Widget> _pages = [
-    // Replace with your actual screen widgets
     BuyerHomeScreen(),
-    // Example: HomeScreen(),
     GlobalMassageScreen(),
-    // Example: ChatScreen(),
     CategoriesScreen(),
-    // Example: CategoriesScreen(),
     CartScreen(),
-    // Example: CartScreen(),
     GlobalSettingScreen(),
-    // Example: AccountScreen(),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Added WidgetRef
-    // Watch the selectedIndexProvider
     final selectedIndex = ref.watch(buyerShellTabIndexProvider);
 
     return Scaffold(
       body: _pages[selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: selectedIndex,
-        onTap: (index) {
-          // Update the selected index using the provider's notifier
+        onTap: (index) async {
+          // Chat (1), Categories (2), and Cart (3) require login for guests.
+          if (index == 1 || index == 2 || index == 3) {
+            final redirect = index == 3
+                ? CartScreen.routeName
+                : index == 1
+                    ? GlobalMassageScreen.routeName
+                    : CategoriesScreen.routeName;
+            final ok = await AuthGate.requireAuth(
+              context,
+              redirectTo: redirect,
+            );
+            if (!ok) return;
+          }
           ref.read(buyerShellTabIndexProvider.notifier).state = index;
         },
         backgroundColor: AllColor.white,
         selectedItemColor: AllColor.orange,
-        // Changed to orange
         unselectedItemColor: AllColor.grey,
         type: BottomNavigationBarType.fixed,
-        // Keep this if you want fixed labels
-        // showSelectedLabels: true, // Optional: ensure selected label is shown
-        // showUnselectedLabels: true, // Optional: ensure unselected labels are shown
         items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled), // Changed Icon
+            icon: const Icon(Icons.home_filled),
             label: ref.t(BKeys.home),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            // Kept similar, adjust if needed
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
             label: ref.t(BKeys.chat),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.widgets_outlined),
-            // Changed Icon (example for Categories)
+            icon: const Icon(Icons.widgets_outlined),
             label: ref.t(BKeys.categories),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart_outlined), // Changed Icon
+            icon: const Icon(Icons.shopping_cart_outlined),
             label: ref.t(BKeys.cart),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline), // Changed Icon
+            icon: const Icon(Icons.person_outline),
             label: ref.t(BKeys.myProfile),
           ),
         ],

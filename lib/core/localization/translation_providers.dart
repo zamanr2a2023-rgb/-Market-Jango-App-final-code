@@ -7,29 +7,29 @@ import 'package:market_jango/core/localization/translation_repository.dart';
 import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
 
 Future<AppTranslations> _fetchTranslations(Ref ref) async {
-  final token = await ref.read(authTokenProvider.future) ?? '';
+  try {
+    final token = await ref.read(authTokenProvider.future) ?? '';
 
-  final uri = Uri.parse(CommonAPIController.translations);
+    final uri = Uri.parse(CommonAPIController.translations);
 
-  final res = await http.get(
-    uri,
-    headers: {
-      'Accept': 'application/json',
-      if (token.isNotEmpty) 'token': token,
-      // language backend নিজে handle করলে এখানে আর কিছু লাগবে না
-      // নাহলে চাইলে: 'Accept-Language': selectedLangCode
-    },
-  );
-
-  if (res.statusCode != 200) {
-    throw Exception(
-      'Failed to load translations: '
-      '${res.statusCode} ${res.body}',
+    final res = await http.get(
+      uri,
+      headers: {
+        'Accept': 'application/json',
+        if (token.isNotEmpty) 'token': token,
+      },
     );
-  }
 
-  final map = jsonDecode(res.body) as Map<String, dynamic>;
-  return AppTranslations.fromJson(map);
+    if (res.statusCode != 200) {
+      // Guest / unauthenticated: use English fallbacks instead of raw keys.
+      return AppTranslations.empty();
+    }
+
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    return AppTranslations.fromJson(map);
+  } catch (_) {
+    return AppTranslations.empty();
+  }
 }
 
 /// AsyncNotifier যেন refresh করতে পারি
@@ -49,7 +49,7 @@ class AppTranslationsNotifier extends AsyncNotifier<AppTranslations> {
     final current = state;
     return current.maybeWhen(
       data: (tr) => tr.get(key, fallback: fallback),
-      orElse: () => fallback ?? key,
+      orElse: () => AppTranslations.empty().get(key, fallback: fallback),
     );
   }
 }

@@ -454,12 +454,22 @@ class OrderSummary {
   final String? customerPaid;
   final String? change;
 
+  /// Walk-in debt fields (STEP_03) — present when payment_method is Debt.
+  final String? debtAmount;
+  final String? debtRemaining;
+  final String? debtPaid;
+  final String? debtStatus;
+
   OrderSummary({
     required this.total,
     required this.payable,
     this.vat,
     this.customerPaid,
     this.change,
+    this.debtAmount,
+    this.debtRemaining,
+    this.debtPaid,
+    this.debtStatus,
   });
 
   factory OrderSummary.fromJson(Map<String, dynamic>? j) {
@@ -472,6 +482,12 @@ class OrderSummary {
       vat: j['vat']?.toString(),
       customerPaid: j['customer_paid']?.toString(),
       change: (j['change'] ?? j['change_amount'])?.toString(),
+      debtAmount: (j['debt_amount'] ?? j['total_debt'])?.toString(),
+      debtRemaining:
+          (j['debt_remaining'] ?? j['remaining_balance'] ?? j['remaining_debt'])
+              ?.toString(),
+      debtPaid: (j['debt_paid'] ?? j['amount_paid'])?.toString(),
+      debtStatus: j['debt_status']?.toString(),
     );
   }
 
@@ -482,7 +498,26 @@ class OrderSummary {
       final p = _s(nested['payable']);
       final t = _s(nested['total']);
       if (p.isNotEmpty || t.isNotEmpty) {
-        return OrderSummary.fromJson(nested);
+        final fromNested = OrderSummary.fromJson(nested);
+        // Invoice-level debt keys may sit outside `summary`.
+        return OrderSummary(
+          total: fromNested.total,
+          payable: fromNested.payable,
+          vat: fromNested.vat,
+          customerPaid: fromNested.customerPaid,
+          change: fromNested.change,
+          debtAmount: fromNested.debtAmount ??
+              (j['debt_amount'] ?? j['total_debt'])?.toString(),
+          debtRemaining: fromNested.debtRemaining ??
+              (j['debt_remaining'] ??
+                      j['remaining_balance'] ??
+                      j['remaining_debt'])
+                  ?.toString(),
+          debtPaid: fromNested.debtPaid ??
+              (j['debt_paid'] ?? j['amount_paid'])?.toString(),
+          debtStatus:
+              fromNested.debtStatus ?? j['debt_status']?.toString(),
+        );
       }
     }
     final total = _s(j['total']);
@@ -493,7 +528,30 @@ class OrderSummary {
       vat: j['vat']?.toString(),
       customerPaid: j['customer_paid']?.toString(),
       change: (j['change'] ?? j['change_amount'])?.toString(),
+      debtAmount: (j['debt_amount'] ?? j['total_debt'])?.toString(),
+      debtRemaining:
+          (j['debt_remaining'] ?? j['remaining_balance'] ?? j['remaining_debt'])
+              ?.toString(),
+      debtPaid: (j['debt_paid'] ?? j['amount_paid'])?.toString(),
+      debtStatus: j['debt_status']?.toString(),
     );
+  }
+
+  double? get debtRemainingNumeric {
+    final raw = debtRemaining;
+    if (raw == null || raw.trim().isEmpty) return null;
+    return double.tryParse(raw.replaceAll(',', ''));
+  }
+
+  double get debtTotalNumeric {
+    final raw = debtAmount;
+    if (raw != null && raw.trim().isNotEmpty) {
+      final v = double.tryParse(raw.replaceAll(',', ''));
+      if (v != null) return v;
+    }
+    final p = double.tryParse(payable.replaceAll(',', ''));
+    if (p != null && p > 0) return p;
+    return double.tryParse(total.replaceAll(',', '')) ?? 0;
   }
 }
 
@@ -565,6 +623,41 @@ class VendorManualOrderInvoice {
     required this.summary,
     this.orderRecordId,
   });
+
+  bool get isDebtPayment {
+    final m = (paymentMethod ?? '').trim().toLowerCase();
+    return m == 'debt';
+  }
+
+  /// Remaining debt; falls back to full payable when remaining is absent on Debt orders.
+  double get remainingDebt {
+    final rem = summary.debtRemainingNumeric;
+    if (rem != null) return rem < 0 ? 0 : rem;
+    if (!isDebtPayment) return 0;
+    return summary.debtTotalNumeric;
+  }
+
+  bool get isDebtFullyPaid {
+    if (!isDebtPayment) return false;
+    final st = (summary.debtStatus ?? '').trim().toLowerCase();
+    if (st == 'paid' || st == 'fully_paid') return true;
+    return remainingDebt <= 0.0001;
+  }
+
+  String get debtStatusLabel {
+    if (!isDebtPayment) return status;
+    final st = (summary.debtStatus ?? '').trim();
+    if (st.isNotEmpty) {
+      return st[0].toUpperCase() + (st.length > 1 ? st.substring(1) : '');
+    }
+    if (isDebtFullyPaid) return 'Paid';
+    final paid = double.tryParse(
+          (summary.debtPaid ?? '').replaceAll(',', ''),
+        ) ??
+        0;
+    if (paid > 0 && remainingDebt > 0) return 'Partial';
+    return 'Unpaid';
+  }
 
   factory VendorManualOrderInvoice.fromJson(Map<String, dynamic> j) {
     final items = (j['items'] as List? ?? [])
@@ -803,6 +896,8 @@ class VendorRefundListItem {
   final String productName;
   final String customerName;
   final String orderNumber;
+  final String? refundMethod;
+  final int? quantity;
 
   VendorRefundListItem({
     required this.id,
@@ -812,6 +907,8 @@ class VendorRefundListItem {
     required this.productName,
     required this.customerName,
     required this.orderNumber,
+    this.refundMethod,
+    this.quantity,
   });
 
   factory VendorRefundListItem.fromJson(Map<String, dynamic> j) {
@@ -836,8 +933,10 @@ class VendorRefundListItem {
       amount: _toDouble(j['amount']),
       reason: _s(j['reason']),
       productName: _s(product?['name']),
-      customerName: _s(user?['name']),
+      customerName: _s(user?['name'] ?? inv?['customer_name'] ?? inv?['cus_name']),
       orderNumber: _s(inv?['order_number']),
+      refundMethod: (j['refund_method'] ?? j['method'])?.toString(),
+      quantity: j['quantity'] == null ? null : _toInt(j['quantity']),
     );
   }
 }
@@ -887,6 +986,10 @@ class VendorRefundDetail {
   final String customerName;
   final String? customerPhone;
   final String? reviewerName;
+  final String? refundMethod;
+  final int? quantity;
+  final bool? stockRestored;
+  final int? stockRestoredQty;
 
   VendorRefundDetail({
     required this.id,
@@ -900,6 +1003,10 @@ class VendorRefundDetail {
     required this.customerName,
     this.customerPhone,
     this.reviewerName,
+    this.refundMethod,
+    this.quantity,
+    this.stockRestored,
+    this.stockRestoredQty,
   });
 
   factory VendorRefundDetail.fromJson(Map<String, dynamic> j) {
@@ -921,6 +1028,14 @@ class VendorRefundDetail {
     final reviewer = j['reviewer'] is Map<String, dynamic>
         ? j['reviewer'] as Map<String, dynamic>
         : null;
+    bool? stockRestored;
+    final sr = j['stock_restored'] ?? j['inventory_restored'];
+    if (sr is bool) {
+      stockRestored = sr;
+    } else if (sr != null) {
+      final s = sr.toString().toLowerCase();
+      stockRestored = s == '1' || s == 'true' || s == 'yes';
+    }
     return VendorRefundDetail(
       id: _toInt(j['id']),
       status: _s(j['status']),
@@ -930,11 +1045,76 @@ class VendorRefundDetail {
       requestedBy: j['requested_by']?.toString(),
       productName: _s(product?['name']),
       orderNumber: _s(inv?['order_number']),
-      customerName: _s(user?['name']),
-      customerPhone: user?['phone']?.toString(),
+      customerName:
+          _s(user?['name'] ?? inv?['customer_name'] ?? inv?['cus_name']),
+      customerPhone:
+          (user?['phone'] ?? inv?['customer_phone'] ?? inv?['cus_phone'])
+              ?.toString(),
       reviewerName: reviewer?['name']?.toString(),
+      refundMethod: (j['refund_method'] ?? j['method'])?.toString(),
+      quantity: j['quantity'] == null ? null : _toInt(j['quantity']),
+      stockRestored: stockRestored,
+      stockRestoredQty: j['stock_restored_qty'] == null &&
+              j['restored_quantity'] == null
+          ? null
+          : _toInt(j['stock_restored_qty'] ?? j['restored_quantity']),
     );
   }
 
   bool get isPending => status.toLowerCase() == 'pending';
+
+  String get refundMethodLabel {
+    final m = (refundMethod ?? '').trim().toLowerCase();
+    switch (m) {
+      case 'cash':
+        return 'Cash';
+      case 'wallet':
+        return 'Wallet';
+      case 'reduce_debt':
+      case 'debt':
+        return 'Reduce Debt';
+      case 'store_credit':
+      case 'store-credit':
+        return 'Store Credit';
+      default:
+        return refundMethod?.trim().isNotEmpty == true
+            ? refundMethod!.trim()
+            : '—';
+    }
+  }
+}
+
+/// Admin-configurable walk-in credit policy (STEP_03).
+class VendorCreditPolicy {
+  final double creditLimit;
+  final int dueDays;
+  final double lateFee;
+
+  const VendorCreditPolicy({
+    required this.creditLimit,
+    required this.dueDays,
+    required this.lateFee,
+  });
+
+  factory VendorCreditPolicy.fromJson(Map<String, dynamic> j) {
+    return VendorCreditPolicy(
+      creditLimit: _toDouble(
+        j['credit_limit'] ?? j['limit'] ?? j['max_credit'],
+      ),
+      dueDays: _toInt(j['due_days'] ?? j['due_date_days'] ?? j['due_days_count']),
+      lateFee: _toDouble(j['late_fee'] ?? j['late_fee_amount']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'credit_limit': creditLimit,
+        'due_days': dueDays,
+        'late_fee': lateFee,
+      };
+
+  static const empty = VendorCreditPolicy(
+    creditLimit: 0,
+    dueDays: 0,
+    lateFee: 0,
+  );
 }

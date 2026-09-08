@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/buyer_api.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 
 class DeliveryChargeItem {
@@ -458,10 +459,13 @@ class DeliveryChargesResponse {
 }
 
 final cartDeliveryChargesProvider =
-    FutureProvider.autoDispose<DeliveryChargesResponse>((ref) async {
+    FutureProvider.autoDispose<DeliveryChargesResponse?>((ref) async {
+  // Guests must never fetch or see delivery charges.
+  if (!await AuthGate.isLoggedIn()) return null;
+
   final auth = AuthLocalStorage();
-  final token = await auth.getToken();
-  if (token == null || token.isEmpty) throw Exception('Not logged in');
+  final token = await auth.getLoginToken();
+  if (token == null || token.isEmpty) return null;
 
   final res = await http.get(
     Uri.parse(BuyerAPIController.cartDeliveryCharges),

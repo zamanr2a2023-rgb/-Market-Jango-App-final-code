@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 // ⬇️ এগুলো তোমার প্রজেক্টেই আছে
 import 'package:market_jango/core/constants/api_control/buyer_api.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/buyer/screens/prement/screen/buyer_payment_screen.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
@@ -94,6 +95,12 @@ class CustomTotalCheckoutSection extends StatelessWidget {
 
   // ------------------ DEFAULT CHECKOUT FLOW ------------------
   Future<void> _defaultCheckout(BuildContext ctx) async {
+    final ok = await AuthGate.requireAuth(
+      ctx,
+      redirectTo: BuyerPaymentScreen.routeName,
+    );
+    if (!ok || !ctx.mounted) return;
+
     showDialog(
       context: ctx,
       barrierDismissible: false,
@@ -118,11 +125,21 @@ class CustomTotalCheckoutSection extends StatelessWidget {
 
     try {
       final authStorage = AuthLocalStorage();
-      final token = await authStorage.getToken();
+      final token = await authStorage.getLoginToken();
+      if (token == null || token.isEmpty) {
+        if (ctx.mounted) Navigator.pop(ctx);
+        if (ctx.mounted) {
+          await AuthGate.requireAuth(
+            ctx,
+            redirectTo: BuyerPaymentScreen.routeName,
+          );
+        }
+        return;
+      }
       final uri = Uri.parse(BuyerAPIController.invoice_createate);
       final res = await http.get(
         uri,
-        headers: {'Accept': 'application/json', 'token': token ?? ''},
+        headers: {'Accept': 'application/json', 'token': token},
       );
 
       if (ctx.mounted) Navigator.pop(ctx);

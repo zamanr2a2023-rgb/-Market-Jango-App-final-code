@@ -9,6 +9,7 @@ import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/models/global_search_model.dart';
+import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
@@ -17,11 +18,14 @@ import 'package:market_jango/core/widget/global_search_bar.dart';
 import 'package:market_jango/core/widget/see_more_button.dart';
 import 'package:market_jango/features/buyer/data/banner_data.dart';
 import 'package:market_jango/features/buyer/data/buyer_categori_data.dart';
+import 'package:market_jango/features/buyer/data/buyer_home_data.dart';
 import 'package:market_jango/features/buyer/data/buyer_just_for_you_data.dart';
 import 'package:market_jango/features/buyer/data/buyer_top_data.dart';
 import 'package:market_jango/features/buyer/data/new_items_data.dart';
 import 'package:market_jango/features/buyer/logic/slider_manage.dart';
+import 'package:market_jango/features/buyer/model/buyer_home_model.dart';
 import 'package:market_jango/features/buyer/model/buyer_top_model.dart';
+import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/buyer/screens/all_categori/screen/all_categori_screen.dart';
 import 'package:market_jango/features/buyer/screens/all_categori/screen/category_product_screen.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
@@ -35,6 +39,7 @@ import 'package:market_jango/features/buyer/widgets/custom_new_items_show.dart';
 import 'package:market_jango/features/buyer/widgets/custom_top_card.dart';
 import 'package:market_jango/features/buyer/widgets/home_product_title.dart';
 import 'package:market_jango/features/vendor/screens/vendor_home/data/global_search_riverpod.dart';
+import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
 
 class BuyerHomeScreen extends ConsumerStatefulWidget {
   const BuyerHomeScreen({super.key});
@@ -47,21 +52,32 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final bannerProvider = ref.watch(bannerNotifierProvider);
+    final homeAsync = ref.watch(buyerHomeProvider);
     final justForYou = ref.watch(
       justForYouProvider(BuyerAPIController.just_for_you),
     );
     final newItems = ref.watch(buyerNewItemsProvider);
+    final isLoggedIn = ref.watch(isLoggedInProvider).valueOrNull ?? false;
+
     return Scaffold(
       backgroundColor: AllColor.white70,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
+            ref.invalidate(buyerHomeProvider);
             ref.invalidate(bannerNotifierProvider);
             ref.invalidate(topProductProvider);
             ref.invalidate(justForYouProvider(BuyerAPIController.just_for_you));
             ref.invalidate(buyerNewItemsProvider);
             ref.invalidate(categoriesProvider);
             await Future.wait([
+              ref.read(buyerHomeProvider.future).catchError((_) =>
+                  const BuyerHomeResponse(
+                    hidePrices: true,
+                    loginRequiredForCart: true,
+                    banners: [],
+                    popular: [],
+                  )),
               ref.read(bannerNotifierProvider.future),
               ref.read(topProductProvider.future),
             ]);
@@ -73,29 +89,42 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
               child: Column(
                 children: [
                   BuyerHomeSearchBar(),
-                  bannerProvider.when(
-                    data: (data) {
-                      if (data == null || data.banners.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return PromoSlider(
-                        imageList: data.banners.map((e) => e.image).toList(),
+                  _buildHomeBanners(homeAsync, bannerProvider),
+                  // Guests: hide Categories section entirely.
+                  if (isLoggedIn) ...[
+                    SeeMoreButton(
+                      name: ref.t(BKeys.categories, fallback: 'Categories'),
+                      seeMoreAction: () => goToAllCategoriesPage(context),
+                    ),
+                    CustomCategories(
+                      categoriCount: 4,
+                      physics: const NeverScrollableScrollPhysics(),
+                      showOnlyTopCategories: true,
+                      requireProducts: false,
+                      onTapCategory: (cat) =>
+                          goToCategoriesProductPage(context, cat.id, cat.name),
+                    ),
+                  ],
+                  // Step 01: Popular from GET /api/buyer/home
+                  homeAsync.when(
+                    data: (home) {
+                      if (home.popular.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        children: [
+                          SeeMoreButton(
+                            name: 'Popular',
+                            seeMoreAction: () {},
+                            isSeeMore: false,
+                          ),
+                          BuyerHomePopularGrid(
+                            items: home.popular,
+                            hidePrices: home.hidePrices,
+                          ),
+                        ],
                       );
                     },
                     loading: () => const SizedBox.shrink(),
-                    error: (error, stackTrace) => const SizedBox.shrink(),
-                  ),
-                  SeeMoreButton(
-                    name: ref.t(BKeys.categories),
-                    seeMoreAction: () => goToAllCategoriesPage(context),
-                  ),
-                  CustomCategories(
-                    categoriCount: 4,
-                    physics: const NeverScrollableScrollPhysics(),
-                    showOnlyTopCategories: true,
-                    requireProducts: false,
-                    onTapCategory: (cat) =>
-                        goToCategoriesProductPage(context, cat.id, cat.name),
+                    error: (_, __) => const SizedBox.shrink(),
                   ),
                   ref
                       .watch(topProductProvider)
@@ -105,7 +134,10 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
                           return Column(
                             children: [
                               SeeMoreButton(
-                                name: ref.t(BKeys.topProducts),
+                                name: ref.t(
+                                  BKeys.topProducts,
+                                  fallback: 'Top products',
+                                ),
                                 seeMoreAction: () {},
                                 isSeeMore: false,
                               ),
@@ -125,9 +157,18 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
                       return Column(
                         children: [
                           SeeMoreButton(
-                            name: ref.t(BKeys.newItems),
-                            seeMoreAction: () =>
-                                goToNewItemsPage(ref, context, data),
+                            name: ref.t(
+                              BKeys.newItems,
+                              fallback: 'New items',
+                            ),
+                            seeMoreAction: () async {
+                              final ok = await AuthGate.requireAuth(
+                                context,
+                                redirectTo: BuyerBottomNavBar.routeName,
+                              );
+                              if (!ok || !context.mounted) return;
+                              goToNewItemsPage(ref, context, data);
+                            },
                           ),
                           CustomNewItemsShow(),
                         ],
@@ -145,9 +186,18 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
                       return Column(
                         children: [
                           SeeMoreButton(
-                            name: ref.t(BKeys.justForYou),
-                            seeMoreAction: () =>
-                                goToJustForYouPage(ref, context, data),
+                            name: ref.t(
+                              BKeys.justForYou,
+                              fallback: 'Just for you',
+                            ),
+                            seeMoreAction: () async {
+                              final ok = await AuthGate.requireAuth(
+                                context,
+                                redirectTo: BuyerBottomNavBar.routeName,
+                              );
+                              if (!ok || !context.mounted) return;
+                              goToJustForYouPage(ref, context, data);
+                            },
                           ),
                           JustForYouProduct(),
                         ],
@@ -163,6 +213,31 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHomeBanners(
+    AsyncValue<BuyerHomeResponse> homeAsync,
+    AsyncValue bannerProvider,
+  ) {
+    final home = homeAsync.valueOrNull;
+    if (home != null && home.banners.isNotEmpty) {
+      return PromoSlider(
+        imageList: List<String>.from(home.banners.map((e) => e.image)),
+      );
+    }
+
+    return bannerProvider.when(
+      data: (data) {
+        if (data == null || data.banners.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return PromoSlider(
+          imageList: List<String>.from(data.banners.map((e) => e.image)),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (error, stackTrace) => const SizedBox.shrink(),
     );
   }
 
@@ -226,6 +301,115 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
   }
 }
 
+/// Popular products from `GET /api/buyer/home` (guest + logged-in).
+class BuyerHomePopularGrid extends StatelessWidget {
+  const BuyerHomePopularGrid({
+    super.key,
+    required this.items,
+    required this.hidePrices,
+  });
+
+  final List<BuyerHomePopularItem> items;
+  final bool hidePrices;
+
+  String _priceLabel(BuyerHomeProduct p) {
+    if (hidePrices) return '';
+    return formatProductPriceLabel(
+      sellPriceDisplayRaw: p.sellPriceDisplay,
+      sellPriceRaw: p.sellPrice,
+      displayCurrency: p.displayCurrency,
+      currency: p.currency,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8.w,
+        mainAxisSpacing: 10.h,
+        childAspectRatio: hidePrices ? 0.72 : 0.62,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final p = item.product;
+        final blocked = item.outOfStock || p.outOfStock || !p.canOpenDetail;
+        final price = _priceLabel(p);
+
+        return GestureDetector(
+          onTap: () {
+            if (blocked) {
+              GlobalSnackbar.show(
+                context,
+                title: 'Out of Stock',
+                message:
+                    'Sorry, this product is currently out of stock. Please check back later.',
+                type: CustomSnackType.error,
+              );
+              return;
+            }
+            context.push(ProductDetails.routeName, extra: p.id);
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: CustomNewProduct(
+                  width: 162,
+                  height: hidePrices ? 150 : 145,
+                  productName: p.name,
+                  productPrices: price,
+                  image: p.image,
+                  showDownloadButton: false,
+                  onTap: () {
+                    if (blocked) {
+                      GlobalSnackbar.show(
+                        context,
+                        title: 'Out of Stock',
+                        message:
+                            'Sorry, this product is currently out of stock. Please check back later.',
+                        type: CustomSnackType.error,
+                      );
+                      return;
+                    }
+                    context.push(ProductDetails.routeName, extra: p.id);
+                  },
+                ),
+              ),
+              if (blocked)
+                Positioned(
+                  top: 8.h,
+                  left: 14.w,
+                  child: Container(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                    decoration: BoxDecoration(
+                      color: AllColor.red.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(6.r),
+                    ),
+                    child: Text(
+                      'Out of stock',
+                      style: TextStyle(
+                        color: AllColor.white,
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class JustForYouProduct extends ConsumerWidget {
   const JustForYouProduct({super.key});
 
@@ -264,7 +448,13 @@ class JustForYouProduct extends ConsumerWidget {
             );
 
             return GestureDetector(
-              onTap: () {
+              onTap: () async {
+                final ok = await AuthGate.requireAuth(
+                  context,
+                  redirectTo: BuyerBottomNavBar.routeName,
+                );
+                if (!ok || !context.mounted) return;
+
                 final detail = p;
                 Logger().d(detail.vendor.userId);
 
@@ -496,6 +686,15 @@ class BuyerHomeSearchBar extends ConsumerWidget {
   const BuyerHomeSearchBar({super.key});
   @override
   Widget build(BuildContext context, ref) {
+    final isLoggedIn = ref.watch(isLoggedInProvider).valueOrNull ?? false;
+
+    Future<void> requireLogin() async {
+      await AuthGate.requireAuth(
+        context,
+        redirectTo: BuyerBottomNavBar.routeName,
+      );
+    }
+
     return Column(
       children: [
         SizedBox(height: 20.h),
@@ -503,37 +702,65 @@ class BuyerHomeSearchBar extends ConsumerWidget {
           children: [
             Expanded(
               flex: 2,
-              child: GlobalSearchBar<GlobalSearchResponse, GlobalSearchSuggestion>(
-                provider: searchProvider,
-                itemsSelector: (res) => res.suggestions,
-                itemBuilder: (context, item) => SearchSuggestionTile(item: item),
-                onItemSelected: (item) {
-                  if (item.isHeader) return;
-                  if (item.isProduct && item.product != null) {
-                    context.push(
-                      ProductDetails.routeName,
-                      extra: item.product!.id,
-                    );
-                    return;
-                  }
-                  if (item.isVendor && item.vendor != null) {
-                    final v = item.vendor!;
-                    context.push(
-                      BuyerVendorProfileScreen.routeName,
-                      extra: buyerVendorProfileExtra(
-                        vendorId: v.id,
-                        userId: v.userId > 0 ? v.userId : (v.user?.id ?? 0),
+              child: isLoggedIn
+                  ? GlobalSearchBar<GlobalSearchResponse, GlobalSearchSuggestion>(
+                      provider: searchProvider,
+                      itemsSelector: (res) => res.suggestions,
+                      itemBuilder: (context, item) =>
+                          SearchSuggestionTile(item: item),
+                      onItemSelected: (item) {
+                        if (item.isHeader) return;
+                        if (item.isProduct && item.product != null) {
+                          context.push(
+                            ProductDetails.routeName,
+                            extra: item.product!.id,
+                          );
+                          return;
+                        }
+                        if (item.isVendor && item.vendor != null) {
+                          final v = item.vendor!;
+                          context.push(
+                            BuyerVendorProfileScreen.routeName,
+                            extra: buyerVendorProfileExtra(
+                              vendorId: v.id,
+                              userId:
+                                  v.userId > 0 ? v.userId : (v.user?.id ?? 0),
+                            ),
+                          );
+                        }
+                      },
+                      hintText: ref.t(
+                        BKeys.searchProduct,
+                        fallback: 'Search products',
                       ),
-                    );
-                  }
-                },
-                hintText: ref.t(BKeys.searchProduct),
-                debounce: const Duration(seconds: 1),
-                minChars: 1,
-                showResults: true,
-                resultsMaxHeight: 380,
-                autofocus: false,
-              ),
+                      debounce: const Duration(seconds: 1),
+                      minChars: 1,
+                      showResults: true,
+                      resultsMaxHeight: 380,
+                      autofocus: false,
+                    )
+                  : GestureDetector(
+                      onTap: requireLogin,
+                      child: AbsorbPointer(
+                        child: GlobalSearchBar<
+                            GlobalSearchResponse, GlobalSearchSuggestion>(
+                          provider: searchProvider,
+                          itemsSelector: (res) => res.suggestions,
+                          itemBuilder: (context, item) =>
+                              SearchSuggestionTile(item: item),
+                          onItemSelected: (_) {},
+                          hintText: ref.t(
+                            BKeys.searchProduct,
+                            fallback: 'Search products',
+                          ),
+                          debounce: const Duration(seconds: 1),
+                          minChars: 1,
+                          showResults: false,
+                          resultsMaxHeight: 380,
+                          autofocus: false,
+                        ),
+                      ),
+                    ),
             ),
             SizedBox(width: 8.w),
             // Menu Icon
@@ -553,7 +780,11 @@ class BuyerHomeSearchBar extends ConsumerWidget {
               ),
               child: IconButton(
                 icon: Icon(Icons.filter_list, size: 20.sp),
-                onPressed: () {
+                onPressed: () async {
+                  if (!isLoggedIn) {
+                    await requireLogin();
+                    return;
+                  }
                   openingFilter(context);
                 },
               ),
@@ -577,3 +808,4 @@ class BuyerHomeSearchBar extends ConsumerWidget {
     );
   }
 }
+
