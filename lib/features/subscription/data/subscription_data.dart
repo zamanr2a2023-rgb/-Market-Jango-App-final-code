@@ -3,9 +3,198 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/common_api.dart';
+import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
+import 'package:market_jango/core/utils/get_user_type.dart';
+import 'package:market_jango/features/buyer/data/visibility_zones_register_data.dart';
+import 'package:market_jango/features/buyer/screens/cart/data/visibility_locations_data.dart';
 import 'package:market_jango/features/subscription/model/current_subscription_model.dart';
 import 'package:market_jango/features/subscription/model/subscription_plan_model.dart';
+import 'package:market_jango/features/vendor/screens/vendor_delivery_setting/data/vendor_route_points_data.dart';
+
+/// STEP_06 — who is loading plans and which zone filter applies.
+class SubscriptionPlansContext {
+  final String userType;
+  final String? region;
+  final String? deliveryZone;
+
+  const SubscriptionPlansContext({
+    required this.userType,
+    this.region,
+    this.deliveryZone,
+  });
+
+  bool get isVendor => userType == 'vendor';
+  bool get isDriver => userType == 'driver';
+
+  String? get activeZoneLabel {
+    if (isVendor) return region;
+    if (isDriver) return deliveryZone;
+    return null;
+  }
+}
+
+String? _normalizeZoneName(String? raw, List<String> knownZones) {
+  final v = raw?.trim();
+  if (v == null || v.isEmpty || v.toLowerCase() == 'null') return null;
+  for (final z in knownZones) {
+    if (z.trim().toLowerCase() == v.toLowerCase()) return z.trim();
+  }
+  // Prefer exact Zone Management names when list is empty / unavailable.
+  if (knownZones.isEmpty) return v;
+  return null;
+}
+
+Future<List<String>> _loadKnownZoneNames(Ref ref) async {
+  final names = <String>{};
+  try {
+    final zones = await ref.read(visibilityLocationsZonesProvider.future);
+    for (final z in zones) {
+      if (z.name.trim().isNotEmpty) names.add(z.name.trim());
+    }
+  } catch (_) {}
+  try {
+    final zones = await ref.read(visibilityZonesProvider.future);
+    for (final z in zones) {
+      if (z.trim().isNotEmpty) names.add(z.trim());
+    }
+  } catch (_) {}
+  return names.toList();
+}
+
+/// Vendor region = Zone Management `zone_name` from opted-in delivery routes.
+Future<String?> _resolveVendorRegion(Ref ref, List<String> known) async {
+  try {
+    final routes = await ref.read(routePointsProvider.future);
+    final items = routes?.items ?? const [];
+    final selected = items
+        .where((e) => e.isSelected)
+        .map((e) => e.zoneName.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    for (final z in selected) {
+      final n = _normalizeZoneName(z, known);
+      if (n != null) return n;
+      if (known.isEmpty) return z;
+    }
+    for (final e in items) {
+      final z = e.zoneName.trim();
+      if (z.isEmpty) continue;
+      final n = _normalizeZoneName(z, known);
+      if (n != null) return n;
+      if (known.isEmpty) return z;
+    }
+  } catch (_) {}
+
+  final storage = AuthLocalStorage();
+  final ship = await storage.getShipZone();
+  final fromShip = _normalizeZoneName(ship, known);
+  if (fromShip != null) return fromShip;
+
+  final uj = await storage.getUserJson();
+  for (final key in ['region', 'ship_zone', 'zone', 'delivery_zone']) {
+    final n = _normalizeZoneName(uj?[key]?.toString(), known);
+    if (n != null) return n;
+  }
+  final vendor = uj?['vendor'];
+  if (vendor is Map) {
+    for (final key in ['region', 'zone', 'ship_zone', 'delivery_zone']) {
+      final n = _normalizeZoneName(vendor[key]?.toString(), known);
+      if (n != null) return n;
+    }
+  }
+  return null;
+}
+
+/// Driver delivery zone from profile / session (Zone Management name).
+Future<String?> _resolveDriverDeliveryZone(
+  Ref ref,
+  List<String> known,
+) async {
+  final storage = AuthLocalStorage();
+  final uj = await storage.getUserJson();
+  for (final key in [
+    'delivery_zone',
+    'ship_zone',
+    'zone',
+    'region',
+  ]) {
+    final n = _normalizeZoneName(uj?[key]?.toString(), known);
+    if (n != null) return n;
+  }
+  final driver = uj?['driver'];
+  if (driver is Map) {
+    for (final key in [
+      'delivery_zone',
+      'ship_zone',
+      'zone',
+      'region',
+      'location',
+    ]) {
+      final n = _normalizeZoneName(driver[key]?.toString(), known);
+      if (n != null) return n;
+    }
+  }
+
+  final ship = await storage.getShipZone();
+  return _normalizeZoneName(ship, known);
+}
+
+final subscriptionPlansContextProvider =
+    FutureProvider.autoDispose<SubscriptionPlansContext>((ref) async {
+  final userType =
+      (await ref.watch(getUserTypeProvider.future))?.toLowerCase() ?? '';
+  final known = await _loadKnownZoneNames(ref);
+
+  if (userType == 'vendor') {
+    final region = await _resolveVendorRegion(ref, known);
+    return SubscriptionPlansContext(userType: 'vendor', region: region);
+  }
+  if (userType == 'driver') {
+    final deliveryZone = await _resolveDriverDeliveryZone(ref, known);
+    return SubscriptionPlansContext(
+      userType: 'driver',
+      deliveryZone: deliveryZone,
+    );
+  }
+  return SubscriptionPlansContext(userType: userType.isEmpty ? 'vendor' : userType);
+});
+
+/// Client-side safety filter (hide other regions / delivery zones).
+List<SubscriptionPlanModel> filterSubscriptionPlansForContext(
+  List<SubscriptionPlanModel> plans,
+  SubscriptionPlansContext ctx,
+) {
+  return plans.where((p) {
+    final forType = p.forUserType.trim().toLowerCase();
+    if (forType.isNotEmpty &&
+        forType != 'all' &&
+        forType != ctx.userType) {
+      return false;
+    }
+
+    if (ctx.isVendor) {
+      if (p.isGlobalForVendor) return true;
+      final want = ctx.region?.trim();
+      if (want == null || want.isEmpty) {
+        // Unknown vendor region → only global plans (hide other regions).
+        return false;
+      }
+      return p.region!.trim().toLowerCase() == want.toLowerCase();
+    }
+
+    if (ctx.isDriver) {
+      if (p.isGlobalForDriver) return true;
+      final want = ctx.deliveryZone?.trim();
+      if (want == null || want.isEmpty) {
+        return false;
+      }
+      return p.deliveryZone!.trim().toLowerCase() == want.toLowerCase();
+    }
+
+    return true;
+  }).toList();
+}
 
 /// Response from POST /api/subscription/initiate-payment (Flutterwave flow).
 class InitiatePaymentResult {
@@ -24,7 +213,7 @@ class InitiatePaymentResult {
 }
 
 // ---------------------------------------------------------------------------
-// Get subscription plans (GET /api/subscription/plans)
+// Get subscription plans (GET /api/subscription/plans) — STEP_06 regional
 // ---------------------------------------------------------------------------
 
 final subscriptionPlansProvider =
@@ -40,10 +229,26 @@ class SubscriptionPlansNotifier
     if (token == null || token.isEmpty) {
       throw Exception('Not logged in');
     }
-    final uri = Uri.parse(CommonAPIController.subscriptionPlans);
+
+    final ctx = await ref.watch(subscriptionPlansContextProvider.future);
+    final storage = AuthLocalStorage();
+    final userId = await storage.getUserId();
+
+    final uri = Uri.parse(
+      CommonAPIController.subscriptionPlans(
+        region: ctx.isVendor ? ctx.region : null,
+        deliveryZone: ctx.isDriver ? ctx.deliveryZone : null,
+      ),
+    );
+
     final res = await http.get(
       uri,
-      headers: {'Accept': 'application/json', 'token': token},
+      headers: {
+        'Accept': 'application/json',
+        'token': token,
+        if (ctx.userType.isNotEmpty) 'user_type': ctx.userType,
+        if (userId != null && userId.isNotEmpty) 'id': userId,
+      },
     );
     if (res.statusCode != 200) {
       throw Exception(
@@ -52,10 +257,11 @@ class SubscriptionPlansNotifier
     }
     final map = jsonDecode(res.body) as Map<String, dynamic>;
     final list = map['data'] as List<dynamic>? ?? [];
-    return list
+    final parsed = list
         .map((e) =>
             SubscriptionPlanModel.fromJson(e as Map<String, dynamic>))
         .toList();
+    return filterSubscriptionPlansForContext(parsed, ctx);
   }
 }
 
@@ -222,8 +428,10 @@ Future<void> subscribeToPlan(
   final uri = Uri.parse(CommonAPIController.subscriptionSubscribe);
   final body = <String, dynamic>{
     'subscription_plan_id': subscriptionPlanId,
-    if (paymentMethod != null && paymentMethod.isNotEmpty) 'payment_method': paymentMethod,
-    if (transactionId != null && transactionId.isNotEmpty) 'transaction_id': transactionId,
+    if (paymentMethod != null && paymentMethod.isNotEmpty)
+      'payment_method': paymentMethod,
+    if (transactionId != null && transactionId.isNotEmpty)
+      'transaction_id': transactionId,
   };
   final res = await http.post(
     uri,

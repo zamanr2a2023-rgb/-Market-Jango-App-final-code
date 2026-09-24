@@ -5,6 +5,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/features/buyer/data/buyer_home_data.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/buyer_shiping_update_logic.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/cart_data.dart'; // cartProvider
 import 'package:market_jango/features/buyer/screens/cart/data/visibility_locations_data.dart';
@@ -103,8 +105,15 @@ class _ShippingSheetState extends ConsumerState<_ShippingSheet> {
           );
 
       if (mounted) {
+        final zone = _selectedZone?.trim();
+        if (zone != null && zone.isNotEmpty) {
+          await AuthLocalStorage().saveShipZone(zone);
+        }
         ref.invalidate(cartProvider);
         ref.invalidate(cartDeliveryChargesProvider);
+        // STEP_05 — zone change refreshes home banners / promotions.
+        ref.invalidate(buyerHomeZoneIdProvider);
+        ref.invalidate(buyerHomeProvider);
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           //'Shipping address updated'

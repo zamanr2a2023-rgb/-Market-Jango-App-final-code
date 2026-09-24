@@ -205,6 +205,9 @@ class VendorAPIController {
 
   static String get vendorManualOrderCreate => '$_base_api/vendor/manual-orders';
 
+  /// STEP_13 — offline sale sync queue flush.
+  static String get vendorOfflineSync => '$_base_api/sync/offline';
+
   static String vendorManualOrderAddItem(int invoiceId) =>
       '$_base_api/vendor/manual-orders/$invoiceId/items';
 
@@ -260,6 +263,13 @@ class VendorAPIController {
   }
 
   static String get vendorWalletPayout => '$_base_api/vendor/wallet/payout';
+
+  /// STEP_07 — `GET /api/vendor/payout-preview?amount=`
+  static String vendorPayoutPreview({required String amount}) {
+    return Uri.parse('$_base_api/vendor/payout-preview')
+        .replace(queryParameters: {'amount': amount.trim()})
+        .toString();
+  }
 
   /// Paginated payout requests; optional `status` filter.
   static String vendorWalletPayouts({int page = 1, String? status}) {
@@ -331,6 +341,25 @@ class VendorAPIController {
   /// Paginated vendor followers — `GET /vendor/followers?page=`.
   static String vendorFollowers({int page = 1}) =>
       '$_base_api/vendor/followers?page=$page';
+
+  /// STEP_05 marketing promotions — `POST /api/vendor/promotions` (create).
+  /// Optional list: `GET /api/vendor/promotions` when backend supports it.
+  static String get vendorPromotions => '$_base_api/vendor/promotions';
+
+  /// Notify product followers — `POST /api/vendor/products/{id}/notify-followers`.
+  static String vendorNotifyFollowers(int productId) =>
+      '$_base_api/vendor/products/$productId/notify-followers';
+
+  /// Admin pending promotions (when backend lists them).
+  static String get adminPromotions => '$_base_api/admin/promotions';
+
+  /// Admin approve — `POST /api/admin/promotions/{id}/approve`.
+  static String adminPromotionApprove(int id) =>
+      '$_base_api/admin/promotions/$id/approve';
+
+  /// Admin reject — only if backend exposes it (optional).
+  static String adminPromotionReject(int id) =>
+      '$_base_api/admin/promotions/$id/reject';
 
   // --- Vendor business types ---
   /// `GET`/`POST /vendor/business-types` — list (selected/available/usage) or add.

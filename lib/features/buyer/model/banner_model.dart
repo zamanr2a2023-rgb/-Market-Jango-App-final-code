@@ -47,6 +47,9 @@ class BannerItem {
   final String createdAt;
   final String updatedAt;
   final BenarProduct? product;
+  final int? zoneId;
+  final String? zone;
+  final bool isGlobal;
 
   BannerItem({
     required this.id,
@@ -59,6 +62,9 @@ class BannerItem {
     required this.createdAt,
     required this.updatedAt,
     required this.product,
+    this.zoneId,
+    this.zone,
+    this.isGlobal = true,
   });
 
   factory BannerItem.fromJson(Map<String, dynamic> json) {
@@ -67,6 +73,20 @@ class BannerItem {
     if (rawProduct is Map) {
       productMap = Map<String, dynamic>.from(rawProduct);
     }
+
+    final zoneIdRaw = json['zone_id'] ?? json['zoneId'];
+    int? zoneId;
+    if (zoneIdRaw is int) {
+      zoneId = zoneIdRaw;
+    } else if (zoneIdRaw != null) {
+      zoneId = int.tryParse(zoneIdRaw.toString());
+    }
+    final zone = json['zone']?.toString() ?? json['ship_zone']?.toString();
+    final globalFlag = json['is_global'] ?? json['global'];
+    final isGlobal = globalFlag == true ||
+        globalFlag == 1 ||
+        globalFlag == '1' ||
+        (zoneId == null && (zone == null || zone.isEmpty));
 
     return BannerItem(
       id: json['id'] is int
@@ -83,6 +103,9 @@ class BannerItem {
       createdAt: json['created_at']?.toString() ?? '',
       updatedAt: json['updated_at']?.toString() ?? '',
       product: productMap != null ? BenarProduct.fromJson(productMap) : null,
+      zoneId: zoneId,
+      zone: zone,
+      isGlobal: isGlobal,
     );
   }
 }

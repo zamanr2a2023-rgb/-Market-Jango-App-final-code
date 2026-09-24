@@ -9,6 +9,15 @@ class AuthAPIController {
   static String registerEmail= "$_base_api/register-email";
   static String registerVendorRequestStore= "$_base_api/vendor/register";
   static String business_type= "$_base_api/business-type";
+  /// Zone / state / town lists for Create Store (shared location catalog).
+  static String get registerLocationZones =>
+      '$_base_api/buyer/delivery-charge-locations/zones';
+  static String registerLocationStates({required String zone}) => Uri.parse(
+        '$_base_api/buyer/delivery-charge-locations/states',
+      ).replace(queryParameters: {'zone': zone.trim()}).toString();
+  static String registerLocationTowns({required String zoneName}) => Uri.parse(
+        '$_base_api/buyer/delivery-charge-locations/towns',
+      ).replace(queryParameters: {'zone_name': zoneName.trim()}).toString();
   static String registerDriverCarInfo="$_base_api/driver/register";
   static String phoneVerifyOtp="$_base_api/user-verify-otp";
   static String resetPassword="$_base_api/reset-password";

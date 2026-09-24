@@ -34,7 +34,11 @@ import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendo
 import 'package:market_jango/features/affiliate/screen/affiliate_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_followers/data/vendor_followers_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_followers/screen/vendor_followers_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_marketing_promotions/screen/vendor_marketing_promotions_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/vendor_product_create_categories.dart';
+import 'package:market_jango/features/vendor/offline_sync/data/connectivity_providers.dart';
+import 'package:market_jango/features/vendor/offline_sync/data/network_error_utils.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_create_manual_order_screen.dart';
 import '../data/vendor_product_data.dart';
 import '../logic/vendor_details_riverpod.dart';
 import '../model/user_details_model.dart';
@@ -76,6 +80,7 @@ class VendorHomeScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const _VendorHomeOfflineStrip(),
                     vendorAsync.when(
                       data: (vendor) => buildCoverAndProfileSection(
                         innerContext,
@@ -91,7 +96,13 @@ class VendorHomeScreen extends ConsumerWidget {
                       ),
                       error: (err, _) => Padding(
                         padding: EdgeInsets.all(20.w),
-                        child: Text('Error: $err'),
+                        child: Text(
+                          friendlyNetworkErrorMessage(err),
+                          style: TextStyle(
+                            color: AllColor.black54,
+                            fontSize: 13.sp,
+                          ),
+                        ),
                       ),
                     ),
                     // SizedBox(height: 1.h),
@@ -169,7 +180,23 @@ class VendorHomeScreen extends ConsumerWidget {
                         );
                       },
                       loading: () => const Center(child: Text('Loading...')),
-                      error: (err, _) => Center(child: Text('Error: $err')),
+                      error: (err, _) => Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20.w,
+                          vertical: 12.h,
+                        ),
+                        child: Text(
+                          friendlyNetworkErrorMessage(
+                            err,
+                            fallback: 'Could not load products',
+                          ),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AllColor.black54,
+                            fontSize: 13.sp,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -363,6 +390,24 @@ class VendorHomeScreen extends ConsumerWidget {
                       leading: Icon(Icons.link, size: 20.r, color: Colors.black),
                       title: 'Affiliate Links',
                       onTap: () => context.push(AffiliateScreen.routeName),
+                    )
+                  : const SizedBox.shrink(),
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+            Divider(color: Colors.grey.shade300),
+            canProducts.when(
+              data: (ok) => ok
+                  ? tile(
+                      leading: Icon(
+                        Icons.campaign_outlined,
+                        size: 20.r,
+                        color: Colors.black,
+                      ),
+                      title: 'Marketing promotions',
+                      onTap: () => context.push(
+                        VendorMarketingPromotionsScreen.routeName,
+                      ),
                     )
                   : const SizedBox.shrink(),
               loading: () => const SizedBox.shrink(),
@@ -1514,7 +1559,75 @@ class _CategoryBarState extends ConsumerState<CategoryBar> {
       },
       loading: () =>
           const SizedBox(height: 40, child: Center(child: Text('Loading...'))),
-      error: (e, _) => Text('Category load error: $e'),
+      error: (e, _) => Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.w),
+        child: Text(
+          friendlyNetworkErrorMessage(
+            e,
+            fallback: 'Could not load categories',
+          ),
+          style: TextStyle(color: AllColor.black54, fontSize: 12.sp),
+        ),
+      ),
+    );
+  }
+}
+
+/// Offline strip on vendor home — open walk-in POS without needing home APIs.
+class _VendorHomeOfflineStrip extends ConsumerWidget {
+  const _VendorHomeOfflineStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final online = ref.watch(isOnlineProvider);
+    if (online) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: AllColor.red200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.cloud_off_outlined, color: AllColor.red, size: 18.sp),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  'Offline — home data needs internet. Walk-in sales can still be queued.',
+                  style: TextStyle(
+                    color: AllColor.red,
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () =>
+                  context.push(VendorCreateManualOrderScreen.routeName),
+              child: Text(
+                'Open walk-in POS',
+                style: TextStyle(
+                  color: AllColor.red,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.sp,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

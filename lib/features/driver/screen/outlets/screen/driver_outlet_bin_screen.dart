@@ -39,9 +39,34 @@ class _DriverOutletBinScreenState
     extends ConsumerState<DriverOutletBinScreen> {
   int _page = 1;
   final _claiming = <int>{};
+  final _unclaiming = <int>{};
 
   DriverOutletBinQuery get _query =>
       DriverOutletBinQuery(outletId: widget.outletId, page: _page);
+
+  Future<bool> _confirmUnclaim(DriverOutletBinOrder order) async {
+    final label = order.orderNumber.isNotEmpty
+        ? order.orderNumber
+        : '#${order.id}';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unclaim order'),
+        content: Text('Unclaim $label?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Unclaim'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
 
   Future<void> _claim(DriverOutletBinOrder order) async {
     if (_claiming.contains(order.id)) return;
@@ -66,6 +91,34 @@ class _DriverOutletBinScreenState
       );
     } finally {
       if (mounted) setState(() => _claiming.remove(order.id));
+    }
+  }
+
+  Future<void> _unclaim(DriverOutletBinOrder order) async {
+    if (_unclaiming.contains(order.id)) return;
+    final confirmed = await _confirmUnclaim(order);
+    if (!confirmed || !mounted) return;
+    setState(() => _unclaiming.add(order.id));
+    try {
+      final message = await DriverOutletsApi.instance.unclaimOrder(order.id);
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Order unclaimed',
+        message: message,
+        type: CustomSnackType.success,
+      );
+      ref.invalidate(driverOutletBinOrdersProvider);
+    } catch (error) {
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Unable to unclaim order',
+        message: error.toString().replaceFirst('Exception: ', ''),
+        type: CustomSnackType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _unclaiming.remove(order.id));
     }
   }
 
@@ -162,7 +215,9 @@ class _DriverOutletBinScreenState
                 return _BinOrderCard(
                   order: order,
                   claiming: _claiming.contains(order.id),
+                  unclaiming: _unclaiming.contains(order.id),
                   onClaim: () => _claim(order),
+                  onUnclaim: () => _unclaim(order),
                 );
               },
             ),
@@ -177,12 +232,16 @@ class _BinOrderCard extends StatelessWidget {
   const _BinOrderCard({
     required this.order,
     required this.claiming,
+    required this.unclaiming,
     required this.onClaim,
+    required this.onUnclaim,
   });
 
   final DriverOutletBinOrder order;
   final bool claiming;
+  final bool unclaiming;
   final VoidCallback onClaim;
+  final VoidCallback onUnclaim;
 
   String get _dropoff {
     if (order.dropoffAddress.isNotEmpty) return order.dropoffAddress;
@@ -190,8 +249,11 @@ class _BinOrderCard extends StatelessWidget {
     return 'Not set';
   }
 
-  /// Orders already assigned to a driver cannot be claimed.
+  /// Claimable when not already assigned (existing rule).
   bool get _canClaim => order.status.trim().toLowerCase() != 'assigned';
+
+  /// Unclaim when status indicates the order is assigned/claimed.
+  bool get _canUnclaim => order.status.trim().toLowerCase() == 'assigned';
 
   @override
   Widget build(BuildContext context) {
@@ -262,7 +324,7 @@ class _BinOrderCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20.r),
                 ),
                 child: Text(
-                  'In bin',
+                  _canUnclaim ? 'Assigned' : 'In bin',
                   style: TextStyle(
                     color: AllColor.loginButtomColor,
                     fontSize: 11.sp,
@@ -314,30 +376,24 @@ class _BinOrderCard extends StatelessWidget {
                 ),
               ),
             ),
-          ] else ...[
-            SizedBox(height: 12.h),
-            Container(
+          ] else if (_canUnclaim) ...[
+            SizedBox(height: 14.h),
+            SizedBox(
               width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: 10.h),
-              decoration: BoxDecoration(
-                color: AllColor.grey100,
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.check_circle_outline,
-                      size: 16.sp, color: AllColor.black54),
-                  SizedBox(width: 6.w),
-                  Text(
-                    'Already assigned',
-                    style: TextStyle(
-                      color: AllColor.black54,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12.sp,
-                    ),
+              height: 43.h,
+              child: OutlinedButton.icon(
+                onPressed: unclaiming ? null : onUnclaim,
+                icon: const Icon(Icons.undo_outlined),
+                label: Text(unclaiming ? 'Unclaiming...' : 'Unclaim order'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AllColor.red,
+                  side: BorderSide(color: AllColor.red.withValues(alpha: .4)),
+                  disabledForegroundColor: AllColor.black54,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.r),
                   ),
-                ],
+                ),
               ),
             ),
           ],

@@ -27,7 +27,12 @@ class SubscriptionScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Tuppertextandbackbutton(screenName: ref.t(BKeys.subscription_title, fallback: 'Subscription')),
+                Tuppertextandbackbutton(
+                  screenName: ref.t(
+                    BKeys.subscription_title,
+                    fallback: 'Subscription',
+                  ),
+                ),
                 SizedBox(height: 16.h),
                 Expanded(
                   child: Consumer(
@@ -35,6 +40,7 @@ class SubscriptionScreen extends ConsumerWidget {
                       return RefreshIndicator(
                         onRefresh: () async {
                           ref.invalidate(currentSubscriptionProvider);
+                          ref.invalidate(subscriptionPlansContextProvider);
                           ref.invalidate(subscriptionPlansProvider);
                           await ref.read(currentSubscriptionProvider.future);
                           await ref.read(subscriptionPlansProvider.future);
@@ -45,7 +51,9 @@ class SubscriptionScreen extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const _CurrentPlanSection(),
-                              SizedBox(height: 24.h),
+                              SizedBox(height: 16.h),
+                              const _ZoneFilterBanner(),
+                              SizedBox(height: 16.h),
                               const _PlansSection(),
                             ],
                           ),
@@ -63,6 +71,57 @@ class SubscriptionScreen extends ConsumerWidget {
   }
 }
 
+class _ZoneFilterBanner extends ConsumerWidget {
+  const _ZoneFilterBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ctxAsync = ref.watch(subscriptionPlansContextProvider);
+    return ctxAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (ctx) {
+        final zone = ctx.activeZoneLabel;
+        final roleLabel = ctx.isDriver
+            ? 'Driver delivery zone'
+            : ctx.isVendor
+                ? 'Vendor region'
+                : 'Role';
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+          decoration: BoxDecoration(
+            color: AllColor.orange50,
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(color: AllColor.grey200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                ctx.isDriver
+                    ? 'Plans for your delivery zone (+ global)'
+                    : 'Plans for your region (+ global)',
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AllColor.black87,
+                ),
+              ),
+              SizedBox(height: 4.h),
+              Text(
+                zone != null && zone.isNotEmpty
+                    ? '$roleLabel: $zone'
+                    : '$roleLabel: not set — showing global plans only. Set zone in delivery / profile settings.',
+                style: TextStyle(fontSize: 12.sp, color: AllColor.black54),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _CurrentPlanSection extends ConsumerWidget {
   const _CurrentPlanSection();
@@ -100,8 +159,11 @@ class _CurrentPlanSection extends ConsumerWidget {
               padding: EdgeInsets.symmetric(vertical: 16.h),
               child: Row(
                 children: [
-                  Icon(Icons.card_membership_outlined,
-                      color: AllColor.grey, size: 24.sp),
+                  Icon(
+                    Icons.card_membership_outlined,
+                    color: AllColor.grey,
+                    size: 24.sp,
+                  ),
                   SizedBox(width: 12.w),
                   Expanded(
                     child: Text(
@@ -146,10 +208,7 @@ class _CurrentPlanSection extends ConsumerWidget {
 }
 
 class _CurrentPlanContent extends StatelessWidget {
-  const _CurrentPlanContent({
-    required this.subscription,
-    this.usage,
-  });
+  const _CurrentPlanContent({required this.subscription, this.usage});
   final CurrentSubscriptionModel subscription;
   final SubscriptionUsageModel? usage;
 
@@ -190,10 +249,7 @@ class _CurrentPlanContent extends StatelessWidget {
         SizedBox(height: 8.h),
         Text(
           '${subscription.startDate} – ${subscription.endDate}',
-          style: TextStyle(
-            fontSize: 13.sp,
-            color: AllColor.black54,
-          ),
+          style: TextStyle(fontSize: 13.sp, color: AllColor.black54),
         ),
         if (usage != null) ...[
           SizedBox(height: 12.h),
@@ -270,7 +326,8 @@ class _PlansSection extends ConsumerWidget {
               itemBuilder: (context, index) {
                 return _PlanCard(
                   plan: plans[index],
-                  onPay: () => _onPayWithFlutterwave(context, ref, plans[index]),
+                  onPay: () =>
+                      _onPayWithFlutterwave(context, ref, plans[index]),
                 );
               },
             );
@@ -290,9 +347,9 @@ class _PlansSection extends ConsumerWidget {
     final token = await ref.read(authTokenProvider.future);
     if (token == null || token.isEmpty) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please log in to pay')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please log in to pay')));
       }
       return;
     }
@@ -323,8 +380,10 @@ class _PlansSection extends ConsumerWidget {
     );
 
     try {
-      final result = await initiateSubscriptionPayment(token,
-          subscriptionPlanId: plan.id);
+      final result = await initiateSubscriptionPayment(
+        token,
+        subscriptionPlanId: plan.id,
+      );
       if (!context.mounted) return;
       Navigator.of(context).pop(); // close loading
 
@@ -346,9 +405,7 @@ class _PlansSection extends ConsumerWidget {
 
       // When user returns: confirm payment with backend so subscription is
       // activated even if Flutterwave redirect did not hit our server (doc §5).
-      if (success == true &&
-          txRef != null &&
-          txRef.isNotEmpty) {
+      if (success == true && txRef != null && txRef.isNotEmpty) {
         try {
           await confirmSubscriptionPayment(
             token,
@@ -366,32 +423,27 @@ class _PlansSection extends ConsumerWidget {
 
       if (success == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Subscription activated. Thank you!')),
+          const SnackBar(content: Text('Subscription activated. Thank you!')),
         );
       } else if (success == false) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Payment was cancelled or failed.')),
+          const SnackBar(content: Text('Payment was cancelled or failed.')),
         );
       }
     } catch (e) {
       if (context.mounted) {
         Navigator.of(context).pop(); // close loading if still open
         final message = e.toString().replaceFirst('Exception: ', '');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     }
   }
 }
 
 class _PlanCard extends StatelessWidget {
-  const _PlanCard({
-    required this.plan,
-    required this.onPay,
-  });
+  const _PlanCard({required this.plan, required this.onPay});
   final SubscriptionPlanModel plan;
   final VoidCallback onPay;
 
@@ -449,10 +501,7 @@ class _PlanCard extends StatelessWidget {
             SizedBox(height: 8.h),
             Text(
               plan.description,
-              style: TextStyle(
-                fontSize: 13.sp,
-                color: AllColor.black87,
-              ),
+              style: TextStyle(fontSize: 13.sp, color: AllColor.black87),
             ),
           ],
           SizedBox(height: 8.h),
@@ -462,13 +511,26 @@ class _PlanCard extends StatelessWidget {
             children: [
               if (plan.categoryLimit > 0)
                 _Chip(text: '${plan.categoryLimit} categories'),
-              if (plan.imageLimit > 0)
-                _Chip(text: '${plan.imageLimit} images'),
+              if (plan.imageLimit > 0) _Chip(text: '${plan.imageLimit} images'),
               if (plan.visibilityLimit > 0)
                 _Chip(text: '${plan.visibilityLimit} visibility'),
               if (plan.hasAffiliate) _Chip(text: 'Affiliate'),
-              if (plan.hasPriorityRanking)
-                _Chip(text: 'Priority ranking'),
+              if (plan.hasPriorityRanking) _Chip(text: 'Priority ranking'),
+              _Chip(
+                text: plan.hasMarketplace
+                    ? 'Marketplace: Enabled'
+                    : 'Marketplace: Disabled',
+              ),
+              _Chip(
+                text:
+                    plan.hasWalkIn ? 'Walk-in: Enabled' : 'Walk-in: Disabled',
+              ),
+              if (plan.region != null && plan.region!.isNotEmpty)
+                _Chip(text: 'Region: ${plan.region}'),
+              if (plan.deliveryZone != null && plan.deliveryZone!.isNotEmpty)
+                _Chip(text: 'Delivery zone: ${plan.deliveryZone}'),
+              if (plan.isGlobalForVendor && plan.isGlobalForDriver)
+                _Chip(text: 'Global'),
             ],
           ),
         ],

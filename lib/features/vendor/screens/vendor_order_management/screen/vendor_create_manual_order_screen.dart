@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,24 +12,29 @@ import 'package:market_jango/core/constants/api_control/vendor_api.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/vendor_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
+import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/global_search_bar.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/features/vendor/offline_sync/data/connectivity_providers.dart';
+import 'package:market_jango/features/vendor/offline_sync/data/offline_sale_queue_store.dart';
+import 'package:market_jango/features/vendor/offline_sync/provider/offline_sync_providers.dart';
+import 'package:market_jango/features/vendor/offline_sync/widget/offline_sync_banner.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/data/vendor_barcode_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/model/vendor_barcode_models.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/data/walk_in_barcode_search_riverpod.dart';
-import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_scan_screen.dart';
-import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/data/walk_in_barcode_search_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_pos_display_model.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/provider/vendor_pos_display_provider.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_pos_customer_display_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/util/pos_scan_sounds.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_walk_in_bill_print_flow.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_walk_in_bill_text.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_walk_in_bill_preview_dialog.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/vendor_order_auth.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_walk_in_bill_preview_dialog.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 /// Walk-in / POS manual order — `POST /vendor/manual-orders` ([doc/details.md]).
 class VendorCreateManualOrderScreen extends ConsumerStatefulWidget {
@@ -87,6 +94,9 @@ class _VendorCreateManualOrderScreenState
   final _customerName = TextEditingController();
   final _customerPhone = TextEditingController();
   final _customerPaid = TextEditingController();
+  final _customerNameFocus = FocusNode();
+  final _customerPhoneFocus = FocusNode();
+  final _customerPaidFocus = FocusNode();
   String _vendorDisplayName = 'Store';
 
   /// `true` = Cash; `false` = Card / Mobile / Debt (see [_payMode]).
@@ -100,18 +110,47 @@ class _VendorCreateManualOrderScreenState
 
   bool _submitting = false;
 
+  /// Continuous camera scanner (stays open on POS).
+  bool _continuousScan = false;
+  MobileScannerController? _scanController;
+  bool _scanBusy = false;
+  DateTime? _lastScanAt;
+  String? _lastScanLabel;
+  String? _lastAcceptedCode;
+  final List<String> _pendingScans = [];
+
+  /// USB / Bluetooth keyboard-wedge barcode input.
+  final _wedgeCtl = TextEditingController();
+  final _wedgeFocus = FocusNode();
+  Timer? _wedgeIdleTimer;
+  bool _searchFocused = false;
+  bool _persistReady = false;
+
   @override
   void initState() {
     super.initState();
+    _customerName.addListener(_onCartDraftChanged);
+    _customerPhone.addListener(_onCartDraftChanged);
+    _customerPaid.addListener(_onCartDraftChanged);
+    _customerNameFocus.addListener(_onProtectedFocusChanged);
+    _customerPhoneFocus.addListener(_onProtectedFocusChanged);
+    _customerPaidFocus.addListener(_onProtectedFocusChanged);
+    FocusManager.instance.addListener(_onGlobalFocusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await OfflineSaleQueueStore.instance.init();
       await _loadVendorName();
       await _loadCatalog();
       if (!mounted) return;
+      await _restorePosCartDraft();
+      if (!mounted) return;
+      _persistReady = true;
       _syncPosCustomerSession();
       final preset = widget.presetProductId;
       if (preset != null) {
         await _addProductById(preset);
       }
+      // HID wedge needs focus without soft keyboard (TextInputType.none).
+      _requestWedgeFocus(force: true);
     });
   }
 
@@ -161,6 +200,21 @@ class _VendorCreateManualOrderScreenState
 
   @override
   void dispose() {
+    _persistReady = false;
+    _wedgeIdleTimer?.cancel();
+    _customerName.removeListener(_onCartDraftChanged);
+    _customerPhone.removeListener(_onCartDraftChanged);
+    _customerPaid.removeListener(_onCartDraftChanged);
+    _customerNameFocus.removeListener(_onProtectedFocusChanged);
+    _customerPhoneFocus.removeListener(_onProtectedFocusChanged);
+    _customerPaidFocus.removeListener(_onProtectedFocusChanged);
+    FocusManager.instance.removeListener(_onGlobalFocusChanged);
+    _scanController?.dispose();
+    _wedgeCtl.dispose();
+    _wedgeFocus.dispose();
+    _customerNameFocus.dispose();
+    _customerPhoneFocus.dispose();
+    _customerPaidFocus.dispose();
     _customerName.dispose();
     _customerPhone.dispose();
     _customerPaid.dispose();
@@ -168,6 +222,125 @@ class _VendorCreateManualOrderScreenState
       l.dispose();
     }
     super.dispose();
+  }
+
+  void _onCartDraftChanged() {
+    if (!_persistReady) return;
+    _persistPosCartDraft();
+  }
+
+  bool _isProtectedFieldFocused() {
+    return _searchFocused ||
+        _customerNameFocus.hasFocus ||
+        _customerPhoneFocus.hasFocus ||
+        _customerPaidFocus.hasFocus;
+  }
+
+  void _onProtectedFocusChanged() {
+    if (!_isProtectedFieldFocused()) {
+      _requestWedgeFocus();
+    }
+  }
+
+  void _onGlobalFocusChanged() {
+    if (!mounted || _isProtectedFieldFocused() || _wedgeFocus.hasFocus) return;
+    final primary = FocusManager.instance.primaryFocus;
+    // Leave focus alone while qty / other editable fields are active.
+    if (primary != null &&
+        primary != _wedgeFocus &&
+        primary.context != null &&
+        primary.context!.widget is EditableText) {
+      return;
+    }
+    _requestWedgeFocus();
+  }
+
+  void _requestWedgeFocus({bool force = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!force && _isProtectedFieldFocused()) return;
+      if (!_wedgeFocus.hasFocus) {
+        _wedgeFocus.requestFocus();
+      }
+      // TextInputType.none avoids soft keyboard; hide is a safety net.
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    });
+  }
+
+  Future<void> _persistPosCartDraft() async {
+    if (!_persistReady) return;
+    final items = <Map<String, dynamic>>[];
+    for (final l in _lines) {
+      final q = int.tryParse(l.qty.text.trim()) ?? 0;
+      items.add({
+        'id': l.product.id,
+        'name': l.product.name,
+        'sell_price': l.product.sellPrice,
+        'stock': l.product.stock,
+        'size': l.product.sizeLabel,
+        'color': l.product.colorLabel,
+        'quantity': q <= 0 ? 1 : q,
+      });
+    }
+    await OfflineSaleQueueStore.instance.savePosCartDraft({
+      'customer_name': _customerName.text,
+      'customer_phone': _customerPhone.text,
+      'customer_paid': _customerPaid.text,
+      'pay_cash': _payCash,
+      'non_cash_method': _nonCashMethod,
+      'items': items,
+      'saved_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> _restorePosCartDraft() async {
+    final draft = OfflineSaleQueueStore.instance.loadPosCartDraft();
+    if (draft == null) return;
+    final items = draft['items'];
+    if (items is! List || items.isEmpty) {
+      final name = draft['customer_name']?.toString() ?? '';
+      final phone = draft['customer_phone']?.toString() ?? '';
+      final paid = draft['customer_paid']?.toString() ?? '';
+      if (name.isEmpty && phone.isEmpty && paid.isEmpty) return;
+    }
+    for (final l in _lines) {
+      l.dispose();
+    }
+    _lines.clear();
+    if (items is List) {
+      for (final raw in items.whereType<Map>()) {
+        final e = Map<String, dynamic>.from(raw);
+        final id = _toInt(e['id']);
+        if (id <= 0) continue;
+        final p = _PosProduct(
+          id: id,
+          name: e['name']?.toString() ?? 'Product $id',
+          sellPrice: _toDouble(e['sell_price'] ?? e['price']),
+          stock: _toInt(e['stock']),
+          sizeLabel: e['size']?.toString(),
+          colorLabel: e['color']?.toString(),
+        );
+        _cacheProduct(p);
+        final line = _CartLine(product: p);
+        final q = _toInt(e['quantity'], d: 1);
+        line.qty.text = '${q < 1 ? 1 : q}';
+        line.qty.addListener(_onCartDraftChanged);
+        _lines.add(line);
+      }
+    }
+    _customerName.text = draft['customer_name']?.toString() ?? '';
+    _customerPhone.text = draft['customer_phone']?.toString() ?? '';
+    _customerPaid.text = draft['customer_paid']?.toString() ?? '';
+    _payCash = draft['pay_cash'] != false;
+    final method = draft['non_cash_method']?.toString();
+    if (method == 'Card' || method == 'Mobile' || method == 'Debt') {
+      _nonCashMethod = method!;
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _clearPosCartDraft() async {
+    await OfflineSaleQueueStore.instance.clearPosCartDraft();
   }
 
   bool get _isDebt => !_payCash && _nonCashMethod == 'Debt';
@@ -219,6 +392,7 @@ class _VendorCreateManualOrderScreenState
               ? data
               : <dynamic>[];
       final mapped = <_PosProduct>[];
+      final cacheById = <int, Map<String, dynamic>>{};
       for (final e in list.whereType<Map<String, dynamic>>()) {
         final id = _toInt(e['id']);
         if (id <= 0) continue;
@@ -242,6 +416,7 @@ class _VendorCreateManualOrderScreenState
             if (n.contains('color') || n.contains('colour')) color = val;
           }
         }
+        final barcode = (e['barcode'] ?? e['barcode_text'] ?? '').toString().trim();
         mapped.add(
           _PosProduct(
             id: id,
@@ -252,10 +427,82 @@ class _VendorCreateManualOrderScreenState
             colorLabel: color,
           ),
         );
+        cacheById[id] = {
+          'id': id,
+          'name': name,
+          'sell_price': price,
+          'stock': stock,
+          'size': size,
+          'color': color,
+          'barcode': barcode,
+        };
       }
+
+      // Enrich barcodes from dedicated barcode list (paginated).
+      try {
+        var page = 1;
+        var lastPage = 1;
+        do {
+          final bp = await VendorBarcodeApi.instance.fetchBarcodeList(page: page);
+          lastPage = bp.lastPage < 1 ? 1 : bp.lastPage;
+          for (final p in bp.items) {
+            final existing = cacheById[p.id];
+            final code = p.barcode.trim().isNotEmpty
+                ? p.barcode.trim()
+                : p.barcodeText.trim();
+            if (existing != null) {
+              if (code.isNotEmpty) existing['barcode'] = code;
+              existing['name'] = p.name;
+              existing['sell_price'] = p.sellPrice;
+              existing['stock'] = p.stock;
+            } else {
+              cacheById[p.id] = {
+                'id': p.id,
+                'name': p.name,
+                'sell_price': p.sellPrice,
+                'stock': p.stock,
+                'size': p.variant.size,
+                'color': p.variant.color,
+                'barcode': code,
+              };
+              mapped.add(
+                _PosProduct(
+                  id: p.id,
+                  name: p.name,
+                  sellPrice: p.sellPrice,
+                  stock: p.stock,
+                  sizeLabel: p.variant.size,
+                  colorLabel: p.variant.color,
+                ),
+              );
+            }
+          }
+          page++;
+        } while (page <= lastPage && page <= 25);
+      } catch (_) {}
+
+      await OfflineSaleQueueStore.instance
+          .saveCatalogCache(cacheById.values.toList());
       if (mounted) setState(() => _catalog = mapped);
     } catch (_) {
-      if (mounted) setState(() => _catalog = []);
+      // Offline / API failure — use last cached catalog (real data only).
+      final cached = OfflineSaleQueueStore.instance.loadCatalogCache();
+      final mapped = <_PosProduct>[];
+      for (final e in cached) {
+        final id = _toInt(e['id']);
+        if (id <= 0) continue;
+        mapped.add(
+          _PosProduct(
+            id: id,
+            name: e['name']?.toString() ?? 'Product $id',
+            sellPrice: _toDouble(e['sell_price'] ?? e['price']),
+            stock: _toInt(e['stock']),
+            sizeLabel: e['size']?.toString(),
+            colorLabel: e['color']?.toString(),
+          ),
+        );
+      }
+      if (mounted) setState(() => _catalog = mapped);
     } finally {
       if (mounted) setState(() => _loadingCatalog = false);
     }
@@ -293,15 +540,39 @@ class _VendorCreateManualOrderScreenState
         stock: b.stock,
       );
 
+  _PosProduct _posFromCacheRow(Map<String, dynamic> e) {
+    final id = _toInt(e['id']);
+    return _PosProduct(
+      id: id,
+      name: e['name']?.toString() ?? 'Product $id',
+      sellPrice: _toDouble(e['sell_price'] ?? e['price']),
+      stock: _toInt(e['stock']),
+      sizeLabel: e['size']?.toString(),
+      colorLabel: e['color']?.toString(),
+    );
+  }
+
   void _cacheProduct(_PosProduct p) {
     if (_findInCatalog(p.id) != null) return;
     _catalog = [..._catalog, p];
   }
 
-  void _addProductFromBarcode(VendorBarcodeProduct b) {
+  /// Adds product to cart. Returns `true` if a new line was created.
+  bool _addProductFromBarcode(VendorBarcodeProduct b) {
     final p = _posFromBarcode(b);
     _cacheProduct(p);
-    _addOrIncrementLine(p);
+    final isNew = _addOrIncrementLine(p);
+    final code = b.barcode.trim().isNotEmpty ? b.barcode.trim() : b.barcodeText.trim();
+    OfflineSaleQueueStore.instance.upsertCatalogProduct({
+      'id': b.id,
+      'name': b.name,
+      'sell_price': b.sellPrice,
+      'stock': b.stock,
+      'size': b.variant.size,
+      'color': b.variant.color,
+      'barcode': code,
+    });
+    return isNew;
   }
 
   Future<void> _addProductById(int id) async {
@@ -319,35 +590,208 @@ class _VendorCreateManualOrderScreenState
     _addOrIncrementLine(p);
   }
 
-  void _addOrIncrementLine(_PosProduct p) {
+  /// Returns `true` when a new cart line was created; `false` when qty++.
+  bool _addOrIncrementLine(_PosProduct p) {
     for (final l in _lines) {
       if (l.product.id == p.id) {
         final q = int.tryParse(l.qty.text.trim()) ?? 0;
         l.qty.text = '${q + 1}';
         setState(() {});
         _syncPosCustomerSession();
-        return;
+        _persistPosCartDraft();
+        return false;
       }
     }
-    setState(() => _lines.add(_CartLine(product: p)));
+    final line = _CartLine(product: p);
+    line.qty.addListener(_onCartDraftChanged);
+    setState(() => _lines.add(line));
     _syncPosCustomerSession();
+    _persistPosCartDraft();
+    return true;
   }
 
-  Future<void> _openScanner() async {
-    final id = await context.push<int?>(
-      VendorBarcodeScanScreen.routeName,
-      extra: true,
+  void _playCartScanSound({required bool isNewLine}) {
+    if (isNewLine) {
+      PosScanSounds.instance.productAddedNew();
+    } else {
+      PosScanSounds.instance.productQtyIncreased();
+    }
+  }
+
+  bool _scanDebounced(String code) {
+    final now = DateTime.now();
+    // Same code within 800ms = duplicate (camera re-detect / double Enter).
+    // Different codes are allowed immediately for continuous HID scanning.
+    if (_lastAcceptedCode == code &&
+        _lastScanAt != null &&
+        now.difference(_lastScanAt!) < const Duration(milliseconds: 800)) {
+      return true;
+    }
+    _lastScanAt = now;
+    _lastAcceptedCode = code;
+    return false;
+  }
+
+  void _enqueueOrHandleScan(String raw) {
+    final code = OfflineSaleQueueStore.normalizeBarcode(raw);
+    if (code.isEmpty) return;
+    if (_scanBusy) {
+      if (_pendingScans.length < 30 &&
+          (_pendingScans.isEmpty || _pendingScans.last != code)) {
+        _pendingScans.add(code);
+      }
+      return;
+    }
+    _handleScannedBarcode(code);
+  }
+
+  /// Shared pipeline for camera + hardware wedge scans.
+  Future<void> _handleScannedBarcode(String raw) async {
+    final code = OfflineSaleQueueStore.normalizeBarcode(raw);
+    if (code.isEmpty || _scanBusy) return;
+    if (_scanDebounced(code)) return;
+
+    setState(() => _scanBusy = true);
+    try {
+      List<ConnectivityResult> net;
+      try {
+        net = await Connectivity().checkConnectivity();
+      } catch (_) {
+        net = const [];
+      }
+      final online = await resolveIsOnline(net);
+
+      if (online) {
+        try {
+          final product = await VendorBarcodeApi.instance.scanBarcode(code);
+          if (!mounted) return;
+          final isNew = _addProductFromBarcode(product);
+          _playCartScanSound(isNewLine: isNew);
+          setState(() => _lastScanLabel = product.name);
+          // Continuous camera stays open; skip snackbar spam while scanning.
+          if (!_continuousScan) {
+            GlobalSnackbar.show(
+              context,
+              title: 'Added',
+              message: product.name,
+              type: CustomSnackType.success,
+            );
+          }
+        } catch (e) {
+          if (!mounted) return;
+          GlobalSnackbar.show(
+            context,
+            title: 'Scan',
+            message: e.toString().replaceFirst('Exception: ', ''),
+            type: CustomSnackType.error,
+          );
+        }
+      } else {
+        final row = OfflineSaleQueueStore.instance.findByBarcode(code);
+        if (!mounted) return;
+        if (row == null) {
+          GlobalSnackbar.show(
+            context,
+            title: 'Offline',
+            message:
+                'Product unavailable offline. Connect once to refresh catalog.',
+            type: CustomSnackType.error,
+          );
+          return;
+        }
+        final p = _posFromCacheRow(row);
+        _cacheProduct(p);
+        final isNew = _addOrIncrementLine(p);
+        _playCartScanSound(isNewLine: isNew);
+        setState(() => _lastScanLabel = p.name);
+        if (!_continuousScan) {
+          GlobalSnackbar.show(
+            context,
+            title: 'Added offline',
+            message: p.name,
+            type: CustomSnackType.success,
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        // Keep MobileScanner running — never stop/dispose here.
+        setState(() => _scanBusy = false);
+        _requestWedgeFocus();
+        if (_pendingScans.isNotEmpty) {
+          final next = _pendingScans.removeAt(0);
+          // ignore: unawaited_futures
+          _handleScannedBarcode(next);
+        }
+      }
+    }
+  }
+
+  Future<void> _toggleContinuousScanner() async {
+    if (_continuousScan) {
+      await _scanController?.stop();
+      _scanController?.dispose();
+      _scanController = null;
+      if (mounted) setState(() => _continuousScan = false);
+      _requestWedgeFocus(force: true);
+      return;
+    }
+    _scanController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.back,
     );
-    if (!mounted || id == null) return;
-    await _addProductById(id);
+    setState(() => _continuousScan = true);
+    PosScanSounds.instance.scannerOpened();
+    // Keep HID wedge live while camera continuous mode is open.
+    _requestWedgeFocus(force: true);
+  }
+
+  void _onCameraDetect(BarcodeCapture capture) {
+    if (_scanBusy || !_continuousScan) return;
+    final codes = capture.barcodes;
+    if (codes.isEmpty) return;
+    final b = codes.first;
+    final v = b.rawValue ?? b.displayValue;
+    if (v == null || v.isEmpty) return;
+    _enqueueOrHandleScan(v);
+  }
+
+  void _flushWedgeBuffer() {
+    _wedgeIdleTimer?.cancel();
+    final code = _wedgeCtl.text.trim();
+    _wedgeCtl.clear();
+    if (code.isEmpty) return;
+    _enqueueOrHandleScan(code);
+  }
+
+  void _onWedgeChanged(String value) {
+    // Scanners that end with CR/LF may land as characters before onSubmitted.
+    if (value.contains('\n') || value.contains('\r')) {
+      _flushWedgeBuffer();
+      return;
+    }
+    _wedgeIdleTimer?.cancel();
+    if (value.trim().isEmpty) return;
+    // Many USB/BT wedges fire Enter; idle flush covers scanners with no suffix.
+    _wedgeIdleTimer = Timer(const Duration(milliseconds: 120), _flushWedgeBuffer);
+  }
+
+  void _onWedgeSubmitted(String value) {
+    _wedgeIdleTimer?.cancel();
+    final code = value.trim().isNotEmpty ? value.trim() : _wedgeCtl.text.trim();
+    _wedgeCtl.clear();
+    if (code.isEmpty) return;
+    _enqueueOrHandleScan(code);
   }
 
   void _removeLine(int i) {
     setState(() {
+      _lines[i].qty.removeListener(_onCartDraftChanged);
       _lines[i].dispose();
       _lines.removeAt(i);
     });
     _syncPosCustomerSession();
+    _persistPosCartDraft();
   }
 
   Future<void> _submit({required bool showBill}) async {
@@ -435,6 +879,41 @@ class _VendorCreateManualOrderScreenState
 
     setState(() => _submitting = true);
     try {
+      List<ConnectivityResult> net;
+      try {
+        net = await Connectivity().checkConnectivity();
+      } catch (_) {
+        net = const [];
+      }
+      final online = await resolveIsOnline(net);
+
+      if (!online) {
+        final queued =
+            await OfflineSaleQueueStore.instance.enqueueSales(items);
+        bumpOfflineQueue(ref);
+        if (!mounted) return;
+        for (final l in _lines) {
+          l.qty.removeListener(_onCartDraftChanged);
+          l.dispose();
+        }
+        _lines.clear();
+        _customerName.clear();
+        _customerPhone.clear();
+        _customerPaid.clear();
+        await _clearPosCartDraft();
+        if (!mounted) return;
+        _syncPosCustomerSession();
+        setState(() {});
+        GlobalSnackbar.show(
+          context,
+          title: 'Saved offline',
+          message:
+              '${queued.length} sale line(s) queued. Will sync when online.',
+          type: CustomSnackType.success,
+        );
+        return;
+      }
+
       final inv = await VendorOrderApi.instance.createManualOrder(
         customerName: name,
         customerPhone: phone.isEmpty ? null : phone,
@@ -443,6 +922,15 @@ class _VendorCreateManualOrderScreenState
         items: items,
       );
       if (!mounted) return;
+      for (final l in _lines) {
+        l.qty.removeListener(_onCartDraftChanged);
+        l.dispose();
+      }
+      _lines.clear();
+      _customerName.clear();
+      _customerPhone.clear();
+      _customerPaid.clear();
+      await _clearPosCartDraft();
       _syncPosCustomerSession();
       ref.read(vendorPosCartSessionProvider.notifier).state =
           ref.read(vendorPosCartSessionProvider).copyWith(
@@ -581,6 +1069,7 @@ class _VendorCreateManualOrderScreenState
       body: ListView(
         padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 28.h),
         children: [
+          const OfflineSyncBanner(),
           Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 14.w),
@@ -589,58 +1078,68 @@ class _VendorCreateManualOrderScreenState
               borderRadius: BorderRadius.circular(10.r),
               border: Border.all(color: AllColor.orange200),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  'WALK IN',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                    color: AllColor.black,
-                  ),
+                Icon(
+                  Icons.storefront_rounded,
+                  color: AllColor.loginButtomColor,
+                  size: 22.sp,
                 ),
-                SizedBox(height: 6.h),
-                Text(
-                  'Add line items below, then customer & payment. Saved via POST /api/vendor/manual-orders.',
-                  style: TextStyle(
-                    fontSize: 11.sp,
-                    color: AllColor.grey500,
-                    height: 1.35,
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: Text(
+                    'Scan or search products, then enter customer & payment.',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: AllColor.black87,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           SizedBox(height: 16.h),
-          Row(
-            children: [
-              Icon(Icons.table_rows_rounded, color: AllColor.loginButtomColor, size: 22.sp),
-              SizedBox(width: 8.w),
-              Text(
-                'Order line items',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16.sp),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: _loadCatalog,
-                child: const Text('Refresh catalog'),
-              ),
-            ],
-          ),
-          SizedBox(height: 8.h),
-          _linesTableCard(),
-          SizedBox(height: 16.h),
+
+          /// 1) Add products first (POS flow)
           Text(
             'Add products',
             style: TextStyle(
-              fontSize: 12.sp,
+              fontSize: 13.sp,
               fontWeight: FontWeight.w800,
-              color: AllColor.grey500,
+              color: AllColor.black,
             ),
           ),
           SizedBox(height: 8.h),
+          // Hidden USB/BT wedge capture — must not paint focus border.
+          Opacity(
+            opacity: 0,
+            child: SizedBox(
+              width: 1,
+              height: 1,
+              child: TextField(
+                controller: _wedgeCtl,
+                focusNode: _wedgeFocus,
+                autofocus: false,
+                showCursor: false,
+                enableSuggestions: false,
+                autocorrect: false,
+                enableInteractiveSelection: false,
+                keyboardType: TextInputType.none,
+                textInputAction: TextInputAction.done,
+                onChanged: _onWedgeChanged,
+                onSubmitted: _onWedgeSubmitted,
+                decoration: const InputDecoration(
+                  isCollapsed: true,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ),
           Consumer(
             builder: (context, ref, _) {
               return Row(
@@ -653,7 +1152,14 @@ class _VendorCreateManualOrderScreenState
                       itemsSelector: (res) => res.items,
                       itemBuilder: (context, p) =>
                           _WalkInBarcodeSuggestionTile(product: p),
-                      onItemSelected: _addProductFromBarcode,
+                      onItemSelected: (p) {
+                        _addProductFromBarcode(p);
+                        _requestWedgeFocus(force: true);
+                      },
+                      onFocusChange: (hasFocus) {
+                        _searchFocused = hasFocus;
+                        if (!hasFocus) _requestWedgeFocus();
+                      },
                       hintText: ref.t(VKeys.searchProducts),
                       debounce: const Duration(milliseconds: 400),
                       minChars: 1,
@@ -664,23 +1170,41 @@ class _VendorCreateManualOrderScreenState
                   ),
                   SizedBox(width: 8.w),
                   IconButton.filled(
-                    onPressed: _loadingCatalog ? null : _openScanner,
+                    onPressed: _loadingCatalog ? null : _toggleContinuousScanner,
                     style: IconButton.styleFrom(
-                      backgroundColor: AllColor.loginButtomColor,
+                      backgroundColor: _continuousScan
+                          ? AllColor.red
+                          : AllColor.loginButtomColor,
                       foregroundColor: AllColor.white,
                       fixedSize: Size(48.r, 48.r),
                     ),
-                    icon: const Icon(Icons.qr_code_scanner_rounded),
-                    tooltip: 'Scan barcode',
+                    icon: Icon(
+                      _continuousScan
+                          ? Icons.close_rounded
+                          : Icons.qr_code_scanner_rounded,
+                    ),
+                    tooltip: _continuousScan
+                        ? 'Stop continuous scan'
+                        : 'Continuous barcode scan',
                   ),
                 ],
               );
             },
           ),
+          if (_continuousScan && _scanController != null) ...[
+            SizedBox(height: 10.h),
+            _PosContinuousScannerPanel(
+              controller: _scanController!,
+              busy: _scanBusy,
+              lastLabel: _lastScanLabel,
+              onDetect: _onCameraDetect,
+              onClose: _toggleContinuousScanner,
+            ),
+          ],
           Padding(
-            padding: EdgeInsets.only(top: 6.h),
+            padding: EdgeInsets.only(top: 6.h, bottom: 4.h),
             child: Text(
-              'Search by product name or barcode, then tap to add.',
+              'USB/BT scanner always ready · Camera optional for continuous scan',
               style: TextStyle(
                 fontSize: 11.sp,
                 color: AllColor.grey500,
@@ -693,202 +1217,308 @@ class _VendorCreateManualOrderScreenState
               padding: EdgeInsets.symmetric(vertical: 8.h),
               child: const Center(child: CircularProgressIndicator()),
             ),
-          SizedBox(height: 8.h),
-          Text(
-            'Customer',
-            style: TextStyle(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w800,
-              color: AllColor.grey500,
-            ),
-          ),
-          SizedBox(height: 8.h),
-          TextField(
-            controller: _customerName,
-            textCapitalization: TextCapitalization.words,
-            maxLength: 100,
-            buildCounter: (
-              context, {
-              required currentLength,
-              required isFocused,
-              maxLength,
-            }) =>
-                const SizedBox.shrink(),
-            decoration: _fieldDeco('NAME', hint: 'Customer name (required)'),
-          ),
-          SizedBox(height: 12.h),
-          TextField(
-            controller: _customerPhone,
-            keyboardType: TextInputType.phone,
-            maxLength: 30,
-            buildCounter: (
-              context, {
-              required currentLength,
-              required isFocused,
-              maxLength,
-            }) =>
-                const SizedBox.shrink(),
-            decoration: _fieldDeco(
-              'Phone',
-              hint: 'Optional (e.g. +254700123456)',
-            ),
-          ),
-          SizedBox(height: 16.h),
-          Container(
-            padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 14.w),
-            decoration: BoxDecoration(
-              color: AllColor.white,
-              borderRadius: BorderRadius.circular(12.r),
-              border: Border.all(color: AllColor.grey200),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total amount',
-                  style: TextStyle(
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w800,
+
+          SizedBox(height: 14.h),
+
+          /// 2) Cart
+          Row(
+            children: [
+              Icon(
+                Icons.shopping_cart_outlined,
+                color: AllColor.loginButtomColor,
+                size: 20.sp,
+              ),
+              SizedBox(width: 8.w),
+              Text(
+                'Cart',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16.sp),
+              ),
+              if (_lines.isNotEmpty) ...[
+                SizedBox(width: 8.w),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+                  decoration: BoxDecoration(
+                    color: AllColor.orange50,
+                    borderRadius: BorderRadius.circular(20.r),
+                  ),
+                  child: Text(
+                    '${_lines.length}',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AllColor.loginButtomColor,
+                    ),
                   ),
                 ),
+              ],
+              const Spacer(),
+              TextButton(
+                onPressed: _loadCatalog,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: AllColor.loginButtomColor,
+                ),
+                child: const Text('Refresh'),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+          _linesTableCard(),
+
+          SizedBox(height: 12.h),
+
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 16.w),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AllColor.loginButtomColor.withValues(alpha: 0.12),
+                  AllColor.orange50,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14.r),
+              border: Border.all(color: AllColor.orange200),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  'Cart total',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.black87,
+                  ),
+                ),
+                const Spacer(),
                 Text(
                   'USD $totalStr',
                   style: TextStyle(
-                    fontSize: 18.sp,
+                    fontSize: 22.sp,
                     fontWeight: FontWeight.w900,
                     color: AllColor.loginButtomColor,
+                    letterSpacing: -0.3,
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(height: 16.h),
+
+          SizedBox(height: 20.h),
+
+          Text(
+            'Customer',
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w800,
+              color: AllColor.black,
+              letterSpacing: 0.2,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          Container(
+            padding: EdgeInsets.all(14.w),
+            decoration: BoxDecoration(
+              color: AllColor.white,
+              borderRadius: BorderRadius.circular(14.r),
+              border: Border.all(color: AllColor.grey200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _customerName,
+                  focusNode: _customerNameFocus,
+                  textCapitalization: TextCapitalization.words,
+                  maxLength: 100,
+                  buildCounter: (
+                    context, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) =>
+                      const SizedBox.shrink(),
+                  decoration: _fieldDeco('Customer name', hint: 'Required'),
+                ),
+                SizedBox(height: 12.h),
+                TextField(
+                  controller: _customerPhone,
+                  focusNode: _customerPhoneFocus,
+                  keyboardType: TextInputType.phone,
+                  maxLength: 30,
+                  buildCounter: (
+                    context, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) =>
+                      const SizedBox.shrink(),
+                  decoration: _fieldDeco('Phone', hint: 'Optional'),
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(height: 18.h),
+
           Text(
             'Payment',
             style: TextStyle(
+              fontSize: 13.sp,
               fontWeight: FontWeight.w800,
-              fontSize: 15.sp,
               color: AllColor.black,
+              letterSpacing: 0.2,
             ),
           ),
-          SizedBox(height: 4.h),
-          Text(
-            'Choose Cash, Card/Mobile, or Debt (walk-in credit — no app account needed).',
-            style: TextStyle(fontSize: 12.sp, color: AllColor.grey500, height: 1.3),
-          ),
-          SizedBox(height: 12.h),
-          Row(
-            children: [
-              Expanded(
-                child: _payOptionTile(
-                  label: 'Pay by cash',
-                  selected: _payCash,
-                  onTap: () => setState(() => _payCash = true),
+          SizedBox(height: 8.h),
+          Container(
+            padding: EdgeInsets.all(14.w),
+            decoration: BoxDecoration(
+              color: AllColor.white,
+              borderRadius: BorderRadius.circular(14.r),
+              border: Border.all(color: AllColor.grey200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: _payOptionTile(
-                  label: 'Card / Mobile / Debt',
-                  selected: !_payCash,
-                  onTap: () => setState(() => _payCash = false),
-                ),
-              ),
-            ],
-          ),
-          if (!_payCash) ...[
-            SizedBox(height: 12.h),
-            DropdownButtonFormField<String>(
-              initialValue: _nonCashMethod,
-              decoration: _fieldDeco('Method'),
-              items: const [
-                DropdownMenuItem(value: 'Card', child: Text('Card')),
-                DropdownMenuItem(
-                  value: 'Mobile',
-                  child: Text('Mobile money'),
-                ),
-                DropdownMenuItem(value: 'Debt', child: Text('Debt')),
               ],
-              onChanged: (v) {
-                if (v != null) setState(() => _nonCashMethod = v);
-              },
             ),
-            if (_isDebt) ...[
-              SizedBox(height: 10.h),
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(12.w),
-                decoration: BoxDecoration(
-                  color: AllColor.loginButtomColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10.r),
-                  border: Border.all(
-                    color: AllColor.loginButtomColor.withValues(alpha: 0.2),
-                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _payOptionTile(
+                        label: 'Cash',
+                        icon: Icons.payments_outlined,
+                        selected: _payCash,
+                        onTap: () {
+                          setState(() => _payCash = true);
+                          _persistPosCartDraft();
+                          FocusScope.of(context).unfocus();
+                          _requestWedgeFocus(force: true);
+                        },
+                      ),
+                    ),
+                    SizedBox(width: 10.w),
+                    Expanded(
+                      child: _payOptionTile(
+                        label: 'Other',
+                        icon: Icons.credit_card_outlined,
+                        selected: !_payCash,
+                        onTap: () {
+                          setState(() => _payCash = false);
+                          _persistPosCartDraft();
+                          FocusScope.of(context).unfocus();
+                          _requestWedgeFocus(force: true);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  'Debt amount: USD ${_cartTotal.toStringAsFixed(2)}. '
-                  'Customer can pay later (full or partial). '
-                  'Name (+ phone) is enough — no buyer app account.',
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    height: 1.35,
-                    color: AllColor.black,
+                if (!_payCash) ...[
+                  SizedBox(height: 12.h),
+                  DropdownButtonFormField<String>(
+                    initialValue: _nonCashMethod,
+                    decoration: _fieldDeco('Method'),
+                    items: const [
+                      DropdownMenuItem(value: 'Card', child: Text('Card')),
+                      DropdownMenuItem(
+                        value: 'Mobile',
+                        child: Text('Mobile money'),
+                      ),
+                      DropdownMenuItem(value: 'Debt', child: Text('Debt')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _nonCashMethod = v);
+                        _persistPosCartDraft();
+                      }
+                    },
                   ),
-                ),
-              ),
-            ],
-          ],
-          if (_payCash) ...[
-            SizedBox(height: 14.h),
-            _cashTenderCard(
-              totalStr: totalStr,
-              tender: tender,
-              changeStr: changeStr,
+                  if (_isDebt) ...[
+                    SizedBox(height: 10.h),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: AllColor.loginButtomColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10.r),
+                      ),
+                      child: Text(
+                        'Debt: USD ${_cartTotal.toStringAsFixed(2)} — pay later from order detail.',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          height: 1.35,
+                          color: AllColor.black87,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+                if (_payCash) ...[
+                  SizedBox(height: 14.h),
+                  _cashTenderCard(
+                    totalStr: totalStr,
+                    tender: tender,
+                    changeStr: changeStr,
+                  ),
+                ],
+              ],
             ),
-          ],
-          SizedBox(height: 16.h),
-          _orderStatusInfoCard(),
-          SizedBox(height: 20.h),
+          ),
+
+          SizedBox(height: 22.h),
           FilledButton(
-            onPressed: _submitting
-                ? null
-                : () => _submit(showBill: false),
+            onPressed: _submitting ? null : () => _submit(showBill: false),
             style: FilledButton.styleFrom(
               backgroundColor: AllColor.loginButtomColor,
               foregroundColor: AllColor.white,
-              minimumSize: Size(double.infinity, 50.h),
+              elevation: 0,
+              minimumSize: Size(double.infinity, 52.h),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.r),
+                borderRadius: BorderRadius.circular(14.r),
               ),
             ),
             child: Text(
               'Create order',
-              style: TextStyle(
-                fontSize: 15.sp,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w800),
             ),
           ),
           SizedBox(height: 10.h),
           OutlinedButton.icon(
-            onPressed: _submitting
-                ? null
-                : () => _submit(showBill: true),
+            onPressed: _submitting ? null : () => _submit(showBill: true),
             style: OutlinedButton.styleFrom(
               foregroundColor: AllColor.loginButtomColor,
-              side: BorderSide(color: AllColor.loginButtomColor, width: 1.5),
-              minimumSize: Size(double.infinity, 48.h),
+              side: BorderSide(color: AllColor.orange200, width: 1.4),
+              minimumSize: Size(double.infinity, 50.h),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.r),
+                borderRadius: BorderRadius.circular(14.r),
               ),
             ),
             icon: Icon(Icons.receipt_long_outlined, size: 20.sp),
             label: Text(
-              'Create order & preview bill',
-              style: TextStyle(
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w800,
-              ),
+              'Create & preview bill',
+              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700),
+            ),
+          ),
+          SizedBox(height: 12.h),
+          Text(
+            'Invoice saves as pending until marked delivered.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11.sp,
+              color: AllColor.grey500,
+              height: 1.35,
             ),
           ),
           if (_submitting)
@@ -906,177 +1536,117 @@ class _VendorCreateManualOrderScreenState
     required double? tender,
     required String changeStr,
   }) {
-    final headerStyle = TextStyle(
-      fontSize: 11.sp,
-      fontWeight: FontWeight.w800,
-      color: AllColor.grey500,
-    );
-    final valueStyle = TextStyle(
-      fontSize: 14.sp,
-      fontWeight: FontWeight.w800,
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Cash',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 15.sp,
-            color: AllColor.black,
-          ),
-        ),
-        SizedBox(height: 8.h),
-        Container(
-          decoration: BoxDecoration(
-            color: AllColor.white,
-            borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: AllColor.grey200),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
+    final changeText =
+        tender != null && tender >= _cartTotal ? changeStr : '—';
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AllColor.grey200),
+      ),
+      child: Column(
+        children: [
+          Row(
             children: [
-              Container(
-                width: double.infinity,
-                color: AllColor.grey100,
-                padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 12.w),
-                child: Row(
-                  children: [
-                    Expanded(child: Text('Customer pays', style: headerStyle)),
-                    Expanded(
-                      child: Text(
-                        'Total',
-                        textAlign: TextAlign.center,
-                        style: headerStyle,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Change',
-                        textAlign: TextAlign.right,
-                        style: headerStyle,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Divider(height: 1, thickness: 1, color: AllColor.grey200),
-              Padding(
-                padding: EdgeInsets.all(12.w),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _customerPaid,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          hintText: '0.00',
-                          filled: true,
-                          fillColor: const Color(0xFFF8F9FA),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12.w,
-                            vertical: 12.h,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.r),
-                            borderSide: BorderSide(color: AllColor.grey200),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.r),
-                            borderSide: BorderSide(
-                              color: AllColor.loginButtomColor,
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                    SizedBox(width: 8.w),
-                    Expanded(
-                      child: Text(
-                        totalStr,
-                        textAlign: TextAlign.center,
-                        style: valueStyle,
-                      ),
-                    ),
-                    SizedBox(width: 8.w),
-                    Expanded(
-                      child: Text(
-                        tender != null && tender >= _cartTotal
-                            ? changeStr
-                            : '—',
-                        textAlign: TextAlign.right,
-                        style: valueStyle.copyWith(
-                          color: AllColor.loginButtomColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _orderStatusInfoCard() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Status',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 15.sp,
-            color: AllColor.black,
-          ),
-        ),
-        SizedBox(height: 8.h),
-        Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(14.w),
-          decoration: BoxDecoration(
-            color: AllColor.white,
-            borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: AllColor.grey200),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                color: AllColor.loginButtomColor,
-                size: 22.sp,
-              ),
-              SizedBox(width: 12.w),
               Expanded(
                 child: Text(
-                  'Saved as a walk-in invoice; line items start as pending until you mark delivered from order detail.',
+                  'Customer pays',
                   style: TextStyle(
-                    fontSize: 13.sp,
-                    color: AllColor.black87,
-                    height: 1.45,
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AllColor.grey500,
                   ),
                 ),
               ),
+              SizedBox(
+                width: 120.w,
+                child: TextField(
+                  controller: _customerPaid,
+                  focusNode: _customerPaidFocus,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: '0.00',
+                    filled: true,
+                    fillColor: AllColor.white,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12.w,
+                      vertical: 10.h,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                      borderSide: BorderSide(color: AllColor.grey200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                      borderSide: BorderSide(color: AllColor.grey200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                      borderSide: BorderSide(
+                        color: AllColor.loginButtomColor,
+                        width: 1.4,
+                      ),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
             ],
           ),
-        ),
-      ],
+          SizedBox(height: 10.h),
+          Row(
+            children: [
+              Text(
+                'Order total',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AllColor.grey500,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                totalStr,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          Row(
+            children: [
+              Text(
+                'Change due',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AllColor.grey500,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                changeText,
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w800,
+                  color: AllColor.loginButtomColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1084,9 +1654,12 @@ class _VendorCreateManualOrderScreenState
     required String label,
     required bool selected,
     required VoidCallback onTap,
+    IconData icon = Icons.radio_button_off,
   }) {
     return Material(
-      color: AllColor.white,
+      color: selected
+          ? AllColor.loginButtomColor.withValues(alpha: 0.08)
+          : AllColor.white,
       borderRadius: BorderRadius.circular(12.r),
       child: InkWell(
         onTap: onTap,
@@ -1097,15 +1670,15 @@ class _VendorCreateManualOrderScreenState
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(
               color: selected ? AllColor.loginButtomColor : AllColor.grey200,
-              width: selected ? 2 : 1,
+              width: selected ? 1.6 : 1,
             ),
           ),
           child: Row(
             children: [
               Icon(
-                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                selected ? Icons.check_circle_rounded : icon,
                 color: selected ? AllColor.loginButtomColor : AllColor.grey500,
-                size: 22,
+                size: 20,
               ),
               SizedBox(width: 8.w),
               Expanded(
@@ -1114,6 +1687,8 @@ class _VendorCreateManualOrderScreenState
                   style: TextStyle(
                     fontSize: 13.sp,
                     fontWeight: FontWeight.w700,
+                    color:
+                        selected ? AllColor.loginButtomColor : AllColor.black,
                   ),
                 ),
               ),
@@ -1135,7 +1710,7 @@ class _VendorCreateManualOrderScreenState
           border: Border.all(color: AllColor.grey200),
         ),
         child: Text(
-          'No lines yet — search or scan to add products.',
+          'Cart is empty — search or scan to add products.',
           textAlign: TextAlign.center,
           style: TextStyle(color: AllColor.grey500, fontSize: 13.sp),
         ),
@@ -1149,193 +1724,229 @@ class _VendorCreateManualOrderScreenState
         border: Border.all(color: AllColor.grey200),
       ),
       child: Column(
+        children: List.generate(_lines.length, (i) {
+          final line = _lines[i];
+          final q = int.tryParse(line.qty.text.trim()) ?? 0;
+          final amt =
+              (q > 0 ? line.product.sellPrice * q : 0).toStringAsFixed(2);
+          final meta = <String>[
+            if (line.product.sizeLabel?.isNotEmpty == true)
+              'Size ${line.product.sizeLabel}',
+            if (line.product.colorLabel?.isNotEmpty == true)
+              'Colour ${line.product.colorLabel}',
+          ].join(' · ');
+          return Column(
+            children: [
+              if (i > 0) const Divider(height: 1),
+              Padding(
+                padding: EdgeInsets.fromLTRB(12.w, 10.h, 8.w, 10.h),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            line.product.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (meta.isNotEmpty) ...[
+                            SizedBox(height: 2.h),
+                            Text(
+                              meta,
+                              style: TextStyle(
+                                fontSize: 11.sp,
+                                color: AllColor.grey500,
+                              ),
+                            ),
+                          ],
+                          SizedBox(height: 2.h),
+                          Text(
+                            'USD ${line.product.sellPrice.toStringAsFixed(2)} each',
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              color: AllColor.grey500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _qtyStepper(
+                      quantity: q < 1 ? 1 : q,
+                      onMinus: () {
+                        final cur = int.tryParse(line.qty.text.trim()) ?? 1;
+                        if (cur <= 1) {
+                          _removeLine(i);
+                          return;
+                        }
+                        line.qty.text = '${cur - 1}';
+                        setState(() {});
+                        _syncPosCustomerSession();
+                        _persistPosCartDraft();
+                      },
+                      onPlus: () {
+                        final cur = int.tryParse(line.qty.text.trim()) ?? 0;
+                        line.qty.text = '${cur + 1}';
+                        setState(() {});
+                        _syncPosCustomerSession();
+                        _persistPosCartDraft();
+                      },
+                    ),
+                    SizedBox(width: 10.w),
+                    SizedBox(
+                      width: 64.w,
+                      child: Text(
+                        amt,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w900,
+                          color: AllColor.loginButtomColor,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => _removeLine(i),
+                      tooltip: 'Remove',
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        Icons.delete_outline_rounded,
+                        color: AllColor.red,
+                        size: 22.sp,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _qtyStepper({
+    required int quantity,
+    required VoidCallback onMinus,
+    required VoidCallback onPlus,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AllColor.orange50,
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(color: AllColor.orange200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(10.w, 10.h, 10.w, 6.h),
+          InkWell(
+            onTap: onMinus,
+            borderRadius: BorderRadius.circular(20.r),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
+              child: Icon(Icons.remove, size: 16.sp, color: AllColor.black87),
+            ),
+          ),
+          Text(
+            '$quantity',
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w800,
+              color: AllColor.loginButtomColor,
+            ),
+          ),
+          InkWell(
+            onTap: onPlus,
+            borderRadius: BorderRadius.circular(20.r),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
+              child: Icon(Icons.add, size: 16.sp, color: AllColor.black87),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+class _PosContinuousScannerPanel extends StatelessWidget {
+  const _PosContinuousScannerPanel({
+    required this.controller,
+    required this.busy,
+    required this.lastLabel,
+    required this.onDetect,
+    required this.onClose,
+  });
+
+  final MobileScannerController controller;
+  final bool busy;
+  final String? lastLabel;
+  final void Function(BarcodeCapture capture) onDetect;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 220.h,
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AllColor.orange200),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          MobileScanner(
+            controller: controller,
+            onDetect: onDetect,
+          ),
+          Positioned(
+            left: 10.w,
+            right: 10.w,
+            top: 10.h,
             child: Row(
               children: [
                 Expanded(
-                  flex: 3,
                   child: Text(
-                    'Product',
+                    busy
+                        ? 'Looking up…'
+                        : (lastLabel == null
+                            ? 'Continuous scan — keep scanning'
+                            : 'Last: $lastLabel'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AllColor.grey500,
+                      color: Colors.white,
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: 36.w,
-                  child: Text(
-                    'QTY',
-                    style: TextStyle(
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AllColor.grey500,
-                    ),
-                    textAlign: TextAlign.center,
+                TextButton(
+                  onPressed: onClose,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.black45,
+                    visualDensity: VisualDensity.compact,
                   ),
-                ),
-                SizedBox(
-                  width: 44.w,
-                  child: Text(
-                    'SIZE',
-                    style: TextStyle(
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AllColor.grey500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                SizedBox(
-                  width: 44.w,
-                  child: Text(
-                    'COLOUR',
-                    style: TextStyle(
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AllColor.grey500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                SizedBox(
-                  width: 52.w,
-                  child: Text(
-                    'AMT',
-                    style: TextStyle(
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AllColor.grey500,
-                    ),
-                    textAlign: TextAlign.end,
-                  ),
+                  child: const Text('Done'),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
-          ...List.generate(_lines.length, (i) {
-            final line = _lines[i];
-            final q = int.tryParse(line.qty.text.trim()) ?? 0;
-            final amt = (q > 0 ? line.product.sellPrice * q : 0).toStringAsFixed(0);
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 8.w),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          line.product.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 36.w,
-                        child: TextField(
-                          controller: line.qty,
-                          keyboardType: TextInputType.number,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12.sp),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 6),
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: (_) {
-                            setState(() {});
-                            _syncPosCustomerSession();
-                          },
-                        ),
-                      ),
-                      SizedBox(width: 4.w),
-                      SizedBox(
-                        width: 44.w,
-                        child: Text(
-                          line.product.sizeLabel?.isNotEmpty == true
-                              ? line.product.sizeLabel!
-                              : '—',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 10.sp),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 44.w,
-                        child: Text(
-                          line.product.colorLabel?.isNotEmpty == true
-                              ? line.product.colorLabel!
-                              : '—',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 10.sp),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 52.w,
-                        child: Text(
-                          amt,
-                          textAlign: TextAlign.end,
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w800,
-                            color: AllColor.loginButtomColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.only(left: 8.w, bottom: 8.h),
-                  child: Wrap(
-                    spacing: 12.w,
-                    children: [
-                      TextButton(
-                        onPressed: i >= _lines.length - 1
-                            ? null
-                            : () {
-                                setState(() {
-                                  final t = _lines.removeAt(i);
-                                  _lines.insert(i + 1, t);
-                                });
-                              },
-                        child: Text(
-                          'Next',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AllColor.blue500,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => _removeLine(i),
-                        child: Text(
-                          'Delete',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AllColor.red,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (i < _lines.length - 1) const Divider(height: 1),
-              ],
-            );
-          }),
+          if (busy)
+            const ColoredBox(
+              color: Color(0x66000000),
+              child: Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ),
         ],
       ),
     );

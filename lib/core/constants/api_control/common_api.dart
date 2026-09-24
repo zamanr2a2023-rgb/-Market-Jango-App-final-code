@@ -5,7 +5,21 @@ class CommonAPIController {
   static String translations = "$_base_api/translations";
 
   /// Subscription (Vendor & Driver)
-  static String subscriptionPlans = "$_base_api/subscription/plans";
+  /// Vendor: `?region={zone_name}` — Driver: `?delivery_zone={zone_name}` (STEP_06).
+  static String subscriptionPlans({
+    String? region,
+    String? deliveryZone,
+  }) {
+    final q = <String, String>{};
+    final r = region?.trim();
+    final d = deliveryZone?.trim();
+    if (r != null && r.isNotEmpty) q['region'] = r;
+    if (d != null && d.isNotEmpty) q['delivery_zone'] = d;
+    final base = '$_base_api/subscription/plans';
+    if (q.isEmpty) return base;
+    return Uri.parse(base).replace(queryParameters: q).toString();
+  }
+
   static String subscriptionCurrent = "$_base_api/subscription/current";
   static String subscriptionSubscribe = "$_base_api/subscription/subscribe";
   static String subscriptionInitiatePayment =
@@ -38,9 +52,11 @@ class CommonAPIController {
   /// GET influencer referral links (vendor dashboard)
   static String get influencerReferralLinks =>
       '$_base_api/vendor-dashboard/influencer-referral-links';
+
   /// POST approve influencer referral link
   static String influencerApproveLink(int id) =>
       '$_base_api/vendor-dashboard/influencer-referral-links/$id/approve';
+
   /// DELETE influencer referral link
   static String influencerDeleteLink(int id) =>
       '$_base_api/vendor-dashboard/influencer-referral-links/$id';

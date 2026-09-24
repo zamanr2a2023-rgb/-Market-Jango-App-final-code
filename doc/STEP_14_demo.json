@@ -1,0 +1,1 @@
+{"info":{"name":"STEP_14_demo","schema":"https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},"item":[{"name":"Demo catalog","request":{"method":"GET","url":"{{baseUrl}}/api/demo/catalog"}}]}

@@ -47,6 +47,9 @@ import 'package:market_jango/features/vendor/staff_management/screen/vendor_staf
 import 'package:market_jango/features/vendor/inventory/screen/vendor_inventory_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_business_types/screen/vendor_business_types_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_credit_policy_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_marketing_promotions/screen/admin_promotions_screen.dart';
+import 'package:market_jango/features/admin/announcements/screen/admin_announcements_screen.dart';
+import 'package:market_jango/core/screen/notification_preferences/screen/notification_preferences_screen.dart';
 import 'package:market_jango/core/utils/get_user_type.dart';
 import 'package:market_jango/features/navbar/screen/buyer_bottom_nav_bar.dart';
 import 'package:market_jango/features/navbar/screen/driver_bottom_nav_bar.dart';
@@ -284,7 +287,8 @@ class GlobalSettingScreen extends ConsumerWidget {
                           BKeys.staff_management,
                           fallback: 'Staff Management',
                         ),
-                        onTap: () => context.push(VendorStaffListScreen.routeName),
+                        onTap: () =>
+                            context.push(VendorStaffListScreen.routeName),
                       ),
                     ],
                   );
@@ -323,17 +327,15 @@ class GlobalSettingScreen extends ConsumerWidget {
             title: ref.t(BKeys.billing),
             onTap: () => context.push(BuyerBillingScreen.routeName),
           ),
+        if (userTypeAsync.value == "buyer") _DividerLine(),
         if (userTypeAsync.value == "buyer")
-          _DividerLine(),
-               if (userTypeAsync.value == "buyer")
           _SettingsTile(
             leadingIcon: Icons.account_balance_wallet_outlined,
             title: ref.t(BKeys.wallet, fallback: 'Wallet'),
             onTap: () => context.push(BuyerWalletScreen.routeName),
           ),
+        if (userTypeAsync.value == "buyer") _DividerLine(),
         if (userTypeAsync.value == "buyer")
-         _DividerLine(),
-           if (userTypeAsync.value == "buyer")
           _SettingsTile(
             leadingIcon: Icons.undo_outlined,
             title: ref.t(BKeys.refunds, fallback: 'Refunds'),
@@ -390,6 +392,13 @@ class GlobalSettingScreen extends ConsumerWidget {
                         onTap: () =>
                             context.push(VendorCreditPolicyScreen.routeName),
                       ),
+                      _DividerLine(),
+                      _SettingsTile(
+                        leadingIcon: Icons.fact_check_outlined,
+                        title: 'Promotion approvals',
+                        onTap: () =>
+                            context.push(AdminPromotionsScreen.routeName),
+                      ),
                     ],
                   );
                 },
@@ -398,13 +407,27 @@ class GlobalSettingScreen extends ConsumerWidget {
               );
             },
           ),
+        if (userTypeAsync.value == "admin")
+          Column(
+            children: [
+              _DividerLine(),
+              _SettingsTile(
+                leadingIcon: Icons.fact_check_outlined,
+                title: 'Promotion approvals',
+                onTap: () => context.push(AdminPromotionsScreen.routeName),
+              ),
+              _DividerLine(),
+              _SettingsTile(
+                leadingIcon: Icons.campaign_outlined,
+                title: 'Announcements',
+                onTap: () => context.push(AdminAnnouncementsScreen.routeName),
+              ),
+            ],
+          ),
         if (userTypeAsync.value == "driver")
           _SettingsTile(
             leadingIcon: Icons.card_membership_outlined,
-            title: ref.t(
-              BKeys.subscription_title,
-              fallback: 'Subscription',
-            ),
+            title: ref.t(BKeys.subscription_title, fallback: 'Subscription'),
             onTap: () => context.push(SubscriptionScreen.routeName),
           ),
         if (userTypeAsync.value == "vendor") _DividerLine(),
@@ -439,10 +462,7 @@ class GlobalSettingScreen extends ConsumerWidget {
         if (userTypeAsync.value == "driver")
           _SettingsTile(
             leadingIcon: Icons.link,
-            title: ref.t(
-              BKeys.affiliate_links,
-              fallback: 'Affiliate Links',
-            ),
+            title: ref.t(BKeys.affiliate_links, fallback: 'Affiliate Links'),
             onTap: () => context.push(AffiliateScreen.routeName),
           ),
         if (userTypeAsync.value == "vendor" || userTypeAsync.value == "driver")
@@ -459,6 +479,13 @@ class GlobalSettingScreen extends ConsumerWidget {
             title: ref.t(BKeys.rankings, fallback: 'Rankings'),
             onTap: () => context.push(RankingScreen.routeName),
           ),
+        _DividerLine(),
+        _SettingsTile(
+          leadingIcon: Icons.notifications_active_outlined,
+          title: 'Notification settings',
+          onTap: () =>
+              context.push(NotificationPreferencesScreen.routeName),
+        ),
         _DividerLine(),
         _SettingsTile(
           leadingIcon: Icons.language_outlined,
@@ -1084,11 +1111,7 @@ class _FollowersPill extends StatelessWidget {
                 ),
               ),
               SizedBox(width: 2.w),
-              Icon(
-                Icons.chevron_right,
-                size: 16.sp,
-                color: AllColor.grey500,
-              ),
+              Icon(Icons.chevron_right, size: 16.sp, color: AllColor.grey500),
             ],
           ),
         ),
@@ -1166,11 +1189,7 @@ class _MyFollowingEntry extends ConsumerWidget {
                 ),
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              size: 20.sp,
-              color: AllColor.grey500,
-            ),
+            Icon(Icons.chevron_right, size: 20.sp, color: AllColor.grey500),
           ],
         ),
       ),
@@ -1231,11 +1250,7 @@ class _VendorFollowersEntry extends ConsumerWidget {
                 ),
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              size: 20.sp,
-              color: AllColor.grey500,
-            ),
+            Icon(Icons.chevron_right, size: 20.sp, color: AllColor.grey500),
           ],
         ),
       ),

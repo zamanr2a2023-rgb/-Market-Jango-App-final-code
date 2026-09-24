@@ -28,6 +28,10 @@ class AuthLocalStorage {
   static const String _legacyUserIdKey = 'user_id';
   static const String _legacyUserTypeKey = 'user_type';
 
+  /// STEP_05 — shipping / banner zone preference
+  static const String _shipZoneKey = 'ship_zone';
+  static const String _guestZoneIdKey = 'guest_zone_id';
+
   /// Save login data (token and user JSON) - called after successful login
   Future<void> saveLoginData({
     required String token,
@@ -50,9 +54,59 @@ class AuthLocalStorage {
       await prefs.setString(_legacyUserTypeKey, userType);
     }
 
+    final shipZone = userJson['ship_zone']?.toString().trim();
+    if (shipZone != null && shipZone.isNotEmpty && shipZone != 'null') {
+      await prefs.setString(_shipZoneKey, shipZone);
+    }
+
     // Clear registration token after successful login
     await prefs.remove(_registrationTokenKey);
     await _clearVendorRoleData(prefs);
+  }
+
+  /// Persist buyer shipping zone name (registration / profile update).
+  Future<void> saveShipZone(String? zone) async {
+    final prefs = await SharedPreferences.getInstance();
+    final z = zone?.trim() ?? '';
+    if (z.isEmpty || z == 'null') {
+      await prefs.remove(_shipZoneKey);
+      return;
+    }
+    await prefs.setString(_shipZoneKey, z);
+    final userJson = await getUserJson();
+    if (userJson != null) {
+      final updated = Map<String, dynamic>.from(userJson)..['ship_zone'] = z;
+      await prefs.setString(_userJsonKey, jsonEncode(updated));
+    }
+  }
+
+  Future<String?> getShipZone() async {
+    final userJson = await getUserJson();
+    final fromUser = userJson?['ship_zone']?.toString().trim();
+    if (fromUser != null && fromUser.isNotEmpty && fromUser != 'null') {
+      return fromUser;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final local = prefs.getString(_shipZoneKey)?.trim();
+    if (local != null && local.isNotEmpty && local != 'null') return local;
+    return null;
+  }
+
+  /// Guest-only numeric `zone_id` for `GET /api/buyer/home?zone_id=`.
+  Future<void> saveGuestZoneId(int? zoneId) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (zoneId == null || zoneId <= 0) {
+      await prefs.remove(_guestZoneIdKey);
+      return;
+    }
+    await prefs.setInt(_guestZoneIdKey, zoneId);
+  }
+
+  Future<int?> getGuestZoneId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getInt(_guestZoneIdKey);
+    if (id == null || id <= 0) return null;
+    return id;
   }
 
   Future<void> saveVendorRoleData(Map<String, dynamic> roleJson) async {
@@ -124,6 +178,22 @@ class AuthLocalStorage {
     await prefs.setString(_registrationTokenKey, token);
   }
 
+  /// Persist user id/type during registration (before full login).
+  Future<void> saveRegistrationUserMeta({
+    required String userId,
+    required String userType,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = userId.trim();
+    final type = userType.trim().toLowerCase();
+    if (id.isNotEmpty && id != '0') {
+      await prefs.setString(_legacyUserIdKey, id);
+    }
+    if (type.isNotEmpty) {
+      await prefs.setString(_legacyUserTypeKey, type);
+    }
+  }
+
   /// Get the stored authentication token (login token takes priority)
   /// Returns login token if available, otherwise returns registration token
   Future<String?> getToken() async {
@@ -155,6 +225,14 @@ class AuthLocalStorage {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Merge fields into stored login user JSON (e.g. notification prefs).
+  Future<void> mergeUserJson(Map<String, dynamic> patch) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = await getUserJson() ?? <String, dynamic>{};
+    final updated = Map<String, dynamic>.from(current)..addAll(patch);
+    await prefs.setString(_userJsonKey, jsonEncode(updated));
   }
 
   /// Get user ID from stored user JSON, or fallback to legacy key
@@ -204,6 +282,7 @@ class AuthLocalStorage {
     await prefs.remove(_registrationTokenKey);
     await prefs.remove(_userJsonKey);
     await prefs.remove(_hasLoggedInKey);
+    await prefs.remove(_shipZoneKey);
     await _clearVendorRoleData(prefs);
     // Also clear legacy keys
     await prefs.remove(_legacyUserIdKey);

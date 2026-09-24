@@ -4,8 +4,18 @@ class BuyerAPIController {
   static final String _base_api = "$api/api";
   static String buyer_product = "$_base_api/product";
   static String banner = "$_base_api/banner";
-  /// Guest / logged-in home (`GET /api/buyer/home`) — Step 01.
-  static String get buyerHome => "$_base_api/buyer/home";
+  /// Guest / logged-in home (`GET /api/buyer/home`) — optional `zone_id` (STEP_05).
+  static String buyerHome({int? zoneId}) {
+    if (zoneId == null || zoneId <= 0) return '$_base_api/buyer/home';
+    return Uri.parse('$_base_api/buyer/home')
+        .replace(queryParameters: {'zone_id': '$zoneId'})
+        .toString();
+  }
+
+  /// Register / guest zone list — STEP_05 `GET /api/buyer/visibility-locations/zones`.
+  static String get visibilityLocationsZones =>
+      '$_base_api/buyer/visibility-locations/zones';
+
   static String cart = "$_base_api/cart";
   static String get cartDeliveryCharges => "$_base_api/cart/delivery-charges";
   static String cartDelete(int id) => "$_base_api/cart/$id";

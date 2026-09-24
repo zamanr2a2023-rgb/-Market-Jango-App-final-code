@@ -63,6 +63,13 @@ class RegisterC extends StateNotifier<AsyncValue<RegisterResponse?>> {
 
       // Save registration token using AuthLocalStorage (separate from login token)
       await ref.read(authStorageProvider).saveRegistrationToken(parsed.data.token);
+      // Persist user type/id so later registration screens (e.g. ship_zone) can detect buyer.
+      await ref.read(authStorageProvider).saveRegistrationUserMeta(
+            userId: parsed.data.user.id.toString(),
+            userType: parsed.data.user.userType.isNotEmpty
+                ? parsed.data.user.userType
+                : type,
+          );
       // Also save to legacy TokenStorage for backward compatibility
       await ref.read(tokenStoreP).save(parsed.data.token);
       ref.read(tokenP.notifier).state = parsed.data.token;

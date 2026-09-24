@@ -7,6 +7,8 @@ import 'package:market_jango/core/screen/global_currency/screen/global_currency_
 import 'package:market_jango/core/screen/global_language/screen/global_language_screen.dart';
 import 'package:market_jango/features/subscription/screen/subscription_screen.dart';
 import 'package:market_jango/core/screen/global_notification/screen/global_notifications_screen.dart';
+import 'package:market_jango/core/screen/notification_preferences/screen/notification_preferences_screen.dart';
+import 'package:market_jango/features/admin/announcements/screen/admin_announcements_screen.dart';
 import 'package:market_jango/core/screen/global_tracking_screen/screen/global_tracking_screen_1.dart';
 import 'package:market_jango/core/screen/google_map/screen/google_map.dart';
 import 'package:market_jango/core/screen/profile_screen/model/profile_model.dart';
@@ -97,6 +99,8 @@ import 'package:market_jango/features/vendor/screens/vendor_order_management/scr
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_orders_hub_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_refund_detail_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_credit_policy_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_marketing_promotions/screen/admin_promotions_screen.dart';
+import 'package:market_jango/features/vendor/screens/vendor_marketing_promotions/screen/vendor_marketing_promotions_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/screen/vendor_pos_customer_display_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_hub_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/screen/vendor_barcode_product_detail_screen.dart';
@@ -245,6 +249,18 @@ final GoRouter router = GoRouter(
     ),
 
     GoRoute(
+      path: NotificationPreferencesScreen.routeName,
+      name: 'notificationPreferences',
+      builder: (context, state) => const NotificationPreferencesScreen(),
+    ),
+
+    GoRoute(
+      path: AdminAnnouncementsScreen.routeName,
+      name: 'adminAnnouncements',
+      builder: (context, state) => const AdminAnnouncementsScreen(),
+    ),
+
+    GoRoute(
       path: VendorEditProfile.routeName,
       name: 'vendorEditProfile',
       builder: (context, state) {
@@ -335,6 +351,16 @@ final GoRouter router = GoRouter(
       path: VendorCreditPolicyScreen.routeName,
       name: 'vendorCreditPolicy',
       builder: (context, state) => const VendorCreditPolicyScreen(),
+    ),
+    GoRoute(
+      path: VendorMarketingPromotionsScreen.routeName,
+      name: 'vendorMarketingPromotions',
+      builder: (context, state) => const VendorMarketingPromotionsScreen(),
+    ),
+    GoRoute(
+      path: AdminPromotionsScreen.routeName,
+      name: 'adminPromotions',
+      builder: (context, state) => const AdminPromotionsScreen(),
     ),
     GoRoute(
       path: VendorPosCustomerDisplayScreen.routeName,
@@ -820,10 +846,7 @@ final GoRouter router = GoRouter(
           );
         }
         final jobType = state.uri.queryParameters['job_type'];
-        return DriverDeliveryDetailScreen(
-          assignmentId: id,
-          jobType: jobType,
-        );
+        return DriverDeliveryDetailScreen(assignmentId: id, jobType: jobType);
       },
     ),
 

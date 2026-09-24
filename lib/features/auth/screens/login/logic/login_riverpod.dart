@@ -63,7 +63,10 @@ class LoginNotifier extends StateNotifier<AsyncValue<void>> {
         await _processLoginResponse(json, context);
         state = const AsyncValue.data(null);
       } else {
-        final errorMessage = _invalidCredentialMessage;
+        final apiMessage = json['message']?.toString().trim();
+        final errorMessage = (apiMessage != null && apiMessage.isNotEmpty)
+            ? apiMessage
+            : _invalidCredentialMessage;
         state = AsyncValue.error(errorMessage, StackTrace.current);
         GlobalSnackbar.show(
           context,

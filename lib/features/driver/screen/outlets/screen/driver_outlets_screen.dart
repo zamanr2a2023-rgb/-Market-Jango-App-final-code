@@ -20,6 +20,30 @@ class DriverOutletsScreen extends ConsumerStatefulWidget {
 
 class _DriverOutletsScreenState extends ConsumerState<DriverOutletsScreen> {
   final _joining = <int>{};
+  final _cancelling = <int>{};
+
+  Future<bool> _confirmCancel(DriverOutlet outlet) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel join'),
+        content: Text(
+          'Cancel join for "${outlet.name}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancel join'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
 
   Future<void> _join(DriverOutlet outlet) async {
     if (_joining.contains(outlet.id)) return;
@@ -44,6 +68,35 @@ class _DriverOutletsScreenState extends ConsumerState<DriverOutletsScreen> {
       );
     } finally {
       if (mounted) setState(() => _joining.remove(outlet.id));
+    }
+  }
+
+  Future<void> _cancelJoin(DriverOutlet outlet) async {
+    if (_cancelling.contains(outlet.id)) return;
+    final confirmed = await _confirmCancel(outlet);
+    if (!confirmed || !mounted) return;
+    setState(() => _cancelling.add(outlet.id));
+    try {
+      final message =
+          await DriverOutletsApi.instance.cancelJoinOutlet(outlet.id);
+      ref.invalidate(driverOutletsProvider);
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Success',
+        message: message,
+        type: CustomSnackType.success,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Unable to cancel join',
+        message: error.toString().replaceFirst('Exception: ', ''),
+        type: CustomSnackType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _cancelling.remove(outlet.id));
     }
   }
 
@@ -120,7 +173,9 @@ class _DriverOutletsScreenState extends ConsumerState<DriverOutletsScreen> {
                 return _OutletCard(
                   outlet: outlet,
                   joining: _joining.contains(outlet.id),
+                  cancelling: _cancelling.contains(outlet.id),
                   onJoin: () => _join(outlet),
+                  onCancelJoin: () => _cancelJoin(outlet),
                   onOpen: () => _openBin(outlet),
                 );
               },
@@ -136,13 +191,17 @@ class _OutletCard extends StatelessWidget {
   const _OutletCard({
     required this.outlet,
     required this.joining,
+    required this.cancelling,
     required this.onJoin,
+    required this.onCancelJoin,
     required this.onOpen,
   });
 
   final DriverOutlet outlet;
   final bool joining;
+  final bool cancelling;
   final VoidCallback onJoin;
+  final VoidCallback onCancelJoin;
   final VoidCallback onOpen;
 
   @override
@@ -241,31 +300,76 @@ class _OutletCard extends StatelessWidget {
                 ],
               ),
               SizedBox(height: 12.h),
-              if (outlet.isApproved)
+              if (outlet.isApproved) ...[
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(
-                      'View bin orders',
-                      style: TextStyle(
-                        color: AllColor.loginButtomColor,
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: cancelling ? null : onCancelJoin,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AllColor.red,
+                          side: BorderSide(color: AllColor.red.withValues(alpha: .4)),
+                          elevation: 0,
+                          minimumSize: Size(0, 42.h),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.r),
+                          ),
+                        ),
+                        child: Text(
+                          cancelling ? 'Cancelling...' : 'Cancel join',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ),
                     ),
-                    SizedBox(width: 4.w),
-                    Icon(
-                      Icons.chevron_right,
-                      color: AllColor.loginButtomColor,
+                    SizedBox(width: 10.w),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: onOpen,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AllColor.loginButtomColor,
+                          foregroundColor: AllColor.white,
+                          elevation: 0,
+                          minimumSize: Size(0, 42.h),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.r),
+                          ),
+                        ),
+                        child: const Text(
+                          'View bin',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
                     ),
                   ],
-                )
-              else
+                ),
+              ] else if (outlet.canCancelJoin) ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 42.h,
+                  child: OutlinedButton(
+                    onPressed: cancelling ? null : onCancelJoin,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AllColor.red,
+                      side: BorderSide(color: AllColor.red.withValues(alpha: .4)),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                    ),
+                    child: Text(
+                      cancelling
+                          ? 'Cancelling...'
+                          : 'Cancel join ($statusLabel)',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ] else
                 SizedBox(
                   width: double.infinity,
                   height: 42.h,
                   child: ElevatedButton(
-                    onPressed:
-                        outlet.hasRequestedMembership || joining ? null : onJoin,
+                    onPressed: joining ? null : onJoin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AllColor.loginButtomColor,
                       disabledBackgroundColor: AllColor.grey200,
@@ -275,15 +379,9 @@ class _OutletCard extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      joining
-                          ? 'Joining...'
-                          : outlet.hasRequestedMembership
-                          ? 'Request ${statusLabel.toLowerCase()}'
-                          : 'Join outlet',
+                      joining ? 'Joining...' : 'Join outlet',
                       style: TextStyle(
-                        color: outlet.hasRequestedMembership
-                            ? AllColor.black54
-                            : AllColor.white,
+                        color: AllColor.white,
                         fontWeight: FontWeight.w700,
                       ),
                     ),

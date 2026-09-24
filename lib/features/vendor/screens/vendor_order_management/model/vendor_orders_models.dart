@@ -543,6 +543,12 @@ class OrderSummary {
     return double.tryParse(raw.replaceAll(',', ''));
   }
 
+  double get debtPaidNumeric {
+    final raw = debtPaid;
+    if (raw == null || raw.trim().isEmpty) return 0;
+    return double.tryParse(raw.replaceAll(',', '')) ?? 0;
+  }
+
   double get debtTotalNumeric {
     final raw = debtAmount;
     if (raw != null && raw.trim().isNotEmpty) {
@@ -629,12 +635,23 @@ class VendorManualOrderInvoice {
     return m == 'debt';
   }
 
-  /// Remaining debt; falls back to full payable when remaining is absent on Debt orders.
+  /// Remaining debt.
+  ///
+  /// Prefer `debt_total − debt_paid` when those fields exist, so a stale
+  /// `debt_remaining` from the API cannot show the wrong balance.
   double get remainingDebt {
+    if (!isDebtPayment) return 0;
+    final total = summary.debtTotalNumeric;
+    final paid = summary.debtPaidNumeric;
+    final hasPaidField =
+        (summary.debtPaid ?? '').trim().isNotEmpty || paid > 0;
+    if (total > 0 && hasPaidField) {
+      final computed = total - paid;
+      return computed < 0 ? 0 : computed;
+    }
     final rem = summary.debtRemainingNumeric;
     if (rem != null) return rem < 0 ? 0 : rem;
-    if (!isDebtPayment) return 0;
-    return summary.debtTotalNumeric;
+    return total < 0 ? 0 : total;
   }
 
   bool get isDebtFullyPaid {
@@ -779,7 +796,13 @@ class VendorWalletOverview {
       final v = raw[k];
       if (v == null) continue;
       if (v is num) return v;
-      final p = num.tryParse(v.toString().replaceAll(',', ''));
+      final cleaned = v
+          .toString()
+          .replaceAll(',', '')
+          .replaceAll(RegExp(r'[^\d.\-]'), '')
+          .trim();
+      if (cleaned.isEmpty) continue;
+      final p = num.tryParse(cleaned);
       if (p != null) return p;
     }
     return null;
@@ -847,6 +870,166 @@ class VendorPayoutRequest {
       paymentMethod: _s(j['payment_method']),
       createdAt: _dt(j['created_at']),
       note: j['note']?.toString(),
+    );
+  }
+}
+
+/// `GET /api/vendor/payout-preview?amount=` — STEP_07.
+///
+/// Field names are taken from the live response (`data` map). No client-side
+/// fee math: only values present in the payload are exposed.
+class VendorPayoutPreview {
+  final Map<String, dynamic> raw;
+  final String? amountDisplay;
+  final String? feeDisplay;
+  final String? netDisplay;
+  final String? otherChargesDisplay;
+  final String? currency;
+
+  const VendorPayoutPreview({
+    required this.raw,
+    this.amountDisplay,
+    this.feeDisplay,
+    this.netDisplay,
+    this.otherChargesDisplay,
+    this.currency,
+  });
+
+  bool get hasFee => feeDisplay != null && feeDisplay!.trim().isNotEmpty;
+  bool get hasNet => netDisplay != null && netDisplay!.trim().isNotEmpty;
+  bool get hasUsableBreakdown => hasFee || hasNet;
+
+  factory VendorPayoutPreview.fromJson(Map<String, dynamic> json) {
+    final data = json['data'];
+    final map = data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(data)
+        : Map<String, dynamic>.from(json);
+
+    Map<String, dynamic> feesMap = map;
+    final nestedFees = map['fees'] ?? map['fee_breakdown'] ?? map['charges'];
+    if (nestedFees is Map) {
+      feesMap = {...map, ...Map<String, dynamic>.from(nestedFees)};
+    }
+
+    String? pickDisplay(Map<String, dynamic> m, List<String> keys) {
+      for (final k in keys) {
+        if (!m.containsKey(k) || m[k] == null) continue;
+        final v = m[k];
+        if (v is String) {
+          final t = v.trim();
+          if (t.isEmpty || t.toLowerCase() == 'null') continue;
+          return t;
+        }
+        if (v is num) return v.toString();
+        final t = v.toString().trim();
+        if (t.isEmpty || t.toLowerCase() == 'null') continue;
+        return t;
+      }
+      return null;
+    }
+
+    num? asNum(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v;
+      return num.tryParse(
+        v.toString().replaceAll(',', '').replaceAll(RegExp(r'[^\d.\-]'), ''),
+      );
+    }
+
+    final currency = pickDisplay(map, [
+      'currency',
+      'display_currency',
+      'currency_code',
+    ]);
+
+    String? withCurrency(String? value) {
+      if (value == null) return null;
+      if (currency == null || currency.isEmpty) return value;
+      if (value.contains(currency)) return value;
+      if (value.startsWith(r'$') || value.contains(' ') || value.endsWith('%')) {
+        return value;
+      }
+      return '$currency $value';
+    }
+
+    // Live STEP_07 fields: order_total, processing_percent, vendor_net
+    final orderTotal = asNum(map['order_total']);
+    final vendorNet = asNum(map['vendor_net']);
+    final processingPercent = asNum(
+      map['processing_percent'] ?? feesMap['processing_percent'],
+    );
+
+    var amount = withCurrency(
+      pickDisplay(map, [
+        'amount_display',
+        'payout_amount_display',
+        'requested_amount_display',
+        'order_total',
+        'amount',
+        'payout_amount',
+        'requested_amount',
+        'gross_amount',
+      ]),
+    );
+    var fee = withCurrency(
+      pickDisplay(feesMap, [
+        'fee_display',
+        'payout_fee_display',
+        'platform_fee_display',
+        'payment_fee_display',
+        'service_fee_display',
+        'processing_fee',
+        'processing_fee_amount',
+        'fee',
+        'payout_fee',
+        'platform_fee',
+        'payment_fee',
+        'service_fee',
+        'total_fee',
+      ]),
+    );
+    final other = withCurrency(
+      pickDisplay(feesMap, [
+        'other_charges_display',
+        'other_charges',
+        'other_fee',
+        'extra_charges',
+      ]),
+    );
+    var net = withCurrency(
+      pickDisplay(map, [
+        'net_display',
+        'net_amount_display',
+        'you_receive_display',
+        'receive_amount_display',
+        'net_payout_display',
+        'vendor_net',
+        'net',
+        'net_amount',
+        'you_receive',
+        'receive_amount',
+        'net_payout',
+        'amount_to_receive',
+        'vendor_receives',
+      ]),
+    );
+
+    // Fee amount = order_total − vendor_net when both returned (not a invented %).
+    if (fee == null && orderTotal != null && vendorNet != null) {
+      final feeAmt = orderTotal - vendorNet;
+      final pct = processingPercent != null ? ' (${processingPercent}%)' : '';
+      fee = withCurrency('$feeAmt$pct');
+    } else if (fee == null && processingPercent != null) {
+      fee = '$processingPercent%';
+    }
+
+    return VendorPayoutPreview(
+      raw: map,
+      amountDisplay: amount,
+      feeDisplay: fee,
+      netDisplay: net,
+      otherChargesDisplay: other,
+      currency: currency,
     );
   }
 }

@@ -17,6 +17,7 @@ import 'package:market_jango/features/vendor/screens/product_edit/data/product_a
 import 'package:market_jango/features/vendor/screens/product_edit/logic/delete_image_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/product_edit/logic/update_product_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/vendor_home/data/vendor_product_data.dart';
+import 'package:market_jango/features/vendor/screens/vendor_marketing_promotions/data/vendor_promotion_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/selecd_color_size_list.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/data/vendor_product_create_categories.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/widget/ai_generate_description_section.dart';
@@ -803,6 +804,35 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                   ),
 
                   SizedBox(height: 20.h),
+
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      try {
+                        await VendorPromotionApi.notifyFollowers(
+                          widget.product.id,
+                        );
+                        if (!context.mounted) return;
+                        GlobalSnackbar.show(
+                          context,
+                          title: 'Sent',
+                          message: 'Followers notified about this product',
+                          type: CustomSnackType.success,
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        GlobalSnackbar.show(
+                          context,
+                          title: 'Error',
+                          message: e.toString(),
+                          type: CustomSnackType.error,
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.notifications_active_outlined),
+                    label: const Text('Notify followers'),
+                  ),
+
+                  SizedBox(height: 12.h),
 
                   GlobalSaveBotton(
                     bottonName: saving ? 'Saving...' : 'Save',

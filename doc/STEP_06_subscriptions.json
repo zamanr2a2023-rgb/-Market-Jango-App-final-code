@@ -1,0 +1,36 @@
+{
+  "info": {
+    "name": "STEP_06_subscriptions",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Vendor plans by region (zone name)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "user_type", "value": "vendor" }],
+        "url": "{{baseUrl}}/api/subscription/plans?region=Kampala"
+      }
+    },
+    {
+      "name": "Driver plans by delivery_zone",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "user_type", "value": "driver" }],
+        "url": "{{baseUrl}}/api/subscription/plans?delivery_zone=Kampala"
+      }
+    },
+    {
+      "name": "Admin create plan",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "user_type", "value": "admin" }],
+        "url": "{{baseUrl}}/api/vendor-dashboard/admin/plans",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Kampala\",\"price\":50,\"billing_period\":\"monthly\",\"for_user_type\":\"vendor\",\"category_limit\":0,\"business_type_limit\":0,\"image_limit\":0,\"visibility_limit\":0,\"moderator_limit\":0,\"vendor_driver_order_limit\":0,\"region\":\"Kampala\",\"delivery_zone\":\"Kampala\",\"has_marketplace\":true,\"has_walk_in\":true}"
+        }
+      }
+    }
+  ]
+}

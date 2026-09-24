@@ -88,11 +88,19 @@ class DriverAPIController {
   static String driverOutletJoin(int outletId) =>
       '$_base_api/driver/outlets/$outletId/join';
 
+  /// `POST /api/driver/outlets/{id}/cancel-join` — STEP_10.
+  static String driverOutletCancelJoin(int outletId) =>
+      '$_base_api/driver/outlets/$outletId/cancel-join';
+
   static String driverOutletBinOrders(int outletId, {int page = 1}) =>
       '$_base_api/driver/outlet-bin/$outletId/orders?page=$page';
 
   static String driverOutletBinClaim(int orderItemId) =>
       '$_base_api/driver/outlet-bin/orders/$orderItemId/claim';
+
+  /// `POST /api/driver/outlet-bin/orders/{id}/unclaim` — STEP_10.
+  static String driverOutletBinUnclaim(int orderItemId) =>
+      '$_base_api/driver/outlet-bin/orders/$orderItemId/unclaim';
 
   /// Paginated driver followers — `GET /driver/followers?page=`.
   static String driverFollowers({int page = 1}) =>

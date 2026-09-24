@@ -8,8 +8,14 @@ import 'package:logger/logger.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/notification_api.dart';
+import 'package:market_jango/core/screen/global_notification/model/all_notification_model.dart';
+import 'package:market_jango/core/screen/global_notification/screen/global_notifications_screen.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
+import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
+import 'package:market_jango/features/buyer/screens/product/product_details.dart';
 import 'package:market_jango/firebase_options.dart';
+import 'package:market_jango/routes/app_routes.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// Background isolate — must be a top-level function.
@@ -76,7 +82,16 @@ class FcmPushService {
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
         iOS: DarwinInitializationSettings(),
       ),
-      onDidReceiveNotificationResponse: (_) {},
+      onDidReceiveNotificationResponse: (resp) {
+        final payload = resp.payload;
+        if (payload == null || payload.isEmpty) return;
+        try {
+          final map = jsonDecode(payload);
+          if (map is Map<String, dynamic>) {
+            handleNotificationNavigation(map);
+          }
+        } catch (_) {}
+      },
     );
 
     final androidPlugin = _local.resolvePlatformSpecificImplementation<
@@ -104,13 +119,20 @@ class FcmPushService {
           'FCM [opened from tray] title=${m.notification?.title} data=${m.data}',
         );
       }
+      handleNotificationNavigation(Map<String, dynamic>.from(m.data));
     });
 
     final initial = await messaging.getInitialMessage();
-    if (initial != null && kDebugMode) {
-      _log.i(
-        'FCM [cold start from notification] title=${initial.notification?.title} data=${initial.data}',
-      );
+    if (initial != null) {
+      if (kDebugMode) {
+        _log.i(
+          'FCM [cold start from notification] title=${initial.notification?.title} data=${initial.data}',
+        );
+      }
+      // Defer until router is ready.
+      Future<void>.delayed(const Duration(milliseconds: 800), () {
+        handleNotificationNavigation(Map<String, dynamic>.from(initial.data));
+      });
     }
 
     FirebaseMessaging.instance.onTokenRefresh.listen((t) {
@@ -129,10 +151,13 @@ class FcmPushService {
     final n = message.notification;
     final title = n?.title ?? message.data['title']?.toString() ?? 'Notification';
     final body = n?.body ?? message.data['body']?.toString() ?? '';
+    final event = parseNotificationEventType(
+      message.data['event_type'] ?? message.data['type'],
+    );
 
     if (kDebugMode) {
       _log.i(
-        'FCM [foreground] id=${message.messageId} title=$title body=$body data=${message.data}',
+        'FCM [foreground] id=${message.messageId} event=$event title=$title body=$body data=${message.data}',
       );
     }
 
@@ -140,6 +165,7 @@ class FcmPushService {
       id: message.hashCode,
       title: title,
       body: body.isEmpty ? null : body,
+      payload: jsonEncode(message.data),
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _channel.id,
@@ -151,6 +177,62 @@ class FcmPushService {
         ),
       ),
     );
+  }
+
+  /// Navigate based on FCM / local notification payload (STEP_05 event types).
+  static void handleNotificationNavigation(Map<String, dynamic> data) {
+    final deepLink = data['deep_link']?.toString() ??
+        data['deeplink']?.toString() ??
+        data['link']?.toString();
+    if (deepLink != null && deepLink.startsWith('/')) {
+      try {
+        router.push(deepLink);
+        return;
+      } catch (_) {}
+    }
+
+    final event = parseNotificationEventType(
+      data['event_type'] ?? data['type'] ?? data['notification_type'],
+    );
+    int? toId(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v > 0 ? v : null;
+      return int.tryParse(v.toString());
+    }
+
+    final productId = toId(data['product_id'] ?? data['productId']);
+    final vendorId = toId(data['vendor_id'] ?? data['vendorId']);
+
+    try {
+      switch (event) {
+        case NotificationEventType.promotion:
+        case NotificationEventType.announcement:
+          router.push(BuyerHomeScreen.routeName);
+          break;
+        case NotificationEventType.newProduct:
+          if (productId != null) {
+            router.push(ProductDetails.routeName, extra: productId);
+          } else {
+            router.push(GlobalNotificationsScreen.routeName);
+          }
+          break;
+        case NotificationEventType.follow:
+          if (vendorId != null) {
+            router.push(BuyerVendorProfileScreen.routeName, extra: vendorId);
+          } else {
+            router.push(GlobalNotificationsScreen.routeName);
+          }
+          break;
+        case NotificationEventType.review:
+          router.push(GlobalNotificationsScreen.routeName);
+          break;
+        case NotificationEventType.unknown:
+          router.push(GlobalNotificationsScreen.routeName);
+          break;
+      }
+    } catch (e) {
+      debugPrint('FCM navigation error: $e');
+    }
   }
 
   /// Call after login or on cold start when a session already exists.
@@ -181,7 +263,6 @@ class FcmPushService {
         body: jsonEncode(body),
       );
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        // Non-fatal: server may reject guest paths; avoid crashing the app.
         debugPrint('save-fcm failed: ${res.statusCode} ${res.body}');
       }
     } catch (e, st) {

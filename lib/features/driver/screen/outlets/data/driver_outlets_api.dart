@@ -32,6 +32,9 @@ class DriverOutlet {
   bool get hasRequestedMembership =>
       membershipStatus != null && membershipStatus!.trim().isNotEmpty;
 
+  /// Pending or approved membership — eligible for cancel-join UI.
+  bool get canCancelJoin => hasRequestedMembership;
+
   factory DriverOutlet.fromJson(Map<String, dynamic> json) {
     return DriverOutlet(
       id: _toInt(json['id']),
@@ -205,6 +208,16 @@ class DriverOutletsApi {
     return top['message']?.toString() ?? 'Join request submitted';
   }
 
+  Future<String> cancelJoinOutlet(int outletId) async {
+    final response = await http.post(
+      Uri.parse(DriverAPIController.driverOutletCancelJoin(outletId)),
+      headers: await _headers(),
+      body: jsonEncode(const <String, dynamic>{}),
+    );
+    final top = _decode(response);
+    return top['message']?.toString() ?? 'Join cancelled';
+  }
+
   Future<DriverOutletBinPage> fetchBinOrders({
     required int outletId,
     int page = 1,
@@ -230,6 +243,16 @@ class DriverOutletsApi {
     );
     final top = _decode(response);
     return top['message']?.toString() ?? 'Order claimed successfully';
+  }
+
+  Future<String> unclaimOrder(int orderItemId) async {
+    final response = await http.post(
+      Uri.parse(DriverAPIController.driverOutletBinUnclaim(orderItemId)),
+      headers: await _headers(),
+      body: jsonEncode(const <String, dynamic>{}),
+    );
+    final top = _decode(response);
+    return top['message']?.toString() ?? 'Order unclaimed successfully';
   }
 }
 

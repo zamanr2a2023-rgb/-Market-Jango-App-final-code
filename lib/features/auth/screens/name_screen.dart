@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/api_control/auth_api.dart';
 import '../../../core/constants/color_control/all_color.dart';
+import '../../../core/utils/auth_local_storage.dart';
 import '../../../core/widget/custom_auth_button.dart';
 import '../../../core/widget/global_snackbar.dart';
 import '../../../core/widget/sreeen_brackground.dart';
 import '../logic/empty_validator.dart';
 import '../logic/register_name_&_phone_riverpod.dart';
+import '../logic/register_user_riverpod.dart';
 import 'car_info_screen.dart';
 import 'phone_number_screen.dart';
 import 'vendor/screen/vendor_request_screen.dart';
@@ -26,6 +28,23 @@ class NameScreen extends ConsumerStatefulWidget {
 class _NameScreenState extends ConsumerState<NameScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final role = widget.roleName.trim().toLowerCase();
+    if (role.isNotEmpty) {
+      AuthLocalStorage().saveRegistrationUserMeta(userId: '', userType: role);
+      // Keep in-memory provider in sync for password screen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final label = role[0].toUpperCase() + role.substring(1);
+        if (['Buyer', 'Transport', 'Vendor', 'Driver'].contains(label)) {
+          ref.read(userTypeP.notifier).state = label;
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {

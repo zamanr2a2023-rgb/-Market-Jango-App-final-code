@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/vendor_api.dart';
@@ -7,6 +9,9 @@ import 'package:market_jango/features/vendor/screens/vendor_sale_platform/model/
 final selectedIncomeDaysProvider = StateProvider<int>((ref) => 7);
 final selectedSellingModeProvider = StateProvider<String?>((ref) => null);
 final selectedPaymentTypeProvider = StateProvider<String?>((ref) => null);
+
+/// Values accepted by `GET /vendor/income/update`.
+const _allowedIncomePaymentTypes = {'online_pay', 'cash_pay', 'debt_pay'};
 
 class VendorIncomeFilter {
   final int days;
@@ -32,12 +37,41 @@ class VendorIncomeFilter {
 }
 
 final vendorIncomeFilterProvider = Provider<VendorIncomeFilter>((ref) {
+  final raw = ref.watch(selectedPaymentTypeProvider);
+  final paymentType =
+      (raw != null && _allowedIncomePaymentTypes.contains(raw)) ? raw : null;
   return VendorIncomeFilter(
     days: ref.watch(selectedIncomeDaysProvider),
     sellingMode: ref.watch(selectedSellingModeProvider),
-    paymentType: ref.watch(selectedPaymentTypeProvider),
+    paymentType: paymentType,
   );
 });
+
+String _incomeApiErrorMessage(String body, int code) {
+  try {
+    final top = jsonDecode(body);
+    if (top is Map<String, dynamic>) {
+      final data = top['data'];
+      if (data is Map) {
+        final pt = data['payment_type'];
+        if (pt is List && pt.isNotEmpty) {
+          return pt.first.toString();
+        }
+        final parts = <String>[];
+        for (final e in data.entries) {
+          final v = e.value;
+          if (v is List && v.isNotEmpty) {
+            parts.add(v.first.toString());
+          }
+        }
+        if (parts.isNotEmpty) return parts.join(' ');
+      }
+      final msg = top['message']?.toString().trim();
+      if (msg != null && msg.isNotEmpty) return msg;
+    }
+  } catch (_) {}
+  return 'Failed to load income (HTTP $code)';
+}
 
 final vendorIncomeProvider =
     FutureProvider.family<VendorIncomeData, VendorIncomeFilter>((
@@ -61,7 +95,7 @@ final vendorIncomeProvider =
   );
 
   if (res.statusCode != 200) {
-    throw Exception('Failed to load income: ${res.statusCode} ${res.body}');
+    throw Exception(_incomeApiErrorMessage(res.body, res.statusCode));
   }
 
   final decoded = vendorIncomeResponseFromJson(res.body);

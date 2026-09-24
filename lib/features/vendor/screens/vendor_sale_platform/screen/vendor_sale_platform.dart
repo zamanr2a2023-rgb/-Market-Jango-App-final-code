@@ -29,6 +29,23 @@ class VendorSalePlatformScreen extends ConsumerWidget {
     final selectedDays = ref.watch(selectedIncomeDaysProvider);
     final selectedSellingMode = ref.watch(selectedSellingModeProvider);
     final selectedPaymentType = ref.watch(selectedPaymentTypeProvider);
+
+    // Marketplace has no debt channel — drop Debt pay if it was selected.
+    if (selectedSellingMode == 'marketplace' &&
+        selectedPaymentType == 'debt_pay') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(selectedPaymentTypeProvider.notifier).state = null;
+      });
+    }
+
+    final paymentOptions = <_FilterOption>[
+      const _FilterOption(value: null, label: 'All payments'),
+      const _FilterOption(value: 'online_pay', label: 'Online pay'),
+      const _FilterOption(value: 'cash_pay', label: 'Cash pay'),
+      if (selectedSellingMode != 'marketplace')
+        const _FilterOption(value: 'debt_pay', label: 'Debt pay'),
+    ];
+
     final incomeFilter = ref.watch(vendorIncomeFilterProvider);
     final asyncIncome = ref.watch(vendorIncomeProvider(incomeFilter));
     final asyncAnalytics = ref.watch(vendorDashboardAnalyticsProvider);
@@ -37,191 +54,208 @@ class VendorSalePlatformScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AllColor.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const CustomBackButton(),
-              SizedBox(height: 20.h),
+        child: RefreshIndicator(
+          color: AllColor.loginButtomColor,
+          onRefresh: () async {
+            ref.invalidate(vendorIncomeProvider(incomeFilter));
+            ref.invalidate(vendorDashboardAnalyticsProvider);
+            ref.invalidate(vendorWeeklySellProvider);
+            ref.invalidate(vendorTopProductsProvider);
+            await Future.wait([
+              ref.read(vendorIncomeProvider(incomeFilter).future),
+              ref.read(vendorDashboardAnalyticsProvider.future),
+              ref.read(vendorWeeklySellProvider.future),
+              ref.read(vendorTopProductsProvider.future),
+            ]);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CustomBackButton(),
+                SizedBox(height: 20.h),
 
-              /// Title
-              Text(
-                ref.t(BKeys.storePerformance),
-                style: TextStyle(
-                  color: AllColor.black,
-                  fontSize: 24.sp,
-                  fontWeight: FontWeight.w800,
+                /// Title
+                Text(
+                  ref.t(BKeys.storePerformance),
+                  style: TextStyle(
+                    color: AllColor.black,
+                    fontSize: 24.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              SizedBox(height: 4.h),
-              Text(
-                _overviewSubtitle(selectedDays),
-                style: TextStyle(
-                  color: AllColor.black54,
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w600,
+                SizedBox(height: 4.h),
+                Text(
+                  _overviewSubtitle(selectedDays),
+                  style: TextStyle(
+                    color: AllColor.black54,
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              SizedBox(height: 12.h),
+                SizedBox(height: 12.h),
 
-              /// Filters: days, selling mode, payment type
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _DaysFilterDropdown(
-                    selectedDays: selectedDays,
-                    onDaysChanged: (days) {
-                      ref.read(selectedIncomeDaysProvider.notifier).state =
-                          days;
-                    },
-                  ),
-                  _OptionFilterDropdown(
-                    icon: Icons.storefront_outlined,
-                    label: _sellingModeLabel(selectedSellingMode),
-                    options: const [
-                      _FilterOption(value: null, label: 'All channels'),
-                      _FilterOption(
-                        value: 'marketplace',
-                        label: 'Marketplace',
-                      ),
-                      _FilterOption(value: 'walk_in', label: 'Walk-in'),
-                    ],
-                    onChanged: (value) {
-                      ref.read(selectedSellingModeProvider.notifier).state =
-                          value;
-                    },
-                  ),
-                  _OptionFilterDropdown(
-                    icon: Icons.payments_outlined,
-                    label: _paymentTypeLabel(selectedPaymentType),
-                    options: const [
-                      _FilterOption(value: null, label: 'All payments'),
-                      _FilterOption(
-                        value: 'online_pay',
-                        label: 'Online pay',
-                      ),
-                      _FilterOption(value: 'cash_pay', label: 'Cash pay'),
-                      _FilterOption(value: 'debt_pay', label: 'Debt pay'),
-                    ],
-                    onChanged: (value) {
-                      ref.read(selectedPaymentTypeProvider.notifier).state =
-                          value;
-                    },
-                  ),
-                ],
-              ),
+                /// Filters: days, selling mode, payment type
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _DaysFilterDropdown(
+                      selectedDays: selectedDays,
+                      onDaysChanged: (days) {
+                        ref.read(selectedIncomeDaysProvider.notifier).state =
+                            days;
+                      },
+                    ),
+                    _OptionFilterDropdown(
+                      icon: Icons.storefront_outlined,
+                      label: _sellingModeLabel(selectedSellingMode),
+                      options: const [
+                        _FilterOption(value: null, label: 'All channels'),
+                        _FilterOption(
+                          value: 'marketplace',
+                          label: 'Marketplace',
+                        ),
+                        _FilterOption(value: 'walk_in', label: 'Walk-in'),
+                      ],
+                      onChanged: (value) {
+                        ref.read(selectedSellingModeProvider.notifier).state =
+                            value;
+                        // Hide Debt pay under Marketplace — clear if active.
+                        if (value == 'marketplace' &&
+                            ref.read(selectedPaymentTypeProvider) ==
+                                'debt_pay') {
+                          ref.read(selectedPaymentTypeProvider.notifier).state =
+                              null;
+                        }
+                      },
+                    ),
+                    _OptionFilterDropdown(
+                      icon: Icons.payments_outlined,
+                      label: _paymentTypeLabel(selectedPaymentType),
+                      options: paymentOptions,
+                      onChanged: (value) {
+                        ref.read(selectedPaymentTypeProvider.notifier).state =
+                            value;
+                      },
+                    ),
+                  ],
+                ),
               SizedBox(height: 12.h),
               const _SalesExportSection(),
-              SizedBox(height: 14.h),
+                SizedBox(height: 14.h),
 
-              /// KPI cards from API
-              asyncIncome.when(
-                loading: () => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Loading...'),
-                  ),
-                ),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'Failed to load performance: $e',
-                      style: TextStyle(color: AllColor.red, fontSize: 12.sp),
+                /// KPI cards from API
+                asyncIncome.when(
+                  loading: () => const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Loading...'),
                     ),
                   ),
+                  error: (e, _) => Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        e.toString().replaceFirst('Exception: ', ''),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AllColor.red, fontSize: 12.sp),
+                      ),
+                    ),
+                  ),
+                  data: (income) {
+                    final profit = asyncAnalytics.valueOrNull?.totalProfit;
+                    final items = <_KpiData>[
+                      _KpiData(
+                        title: ref.t(BKeys.revenue),
+                        value: '৳${income.totalRevenue.toStringAsFixed(0)}',
+                        deltaText: '',
+                      ),
+                      _KpiData(
+                        title: ref.t(BKeys.order),
+                        value: income.totalOrders.toString(),
+                        deltaText: '',
+                      ),
+                      _KpiData(
+                        title: ref.t(BKeys.clicks),
+                        value: income.totalClicks.toString(),
+                        deltaText: '',
+                      ),
+                      _KpiData(
+                        title: ref.t(BKeys.conversionRate),
+                        value: '${income.conversionRate.toStringAsFixed(2)}%',
+                        deltaText: '',
+                      ),
+                    ];
+                    // Section 2.5: Profit from /api/vendor-dashboard/analytics
+                    if (isOwner && profit != null) {
+                      items.insert(
+                        1,
+                        _KpiData(
+                          title: 'Profit',
+                          value: '৳${profit.toStringAsFixed(0)}',
+                          deltaText: '',
+                        ),
+                      );
+                    }
+                    // STEP_03 debt KPIs when backend provides them.
+                    if (income.debtSales != null) {
+                      items.add(
+                        _KpiData(
+                          title: 'Debt sales',
+                          value: '৳${income.debtSales!.toStringAsFixed(0)}',
+                          deltaText: '',
+                        ),
+                      );
+                    }
+                    if (income.outstandingDebt != null) {
+                      items.add(
+                        _KpiData(
+                          title: 'Outstanding debt',
+                          value:
+                              '৳${income.outstandingDebt!.toStringAsFixed(0)}',
+                          deltaText: '',
+                        ),
+                      );
+                    }
+                    if (income.paidDebt != null) {
+                      items.add(
+                        _KpiData(
+                          title: 'Paid debt',
+                          value: '৳${income.paidDebt!.toStringAsFixed(0)}',
+                          deltaText: '',
+                        ),
+                      );
+                    }
+                    return _KpiGrid(items: items);
+                  },
                 ),
-                data: (income) {
-                  final profit = asyncAnalytics.valueOrNull?.totalProfit;
-                  final items = <_KpiData>[
-                    _KpiData(
-                      title: ref.t(BKeys.revenue),
-                      value: '৳${income.totalRevenue.toStringAsFixed(0)}',
-                      deltaText: '',
-                    ),
-                    _KpiData(
-                      title: ref.t(BKeys.order),
-                      value: income.totalOrders.toString(),
-                      deltaText: '',
-                    ),
-                    _KpiData(
-                      title: ref.t(BKeys.clicks),
-                      value: income.totalClicks.toString(),
-                      deltaText: '',
-                    ),
-                    _KpiData(
-                      title: ref.t(BKeys.conversionRate),
-                      value: '${income.conversionRate.toStringAsFixed(2)}%',
-                      deltaText: '',
-                    ),
-                  ];
-                  // Section 2.5: Profit from /api/vendor-dashboard/analytics
-                  if (isOwner && profit != null) {
-                    items.insert(
-                      1,
-                      _KpiData(
-                        title: 'Profit',
-                        value: '৳${profit.toStringAsFixed(0)}',
-                        deltaText: '',
-                      ),
-                    );
-                  }
-                  // STEP_03 debt KPIs when backend provides them.
-                  if (income.debtSales != null) {
-                    items.add(
-                      _KpiData(
-                        title: 'Debt sales',
-                        value: '৳${income.debtSales!.toStringAsFixed(0)}',
-                        deltaText: '',
-                      ),
-                    );
-                  }
-                  if (income.outstandingDebt != null) {
-                    items.add(
-                      _KpiData(
-                        title: 'Outstanding debt',
-                        value:
-                            '৳${income.outstandingDebt!.toStringAsFixed(0)}',
-                        deltaText: '',
-                      ),
-                    );
-                  }
-                  if (income.paidDebt != null) {
-                    items.add(
-                      _KpiData(
-                        title: 'Paid debt',
-                        value: '৳${income.paidDebt!.toStringAsFixed(0)}',
-                        deltaText: '',
-                      ),
-                    );
-                  }
-                  return _KpiGrid(items: items);
-                },
-              ),
 
-              SizedBox(height: 18.h),
+                SizedBox(height: 18.h),
 
-              /// Sales chart
-              const SalesChart(),
+                /// Sales chart
+                const SalesChart(),
 
-              SizedBox(height: 18.h),
+                SizedBox(height: 18.h),
 
-              /// Top selling title
-              Text(
-                ref.t(BKeys.topSellingProducts),
-                style: TextStyle(
-                  color: AllColor.black,
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w800,
+                /// Top selling title
+                Text(
+                  ref.t(BKeys.topSellingProducts),
+                  style: TextStyle(
+                    color: AllColor.black,
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
 
-              /// Top selling section (table + API)
-              const TopSellingSection(),
-            ],
+                /// Top selling section (table + API)
+                const TopSellingSection(),
+              ],
+            ),
           ),
         ),
       ),

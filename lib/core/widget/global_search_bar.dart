@@ -22,6 +22,7 @@ class GlobalSearchBar<R, T> extends ConsumerStatefulWidget {
     this.showResults = true,                // false => শুধু সার্চবার
     this.resultsMaxHeight = 380,
     this.autofocus = false,
+    this.onFocusChange,
   });
 
   final AutoDisposeFutureProviderFamily<R, String> provider;
@@ -35,6 +36,7 @@ class GlobalSearchBar<R, T> extends ConsumerStatefulWidget {
   final bool showResults;
   final double resultsMaxHeight;
   final bool autofocus;
+  final ValueChanged<bool>? onFocusChange;
 
   @override
   ConsumerState<GlobalSearchBar<R, T>> createState() => _CustomSearchBarState<R, T>();
@@ -82,19 +84,24 @@ class _CustomSearchBarState<R, T> extends ConsumerState<GlobalSearchBar<R, T>> {
     _entry?.markNeedsBuild(); // নতুন query-র জন্য overlay উইজেট রিবিল্ড
   }
 
+  void _onFocusChanged() {
+    widget.onFocusChange?.call(_focus.hasFocus);
+    _rebuildOverlay();
+  }
+
   @override
   void initState() {
     super.initState();
     if (widget.autofocus) {
       Future.microtask(() => _focus.requestFocus());
     }
-    _focus.addListener(_rebuildOverlay);
+    _focus.addListener(_onFocusChanged);
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _focus.removeListener(_rebuildOverlay);
+    _focus.removeListener(_onFocusChanged);
     _focus.dispose();
     _debounce?.cancel();
     _closeOverlay();

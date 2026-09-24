@@ -4,12 +4,15 @@ class BuyerHomeResponse {
   final bool loginRequiredForCart;
   final List<BuyerHomeBanner> banners;
   final List<BuyerHomePopularItem> popular;
+  /// Approved vendor promotions when backend includes them on home.
+  final List<BuyerHomePromotion> promotions;
 
   const BuyerHomeResponse({
     required this.hidePrices,
     required this.loginRequiredForCart,
     required this.banners,
     required this.popular,
+    this.promotions = const [],
   });
 
   factory BuyerHomeResponse.fromJson(Map<String, dynamic> json) {
@@ -20,6 +23,7 @@ class BuyerHomeResponse {
 
     final bannersRaw = map['banners'];
     final popularRaw = map['popular'];
+    final promotionsRaw = map['promotions'] ?? map['vendor_promotions'];
 
     return BuyerHomeResponse(
       hidePrices: map['hide_prices'] == true,
@@ -39,6 +43,15 @@ class BuyerHomeResponse {
               )
               .toList()
           : const [],
+      promotions: promotionsRaw is List
+          ? promotionsRaw
+              .whereType<Map>()
+              .map(
+                (e) =>
+                    BuyerHomePromotion.fromJson(Map<String, dynamic>.from(e)),
+              )
+              .toList()
+          : const [],
     );
   }
 }
@@ -47,18 +60,81 @@ class BuyerHomeBanner {
   final int id;
   final String image;
   final String? publicId;
+  final int? zoneId;
+  final String? zone;
+  final bool isGlobal;
 
   const BuyerHomeBanner({
     required this.id,
     required this.image,
     this.publicId,
+    this.zoneId,
+    this.zone,
+    this.isGlobal = true,
   });
 
   factory BuyerHomeBanner.fromJson(Map<String, dynamic> j) {
+    final zoneId = _toIntOrNull(j['zone_id'] ?? j['zoneId']);
+    final zone = j['zone']?.toString() ?? j['ship_zone']?.toString();
+    final globalFlag = j['is_global'] ?? j['global'];
+    final isGlobal = globalFlag == true ||
+        globalFlag == 1 ||
+        globalFlag == '1' ||
+        (zoneId == null && (zone == null || zone.isEmpty));
+
     return BuyerHomeBanner(
       id: _toInt(j['id']),
       image: j['image']?.toString() ?? '',
       publicId: j['public_id']?.toString(),
+      zoneId: zoneId,
+      zone: zone,
+      isGlobal: isGlobal,
+    );
+  }
+}
+
+/// Vendor marketing promotion surfaced on buyer home (STEP_05).
+class BuyerHomePromotion {
+  final int id;
+  final String title;
+  final String content;
+  final String? image;
+  final String? zone;
+  final int? vendorId;
+  final String? vendorName;
+  final String? status;
+
+  const BuyerHomePromotion({
+    required this.id,
+    required this.title,
+    this.content = '',
+    this.image,
+    this.zone,
+    this.vendorId,
+    this.vendorName,
+    this.status,
+  });
+
+  factory BuyerHomePromotion.fromJson(Map<String, dynamic> j) {
+    final vendor = j['vendor'];
+    String? vendorName;
+    int? vendorId = _toIntOrNull(j['vendor_id']);
+    if (vendor is Map) {
+      vendorName = vendor['name']?.toString() ?? vendor['shop_name']?.toString();
+      vendorId ??= _toIntOrNull(vendor['id']);
+    }
+    return BuyerHomePromotion(
+      id: _toInt(j['id']),
+      title: j['title']?.toString() ?? j['name']?.toString() ?? '',
+      content: j['content']?.toString() ??
+          j['text']?.toString() ??
+          j['description']?.toString() ??
+          '',
+      image: j['image']?.toString(),
+      zone: j['zone']?.toString() ?? j['ship_zone']?.toString(),
+      vendorId: vendorId,
+      vendorName: vendorName,
+      status: j['status']?.toString(),
     );
   }
 }
@@ -131,4 +207,12 @@ int _toInt(dynamic v) {
   if (v is int) return v;
   if (v is num) return v.toInt();
   return int.tryParse(v?.toString() ?? '') ?? 0;
+}
+
+int? _toIntOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  final p = int.tryParse(v.toString());
+  return (p != null && p > 0) ? p : null;
 }

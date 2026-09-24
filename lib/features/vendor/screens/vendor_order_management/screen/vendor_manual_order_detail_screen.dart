@@ -517,100 +517,72 @@ class _VendorManualOrderDetailScreenState
 
   Future<void> _payDebt(VendorManualOrderInvoice inv) async {
     final remaining = inv.remainingDebt;
-    final amountCtl = TextEditingController(
-      text: remaining > 0 ? remaining.toStringAsFixed(2) : '',
+    final paidSoFar = inv.summary.debtPaidNumeric;
+    final debtTotal = inv.summary.debtTotalNumeric > 0
+        ? inv.summary.debtTotalNumeric
+        : remaining + paidSoFar;
+
+    final amount = await showDialog<double>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _CollectDebtPaymentDialog(
+        remaining: remaining,
+        debtTotal: debtTotal,
+        paidSoFar: paidSoFar,
+        orderLabel: inv.orderNumber.isEmpty
+            ? 'Invoice #${inv.id}'
+            : inv.orderNumber,
+      ),
     );
-    try {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Collect debt payment'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Remaining: ${remaining.toStringAsFixed(2)}. '
-                'Enter a full or partial amount.',
-                style: TextStyle(fontSize: 13.sp, color: AllColor.grey500),
-              ),
-              SizedBox(height: 12.h),
-              TextField(
-                controller: amountCtl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Amount *',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Pay'),
-            ),
-          ],
-        ),
+    if (amount == null || !mounted) return;
+    if (amount <= 0) {
+      GlobalSnackbar.show(
+        context,
+        title: 'Invalid amount',
+        message: 'Enter a payment greater than zero.',
+        type: CustomSnackType.error,
       );
-      if (ok != true || !mounted) return;
-      final amt = double.tryParse(amountCtl.text.trim().replaceAll(',', ''));
-      if (amt == null || amt <= 0) {
+      return;
+    }
+    if (amount > remaining + 0.009) {
+      GlobalSnackbar.show(
+        context,
+        title: 'Too much',
+        message: 'Amount cannot exceed remaining debt.',
+        type: CustomSnackType.error,
+      );
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final updated = await VendorOrderApi.instance.payManualOrderDebt(
+        invoiceId: inv.id,
+        amount: amount,
+      );
+      ref.invalidate(vendorManualOrdersProvider);
+      if (!mounted) return;
+      setState(() => _inv = updated);
+      GlobalSnackbar.show(
+        context,
+        title: 'Payment recorded',
+        message: updated.isDebtFullyPaid
+            ? 'Debt is fully Paid.'
+            : 'Remaining ${updated.remainingDebt.toStringAsFixed(2)}',
+        type: CustomSnackType.success,
+      );
+      await _load();
+    } catch (e) {
+      if (mounted) {
         GlobalSnackbar.show(
           context,
-          title: 'Invalid amount',
-          message: 'Enter a payment greater than zero.',
+          title: 'Error',
+          message: e.toString().replaceFirst('Exception: ', ''),
           type: CustomSnackType.error,
         );
-        return;
-      }
-      if (amt > remaining + 0.009) {
-        GlobalSnackbar.show(
-          context,
-          title: 'Too much',
-          message: 'Amount cannot exceed remaining debt.',
-          type: CustomSnackType.error,
-        );
-        return;
-      }
-      setState(() => _busy = true);
-      try {
-        final updated = await VendorOrderApi.instance.payManualOrderDebt(
-          invoiceId: inv.id,
-          amount: amt,
-        );
-        ref.invalidate(vendorManualOrdersProvider);
-        if (!mounted) return;
-        setState(() => _inv = updated);
-        GlobalSnackbar.show(
-          context,
-          title: 'Payment recorded',
-          message: updated.isDebtFullyPaid
-              ? 'Debt is fully Paid.'
-              : 'Remaining ${updated.remainingDebt.toStringAsFixed(2)}',
-          type: CustomSnackType.success,
-        );
-        await _load();
-      } catch (e) {
-        if (mounted) {
-          GlobalSnackbar.show(
-            context,
-            title: 'Error',
-            message: e.toString().replaceFirst('Exception: ', ''),
-            type: CustomSnackType.error,
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _busy = false);
       }
     } finally {
-      amountCtl.dispose();
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -1347,8 +1319,7 @@ class _VendorManualOrderDetailScreenState
                       ),
                       _kv(
                         'Remaining',
-                        inv.summary.debtRemaining ??
-                            inv.remainingDebt.toStringAsFixed(2),
+                        inv.remainingDebt.toStringAsFixed(2),
                       ),
                       if (inv.summary.debtPaid != null &&
                           inv.summary.debtPaid!.isNotEmpty)
@@ -1706,6 +1677,277 @@ class _VendorManualOrderDetailScreenState
               fontWeight: FontWeight.w500,
               color: AllColor.black,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CollectDebtPaymentDialog extends StatefulWidget {
+  const _CollectDebtPaymentDialog({
+    required this.remaining,
+    required this.debtTotal,
+    required this.paidSoFar,
+    required this.orderLabel,
+  });
+
+  final double remaining;
+  final double debtTotal;
+  final double paidSoFar;
+  final String orderLabel;
+
+  @override
+  State<_CollectDebtPaymentDialog> createState() =>
+      _CollectDebtPaymentDialogState();
+}
+
+class _CollectDebtPaymentDialogState extends State<_CollectDebtPaymentDialog> {
+  late final TextEditingController _amountCtl;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountCtl = TextEditingController(
+      text: widget.remaining > 0 ? widget.remaining.toStringAsFixed(2) : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _amountCtl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final amt = double.tryParse(_amountCtl.text.trim().replaceAll(',', ''));
+    Navigator.pop(context, amt);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(16.r);
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: radius),
+      insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 16.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  height: 42.h,
+                  width: 42.w,
+                  decoration: BoxDecoration(
+                    color: AllColor.orange50,
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Icon(
+                    Icons.payments_outlined,
+                    color: AllColor.loginButtomColor,
+                    size: 22.sp,
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Collect debt payment',
+                        style: TextStyle(
+                          fontSize: 17.sp,
+                          fontWeight: FontWeight.w800,
+                          color: AllColor.black,
+                        ),
+                      ),
+                      SizedBox(height: 2.h),
+                      Text(
+                        widget.orderLabel,
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: AllColor.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16.h),
+            Container(
+              padding: EdgeInsets.all(12.w),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F9FA),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: AllColor.grey200),
+              ),
+              child: Column(
+                children: [
+                  _DebtPayStatRow(
+                    label: 'Debt total',
+                    value: widget.debtTotal.toStringAsFixed(2),
+                  ),
+                  SizedBox(height: 8.h),
+                  _DebtPayStatRow(
+                    label: 'Paid so far',
+                    value: widget.paidSoFar.toStringAsFixed(2),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 10.h),
+                    child: Divider(height: 1.h, color: AllColor.grey200),
+                  ),
+                  _DebtPayStatRow(
+                    label: 'Remaining',
+                    value: widget.remaining.toStringAsFixed(2),
+                    emphasize: true,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              'Payment amount',
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                color: AllColor.black87,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            TextField(
+              controller: _amountCtl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w700,
+              ),
+              onSubmitted: (_) => _submit(),
+              decoration: InputDecoration(
+                hintText: '0.00',
+                prefixIcon: Icon(
+                  Icons.attach_money,
+                  color: AllColor.loginButtomColor,
+                ),
+                filled: true,
+                fillColor: AllColor.orange50.withValues(alpha: 0.65),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 14.w,
+                  vertical: 14.h,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                  borderSide: BorderSide(color: AllColor.orange200),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                  borderSide: BorderSide(color: AllColor.orange200),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                  borderSide: BorderSide(
+                    color: AllColor.loginButtomColor,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 6.h),
+            Text(
+              'Enter full or partial amount (max ${widget.remaining.toStringAsFixed(2)})',
+              style: TextStyle(fontSize: 11.sp, color: AllColor.grey500),
+            ),
+            SizedBox(height: 18.h),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AllColor.black87,
+                      side: BorderSide(color: AllColor.grey300),
+                      minimumSize: Size(0, 46.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.sp,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: Text(
+                      'Pay now',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14.sp,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AllColor.loginButtomColor,
+                      foregroundColor: AllColor.white,
+                      minimumSize: Size(0, 46.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DebtPayStatRow extends StatelessWidget {
+  const _DebtPayStatRow({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: emphasize ? 13.sp : 12.sp,
+              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
+              color: emphasize ? AllColor.black : AllColor.black54,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: emphasize ? 16.sp : 13.sp,
+            fontWeight: FontWeight.w800,
+            color: emphasize ? AllColor.loginButtomColor : AllColor.black,
           ),
         ),
       ],

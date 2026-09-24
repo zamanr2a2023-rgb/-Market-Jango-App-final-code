@@ -1,5 +1,38 @@
 import 'package:intl/intl.dart';
 
+/// Supported push / inbox event types (STEP_05).
+enum NotificationEventType {
+  promotion,
+  newProduct,
+  follow,
+  review,
+  announcement,
+  unknown,
+}
+
+NotificationEventType parseNotificationEventType(dynamic raw) {
+  final s = raw?.toString().trim().toLowerCase() ?? '';
+  switch (s) {
+    case 'promotion':
+    case 'promo':
+      return NotificationEventType.promotion;
+    case 'new_product':
+    case 'new-product':
+    case 'product':
+      return NotificationEventType.newProduct;
+    case 'follow':
+    case 'follower':
+      return NotificationEventType.follow;
+    case 'review':
+      return NotificationEventType.review;
+    case 'announcement':
+    case 'announce':
+      return NotificationEventType.announcement;
+    default:
+      return NotificationEventType.unknown;
+  }
+}
+
 class NotificationModel {
   final int id;
   final String name;
@@ -9,6 +42,12 @@ class NotificationModel {
   final int receiverId;
   final DateTime? createdAt;
   final Sender sender;
+  final NotificationEventType eventType;
+  final String? eventTypeRaw;
+  final int? productId;
+  final int? vendorId;
+  final int? promotionId;
+  final String? deepLink;
 
   NotificationModel({
     required this.id,
@@ -19,17 +58,37 @@ class NotificationModel {
     required this.receiverId,
     this.createdAt,
     required this.sender,
+    this.eventType = NotificationEventType.unknown,
+    this.eventTypeRaw,
+    this.productId,
+    this.vendorId,
+    this.promotionId,
+    this.deepLink,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     final senderRaw = json['sender'];
+    final eventRaw = json['event_type'] ??
+        json['eventType'] ??
+        json['type'] ??
+        json['notification_type'];
+
+    int? toId(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v > 0 ? v : null;
+      if (v is num) return v.toInt() > 0 ? v.toInt() : null;
+      return int.tryParse(v.toString());
+    }
+
     return NotificationModel(
       id: json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}') ?? 0,
       name: json['name']?.toString() ?? json['title']?.toString() ?? '',
       message: json['message']?.toString() ?? json['body']?.toString() ?? '',
       isRead: json['is_read'] == 1 ||
           json['is_read'] == true ||
-          json['is_read'] == '1',
+          json['is_read'] == '1' ||
+          json['read'] == true ||
+          json['read'] == 1,
       senderId: json['sender_id'] is int
           ? json['sender_id'] as int
           : int.tryParse('${json['sender_id'] ?? 0}') ?? 0,
@@ -42,19 +101,25 @@ class NotificationModel {
       sender: senderRaw is Map<String, dynamic>
           ? Sender.fromJson(senderRaw)
           : Sender(id: 0, name: '', email: ''),
+      eventType: parseNotificationEventType(eventRaw),
+      eventTypeRaw: eventRaw?.toString(),
+      productId: toId(json['product_id'] ?? json['productId']),
+      vendorId: toId(json['vendor_id'] ?? json['vendorId']),
+      promotionId: toId(json['promotion_id'] ?? json['promo_id']),
+      deepLink: json['deep_link']?.toString() ??
+          json['deeplink']?.toString() ??
+          json['link']?.toString(),
     );
   }
 
-  /// 🔹 সময় ফরম্যাট করার জন্য হেল্পার ফাংশন
   String get formattedTime {
     if (createdAt == null) return '';
-    return DateFormat('hh:mm a').format(createdAt!); // উদাহরণ: 09:39 AM
+    return DateFormat('hh:mm a').format(createdAt!);
   }
 
-  /// 🔹 তারিখ ফরম্যাট করার জন্য হেল্পার ফাংশন
   String get formattedDate {
     if (createdAt == null) return '';
-    return DateFormat('yyyy-MM-dd').format(createdAt!); // উদাহরণ: 2025-10-25
+    return DateFormat('yyyy-MM-dd').format(createdAt!);
   }
 }
 
@@ -71,9 +136,11 @@ class Sender {
 
   factory Sender.fromJson(Map<String, dynamic> json) {
     return Sender(
-      id: json['id'],
-      name: json['name'],
-      email: json['email'],
+      id: json['id'] is int
+          ? json['id'] as int
+          : int.tryParse('${json['id'] ?? 0}') ?? 0,
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
     );
   }
 }

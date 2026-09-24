@@ -196,3 +196,9 @@ final vendorWalletPayoutsProvider =
     status: (st == null || st.trim().isEmpty) ? null : st.trim(),
   );
 });
+
+/// STEP_07 — payout fee/net preview for a validated amount string.
+final vendorPayoutPreviewProvider = FutureProvider.autoDispose
+    .family<VendorPayoutPreview, String>((ref, amount) async {
+  return VendorOrderApi.instance.fetchPayoutPreview(amount: amount);
+});

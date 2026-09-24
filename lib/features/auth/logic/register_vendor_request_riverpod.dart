@@ -23,8 +23,11 @@ class VendorRegisterNotifier extends StateNotifier<AsyncValue<VendorModel?>> {
     required String businessType,
     required String address,
     required List<File> files,
-    double? latitude, // Add latitude
-    double? longitude, // Add longitude
+    double? latitude,
+    double? longitude,
+    String? zone,
+    String? stateName,
+    String? town,
   }) async {
     state = const AsyncLoading();
 
@@ -36,19 +39,23 @@ class VendorRegisterNotifier extends StateNotifier<AsyncValue<VendorModel?>> {
       var request = http.MultipartRequest('POST', Uri.parse(url));
       request.headers.addAll({'Accept': 'application/json', 'token': token});
 
-      // ✅ Add text fields
       request.fields['country'] = country;
       request.fields['business_name'] = businessName;
       request.fields['business_type'] = businessType;
       request.fields['address'] = address;
 
-      // ✅ Add location if available
+      final z = zone?.trim() ?? '';
+      final s = stateName?.trim() ?? '';
+      final t = town?.trim() ?? '';
+      if (z.isNotEmpty) request.fields['zone'] = z;
+      if (s.isNotEmpty) request.fields['state'] = s;
+      if (t.isNotEmpty) request.fields['town'] = t;
+
       if (latitude != null && longitude != null) {
         request.fields['latitude'] = latitude.toString();
         request.fields['longitude'] = longitude.toString();
       }
 
-      // ✅ Add files
       for (var file in files) {
         final filename = file.path.split('/').last;
         final fileStream = await http.MultipartFile.fromPath(

@@ -10,6 +10,7 @@ import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/models/global_search_model.dart';
 import 'package:market_jango/core/utils/auth_gate.dart';
+import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/core/utils/format_api_money.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/custom_new_product.dart';
@@ -22,6 +23,7 @@ import 'package:market_jango/features/buyer/data/buyer_home_data.dart';
 import 'package:market_jango/features/buyer/data/buyer_just_for_you_data.dart';
 import 'package:market_jango/features/buyer/data/buyer_top_data.dart';
 import 'package:market_jango/features/buyer/data/new_items_data.dart';
+import 'package:market_jango/features/buyer/data/visibility_zones_register_data.dart';
 import 'package:market_jango/features/buyer/logic/slider_manage.dart';
 import 'package:market_jango/features/buyer/model/buyer_home_model.dart';
 import 'package:market_jango/features/buyer/model/buyer_top_model.dart';
@@ -89,7 +91,15 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
               child: Column(
                 children: [
                   BuyerHomeSearchBar(),
+                  if (!isLoggedIn) const _GuestZoneBannerFilter(),
                   _buildHomeBanners(homeAsync, bannerProvider),
+                  homeAsync.when(
+                    data: (home) => _BuyerHomePromotionsSection(
+                      promotions: home.promotions,
+                    ),
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
                   // Guests: hide Categories section entirely.
                   if (isLoggedIn) ...[
                     SeeMoreButton(
@@ -805,6 +815,169 @@ class BuyerHomeSearchBar extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const LocationFilteringTab(),
+    );
+  }
+}
+
+/// Guest zone filter for `GET /api/buyer/home?zone_id=` (STEP_05).
+class _GuestZoneBannerFilter extends ConsumerWidget {
+  const _GuestZoneBannerFilter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final zonesAsync = ref.watch(visibilityLocationsZonesProvider);
+    final selectedId = ref.watch(buyerHomeZoneIdProvider).valueOrNull;
+
+    return zonesAsync.when(
+      data: (zones) {
+        final withIds = zones.where((z) => z.id != null && z.id! > 0).toList();
+        if (withIds.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: EdgeInsets.only(top: 12.h),
+          child: DropdownButtonFormField<int?>(
+            value: selectedId != null &&
+                    withIds.any((z) => z.id == selectedId)
+                ? selectedId
+                : null,
+            decoration: InputDecoration(
+              labelText: 'Banner zone',
+              filled: true,
+              fillColor: AllColor.white,
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+            ),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Global banners'),
+              ),
+              ...withIds.map(
+                (z) => DropdownMenuItem<int?>(
+                  value: z.id,
+                  child: Text(z.name),
+                ),
+              ),
+            ],
+            onChanged: (id) async {
+              await AuthLocalStorage().saveGuestZoneId(id);
+              ref.invalidate(buyerHomeZoneIdProvider);
+              ref.invalidate(buyerHomeProvider);
+            },
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// Shows approved vendor promotions when included on buyer home (not affiliate).
+class _BuyerHomePromotionsSection extends StatelessWidget {
+  const _BuyerHomePromotionsSection({required this.promotions});
+
+  final List<BuyerHomePromotion> promotions;
+
+  @override
+  Widget build(BuildContext context) {
+    if (promotions.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SeeMoreButton(
+          name: 'Promotions',
+          seeMoreAction: () {},
+          isSeeMore: false,
+        ),
+        ...promotions.map((p) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: 12.h),
+            child: Material(
+              color: AllColor.white,
+              borderRadius: BorderRadius.circular(12.r),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12.r),
+                onTap: p.vendorId != null && p.vendorId! > 0
+                    ? () => context.push(
+                          BuyerVendorProfileScreen.routeName,
+                          extra: p.vendorId,
+                        )
+                    : null,
+                child: Padding(
+                  padding: EdgeInsets.all(12.w),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (p.image != null && p.image!.isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8.r),
+                          child: FirstTimeShimmerImage(
+                            imageUrl: p.image!,
+                            width: 64.w,
+                            height: 64.w,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      if (p.image != null && p.image!.isNotEmpty)
+                        SizedBox(width: 12.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14.sp,
+                              ),
+                            ),
+                            if (p.vendorName != null &&
+                                p.vendorName!.isNotEmpty)
+                              Padding(
+                                padding: EdgeInsets.only(top: 2.h),
+                                child: Text(
+                                  p.vendorName!,
+                                  style: TextStyle(
+                                    fontSize: 11.sp,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ),
+                            if (p.content.isNotEmpty)
+                              Padding(
+                                padding: EdgeInsets.only(top: 4.h),
+                                child: Text(
+                                  p.content,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12.sp),
+                                ),
+                              ),
+                            if (p.zone != null && p.zone!.isNotEmpty)
+                              Padding(
+                                padding: EdgeInsets.only(top: 4.h),
+                                child: Text(
+                                  'Zone: ${p.zone}',
+                                  style: TextStyle(
+                                    fontSize: 10.sp,
+                                    color: Colors.black45,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

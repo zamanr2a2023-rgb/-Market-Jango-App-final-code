@@ -900,4 +900,23 @@ class VendorOrderApi {
     _throwIfBad(res);
     _maybeAssertEnvelope(res.body);
   }
+
+  /// STEP_07 — `GET /api/vendor/payout-preview?amount=`
+  Future<VendorPayoutPreview> fetchPayoutPreview({
+    required String amount,
+  }) async {
+    final amountTrim = amount.trim();
+    if (amountTrim.isEmpty) {
+      throw Exception('Amount is required for payout preview');
+    }
+    final headers = await vendorOrderApiHeaders();
+    final uri = Uri.parse(
+      VendorAPIController.vendorPayoutPreview(amount: amountTrim),
+    );
+    final res = await http.get(uri, headers: headers);
+    _throwIfBad(res);
+    final top = _decodeObj(res.body);
+    _assertJsonSuccess(top);
+    return VendorPayoutPreview.fromJson(top);
+  }
 }

@@ -12,19 +12,41 @@ int _toInt(dynamic v, {int d = 0}) {
   return int.tryParse(v.toString()) ?? d;
 }
 
+String? _nullableTrim(dynamic v) {
+  if (v == null) return null;
+  final s = v.toString().trim();
+  if (s.isEmpty || s.toLowerCase() == 'null') return null;
+  return s;
+}
+
 /// Item of `GET /vendor/outlets` → `data[]`.
+///
+/// Real backend shape (verified):
+/// `{ id, name, phone, default_max_concurrent_orders, zone, town }`
+/// Zone/town are never inferred; null/empty → not shown as values.
 class VendorOutlet {
   final int id;
   final String name;
   final String phone;
   final int defaultMaxConcurrentOrders;
 
+  /// Zone Management zone name from API field `zone`.
+  final String? zone;
+
+  /// Location from API field `town` (no separate `address` in response).
+  final String? town;
+
   const VendorOutlet({
     required this.id,
     required this.name,
     required this.phone,
     required this.defaultMaxConcurrentOrders,
+    this.zone,
+    this.town,
   });
+
+  /// Address/location line for UI — only when API returned a non-empty `town`.
+  String? get addressOrLocation => town;
 
   factory VendorOutlet.fromJson(Map<String, dynamic> j) {
     return VendorOutlet(
@@ -32,6 +54,8 @@ class VendorOutlet {
       name: j['name']?.toString() ?? '',
       phone: j['phone']?.toString() ?? '',
       defaultMaxConcurrentOrders: _toInt(j['default_max_concurrent_orders']),
+      zone: _nullableTrim(j['zone']),
+      town: _nullableTrim(j['town']),
     );
   }
 }
@@ -108,7 +132,8 @@ class VendorOutletsApi {
 }
 
 /// Active outlets — `GET /vendor/outlets`.
-final vendorOutletsProvider =
-    FutureProvider.autoDispose<List<VendorOutlet>>((ref) async {
+final vendorOutletsProvider = FutureProvider.autoDispose<List<VendorOutlet>>((
+  ref,
+) async {
   return VendorOutletsApi.instance.fetchOutlets();
 });

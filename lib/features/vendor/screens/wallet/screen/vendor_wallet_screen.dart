@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -504,16 +506,17 @@ class VendorWalletScreen extends ConsumerWidget {
   }
 }
 
-class _VendorPayoutDialog extends StatefulWidget {
+class _VendorPayoutDialog extends ConsumerStatefulWidget {
   const _VendorPayoutDialog({this.walletBalance});
 
   final num? walletBalance;
 
   @override
-  State<_VendorPayoutDialog> createState() => _VendorPayoutDialogState();
+  ConsumerState<_VendorPayoutDialog> createState() =>
+      _VendorPayoutDialogState();
 }
 
-class _VendorPayoutDialogState extends State<_VendorPayoutDialog> {
+class _VendorPayoutDialogState extends ConsumerState<_VendorPayoutDialog> {
   static const _methods = <({String value, String label})>[
     (value: 'bank_transfer', label: 'Bank transfer'),
     (value: 'mobile_money', label: 'Mobile money'),
@@ -529,6 +532,11 @@ class _VendorPayoutDialogState extends State<_VendorPayoutDialog> {
   String _method = _methods.first.value;
   bool _busy = false;
   String? _error;
+
+  /// Validated amount key for [vendorPayoutPreviewProvider]; null = no preview.
+  String? _previewAmount;
+  String? _previewHint;
+  Timer? _previewDebounce;
 
   InputDecoration _deco(String label, [String? hint]) {
     final orange = AllColor.loginButtomColor;
@@ -552,13 +560,178 @@ class _VendorPayoutDialogState extends State<_VendorPayoutDialog> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _amount.addListener(_onAmountChanged);
+  }
+
+  @override
   void dispose() {
+    _previewDebounce?.cancel();
+    _amount.removeListener(_onAmountChanged);
     _amount.dispose();
     _account.dispose();
     _holderName.dispose();
     _bankName.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  num? _parseAmount(String raw) {
+    final t = raw.trim().replaceAll(',', '');
+    if (t.isEmpty) return null;
+    return num.tryParse(t);
+  }
+
+  void _onAmountChanged() {
+    _previewDebounce?.cancel();
+    final amt = _parseAmount(_amount.text);
+    final maxBal = widget.walletBalance;
+
+    if (amt == null || amt <= 0) {
+      setState(() {
+        _previewAmount = null;
+        _previewHint = null;
+      });
+      return;
+    }
+
+    final overBalance = maxBal != null && amt > maxBal;
+    final key = amt.toString();
+    _previewDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      setState(() {
+        _previewAmount = key;
+        _previewHint = overBalance
+            ? 'Amount exceeds available balance ($maxBal). '
+                'Preview is shown for fees; submit stays blocked until amount ≤ balance.'
+            : null;
+      });
+    });
+  }
+
+  Widget _previewRow(String label, String value, {bool emphasize = false}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 3.h),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.sp,
+                color: AllColor.grey500,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w600,
+              color: AllColor.black,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewSection() {
+    final key = _previewAmount;
+    if (key == null) return const SizedBox.shrink();
+
+    final async = ref.watch(vendorPayoutPreviewProvider(key));
+    return Padding(
+      padding: EdgeInsets.only(top: 12.h),
+      child: async.when(
+        loading: () => Container(
+          padding: EdgeInsets.all(12.w),
+          decoration: BoxDecoration(
+            color: AllColor.orange50.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8.r),
+            border: Border.all(color: AllColor.orange200),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 16.w,
+                height: 16.w,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 10.w),
+              Text(
+                'Calculating payout preview…',
+                style: TextStyle(fontSize: 12.sp, color: AllColor.grey500),
+              ),
+            ],
+          ),
+        ),
+        error: (e, _) => Container(
+          padding: EdgeInsets.all(12.w),
+          decoration: BoxDecoration(
+            color: AllColor.red.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+          child: Text(
+            'Payout preview unavailable: '
+            '${e.toString().replaceFirst('Exception: ', '')}',
+            style: TextStyle(fontSize: 12.sp, color: AllColor.red, height: 1.35),
+          ),
+        ),
+        data: (preview) {
+          final amountValue = preview.amountDisplay ?? key;
+          final feeValue = preview.hasFee
+              ? preview.feeDisplay!
+              : 'Not provided by server';
+          final netValue = preview.hasNet
+              ? preview.netDisplay!
+              : 'Not provided by server';
+
+          return Container(
+            padding: EdgeInsets.all(12.w),
+            decoration: BoxDecoration(
+              color: AllColor.orange50.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(8.r),
+              border: Border.all(color: AllColor.orange200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Payout preview',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.grey500,
+                  ),
+                ),
+                SizedBox(height: 6.h),
+                _previewRow('Amount', amountValue),
+                _previewRow('Fee', feeValue),
+                if (preview.otherChargesDisplay != null &&
+                    preview.otherChargesDisplay!.trim().isNotEmpty)
+                  _previewRow('Other charges', preview.otherChargesDisplay!),
+                _previewRow('You receive', netValue, emphasize: true),
+                if (!preview.hasUsableBreakdown) ...[
+                  SizedBox(height: 6.h),
+                  Text(
+                    'Backend did not return fee/net fields for this amount. '
+                    'You can still submit the payout request.',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      color: AllColor.grey500,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -572,7 +745,7 @@ class _VendorPayoutDialogState extends State<_VendorPayoutDialog> {
       );
       return;
     }
-    final amtNum = num.tryParse(a.replaceAll(',', ''));
+    final amtNum = _parseAmount(a);
     if (amtNum == null) {
       setState(() => _error = 'Enter a valid amount.');
       return;
@@ -652,6 +825,18 @@ class _VendorPayoutDialogState extends State<_VendorPayoutDialog> {
                   style: TextStyle(fontSize: 12.sp, color: AllColor.grey500),
                 ),
               ],
+              if (_previewHint != null) ...[
+                SizedBox(height: 8.h),
+                Text(
+                  _previewHint!,
+                  style: TextStyle(
+                    fontSize: 11.sp,
+                    color: AllColor.orange700,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+              _buildPreviewSection(),
               SizedBox(height: 12.h),
               InputDecorator(
                 decoration: _deco('Payment method'),

@@ -42,7 +42,7 @@ class _VendorDriverListState extends ConsumerState<VendorDriverList> {
     final driverNotifier = ref.read(driverNotifierProvider.notifier);
     final searchQuery = _search.text.trim().toLowerCase();
     final showBack = context.canPop();
-    
+
     return Scaffold(
       backgroundColor: AllColor.white,
       body: SafeArea(
@@ -107,100 +107,97 @@ class _VendorDriverListState extends ConsumerState<VendorDriverList> {
             if (_showOutlets)
               Expanded(child: _OutletsList(searchQuery: searchQuery))
             else
-            Expanded(
-              child: driverAsync.when(
-                data: (data) {
-                  final allDrivers = data?.drivers ?? [];
-                  
-                  // Filter drivers based on search query
-                  final filteredDrivers = allDrivers.where((driver) {
-                    if (searchQuery.isEmpty) return true;
-                    final name = driver.user.name.toLowerCase();
-                    final phone = driver.user.phone.toLowerCase();
-                    final location = driver.location.toLowerCase();
-                    return name.contains(searchQuery) || 
-                           phone.contains(searchQuery) ||
-                           location.contains(searchQuery);
-                  }).toList();
-                  
-                  if (filteredDrivers.isEmpty && searchQuery.isNotEmpty) {
-                    return Center(
-                      child: Text(
-                        ref.t(BKeys.no_data),
-                        style: TextStyle(color: AllColor.black54),
-                      ),
-                    );
-                  }
-                  
-                  return Column(
-                    children: [
-                      Expanded(
-                        child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: filteredDrivers.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (_, i) {
-                            final driver = filteredDrivers[i];
-                            return _DriverCard(
-                              data: driver,
-                              onAssign: () {
-                                context.push(
-                                  AssignToOrderDriver.routeName,
-                                  extra: AssignToOrderDriverArgs(
-                                    driverId: driver.id,
-                                    driverName: driver.user.name,
-                                  ),
-                                );
-                              },
-                              onChat: () async {
-                                final authStorage = AuthLocalStorage();
-                                final userIdStr = await authStorage.getUserId();
-                                if (userIdStr == null || userIdStr.isEmpty) {
-                                  throw Exception("user id not founde");
-                                }
-                                final myUserId = int.tryParse(userIdStr);
-                                if (myUserId == null) {
-                                  throw Exception("Invalid user id");
-                                }
-                                context.push(
-                                  GlobalChatScreen.routeName,
-                                  extra: ChatArgs(
-                                    partnerId: driver.user.id,
-                                    partnerName: driver.user.name,
-                                    partnerImage: driver.user.image,
-                                    myUserId: myUserId,
-                                  ),
-                                );
-                              },
-                            );
-                          },
+              Expanded(
+                child: driverAsync.when(
+                  data: (data) {
+                    final allDrivers = data?.drivers ?? [];
+
+                    // Filter drivers based on search query
+                    final filteredDrivers = allDrivers.where((driver) {
+                      if (searchQuery.isEmpty) return true;
+                      final name = driver.user.name.toLowerCase();
+                      final phone = driver.user.phone.toLowerCase();
+                      final location = driver.location.toLowerCase();
+                      return name.contains(searchQuery) ||
+                          phone.contains(searchQuery) ||
+                          location.contains(searchQuery);
+                    }).toList();
+
+                    if (filteredDrivers.isEmpty && searchQuery.isNotEmpty) {
+                      return Center(
+                        child: Text(
+                          ref.t(BKeys.no_data),
+                          style: TextStyle(color: AllColor.black54),
                         ),
-                      ),
-                      if (data != null && searchQuery.isEmpty)
-                        Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8.h),
-                          child: GlobalPagination(
-                            currentPage: data.currentPage,
-                            totalPages: data.lastPage,
-                            onPageChanged: (page) {
-                              driverNotifier.changePage(page);
+                      );
+                    }
+
+                    return Column(
+                      children: [
+                        Expanded(
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: filteredDrivers.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (_, i) {
+                              final driver = filteredDrivers[i];
+                              return _DriverCard(
+                                data: driver,
+                                onAssign: () {
+                                  context.push(
+                                    AssignToOrderDriver.routeName,
+                                    extra: AssignToOrderDriverArgs(
+                                      driverId: driver.id,
+                                      driverName: driver.user.name,
+                                    ),
+                                  );
+                                },
+                                onChat: () async {
+                                  final authStorage = AuthLocalStorage();
+                                  final userIdStr = await authStorage
+                                      .getUserId();
+                                  if (userIdStr == null || userIdStr.isEmpty) {
+                                    throw Exception("user id not founde");
+                                  }
+                                  final myUserId = int.tryParse(userIdStr);
+                                  if (myUserId == null) {
+                                    throw Exception("Invalid user id");
+                                  }
+                                  context.push(
+                                    GlobalChatScreen.routeName,
+                                    extra: ChatArgs(
+                                      partnerId: driver.user.id,
+                                      partnerName: driver.user.name,
+                                      partnerImage: driver.user.image,
+                                      myUserId: myUserId,
+                                    ),
+                                  );
+                                },
+                              );
                             },
                           ),
                         ),
-                    ],
-                  );
-                },
-                loading: () => Center(
-                  child: Text(
-                    ref.t(BKeys.loading),
-                  ),
+                        if (data != null && searchQuery.isEmpty)
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8.h),
+                            child: GlobalPagination(
+                              currentPage: data.currentPage,
+                              totalPages: data.lastPage,
+                              onPageChanged: (page) {
+                                driverNotifier.changePage(page);
+                              },
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                  loading: () => Center(child: Text(ref.t(BKeys.loading))),
+                  error: (error, stackTrace) =>
+                      Center(child: Text(error.toString())),
                 ),
-                error: (error, stackTrace) =>
-                    Center(child: Text(error.toString())),
               ),
-            ),
           ],
         ),
       ),
@@ -355,7 +352,9 @@ class _OutletsList extends ConsumerWidget {
         final filtered = outlets.where((o) {
           if (searchQuery.isEmpty) return true;
           return o.name.toLowerCase().contains(searchQuery) ||
-              o.phone.toLowerCase().contains(searchQuery);
+              o.phone.toLowerCase().contains(searchQuery) ||
+              (o.zone?.toLowerCase().contains(searchQuery) ?? false) ||
+              (o.town?.toLowerCase().contains(searchQuery) ?? false);
         }).toList();
 
         if (filtered.isEmpty) {
@@ -492,10 +491,38 @@ class _OutletCard extends ConsumerWidget {
                       ],
                     ),
                     SizedBox(height: 6.h),
+                    if (data.phone.trim().isNotEmpty)
+                      Text(
+                        data.phone,
+                        style: TextStyle(color: AllColor.black54),
+                      ),
+                    SizedBox(height: 4.h),
                     Text(
-                      data.phone,
-                      style: TextStyle(color: AllColor.black54),
+                      data.zone != null && data.zone!.isNotEmpty
+                          ? 'Zone: ${data.zone}'
+                          : 'Zone: —',
+                      style: TextStyle(
+                        color: AllColor.black87,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12.sp,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    if (data.addressOrLocation != null &&
+                        data.addressOrLocation!.isNotEmpty) ...[
+                      SizedBox(height: 4.h),
+                      Text(
+                        'Location: ${data.addressOrLocation}',
+                        style: TextStyle(
+                          color: AllColor.black54,
+                          fontSize: 12.sp,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    SizedBox(height: 4.h),
                     Text(
                       'Max concurrent orders: ${data.defaultMaxConcurrentOrders}',
                       style: TextStyle(color: AllColor.black54),
@@ -564,7 +591,7 @@ class _DriverCard extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, ref ) {
+  Widget build(BuildContext context, ref) {
     return GestureDetector(
       onTap: () {
         context.push(DriverDetailsScreen.routeName, extra: data.user.id);
@@ -623,11 +650,13 @@ class _DriverCard extends ConsumerWidget {
                           ),
                           Builder(
                             builder: (_) {
-                              final isOnline = data.user.isActive == 1 ||
+                              final isOnline =
+                                  data.user.isActive == 1 ||
                                   data.user.status.toLowerCase() == 'active' ||
                                   data.user.status.toLowerCase() == 'online';
-                              final statusColor =
-                                  isOnline ? Colors.green : AllColor.grey500;
+                              final statusColor = isOnline
+                                  ? Colors.green
+                                  : AllColor.grey500;
                               return Container(
                                 padding: EdgeInsets.symmetric(
                                   horizontal: 10.h,
