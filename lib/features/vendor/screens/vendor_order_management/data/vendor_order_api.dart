@@ -287,8 +287,18 @@ class VendorOrderApi {
     return _marketplaceDetailFromTop(top);
   }
 
+  AutoRefundModel? _readAutoRefund(http.Response res) {
+    _throwIfBad(res);
+    final raw = res.body.trim();
+    if (raw.isEmpty) return null;
+    final top = _decodeObj(raw);
+    _assertJsonSuccess(top);
+    return AutoRefundModel.tryParse(top);
+  }
+
   /// `POST /vendor/orders/{id}/cancel` — body `{ "reason": "..." }`.
-  Future<void> cancelMarketplaceLine({
+  /// Returns `auto_refund` when the backend includes it.
+  Future<AutoRefundModel?> cancelMarketplaceLine({
     required int invoiceItemId,
     required String reason,
   }) async {
@@ -299,12 +309,12 @@ class VendorOrderApi {
       headers: headers,
       body: jsonEncode(<String, dynamic>{'reason': reason}),
     );
-    _throwIfBad(res);
-    _maybeAssertEnvelope(res.body);
+    return _readAutoRefund(res);
   }
 
   /// `PATCH /vendor/orders/{id}/quantity` — body `{ "quantity": n, "reason": "..." }`.
-  Future<void> patchMarketplaceLineQuantity({
+  /// Returns `auto_refund` when the backend includes it.
+  Future<AutoRefundModel?> patchMarketplaceLineQuantity({
     required int invoiceItemId,
     required int quantity,
     required String reason,
@@ -321,8 +331,7 @@ class VendorOrderApi {
         'reason': reason,
       }),
     );
-    _throwIfBad(res);
-    _maybeAssertEnvelope(res.body);
+    return _readAutoRefund(res);
   }
 
   Future<VendorOrderStatusesPayload> fetchOrderStatuses() async {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/buyer_api.dart';
 import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final userUpdateServiceProvider = Provider<UserUpdateService>(
   (ref) => UserUpdateService(ref),
@@ -38,6 +39,95 @@ class ShippingUpdatePayload {
   });
 }
 
+/// API spec: `^\+?[0-9\s\-]{7,20}$` (LAST EDITES transport contacts).
+final _contactPhonePattern = RegExp(r'^\+?[0-9\s\-]{7,20}$');
+
+bool isValidContactPhone(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return false;
+  return _contactPhonePattern.hasMatch(trimmed);
+}
+
+class SavedDeliveryContacts {
+  const SavedDeliveryContacts({
+    required this.pickupName,
+    required this.pickupPhone,
+    required this.dropName,
+    required this.dropPhone,
+  });
+
+  final String pickupName;
+  final String pickupPhone;
+  final String dropName;
+  final String dropPhone;
+}
+
+/// Keeps the last saved pickup/drop contacts. Cart GET often omits these fields.
+final savedDeliveryContactsProvider =
+    StateProvider<SavedDeliveryContacts?>((ref) => null);
+
+const _pickupNameKey = 'buyer_pickup_contact_name';
+const _pickupPhoneKey = 'buyer_pickup_contact_phone';
+const _dropNameKey = 'buyer_drop_contact_name';
+const _dropPhoneKey = 'buyer_drop_contact_phone';
+
+Future<SavedDeliveryContacts?> loadSavedDeliveryContacts() async {
+  final prefs = await SharedPreferences.getInstance();
+  final saved = SavedDeliveryContacts(
+    pickupName: prefs.getString(_pickupNameKey) ?? '',
+    pickupPhone: prefs.getString(_pickupPhoneKey) ?? '',
+    dropName: prefs.getString(_dropNameKey) ?? '',
+    dropPhone: prefs.getString(_dropPhoneKey) ?? '',
+  );
+  if (saved.pickupName.isEmpty &&
+      saved.pickupPhone.isEmpty &&
+      saved.dropName.isEmpty &&
+      saved.dropPhone.isEmpty) {
+    return null;
+  }
+  return saved;
+}
+
+Future<void> persistSavedDeliveryContacts(SavedDeliveryContacts saved) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_pickupNameKey, saved.pickupName);
+  await prefs.setString(_pickupPhoneKey, saved.pickupPhone);
+  await prefs.setString(_dropNameKey, saved.dropName);
+  await prefs.setString(_dropPhoneKey, saved.dropPhone);
+}
+
+String firstFilledContact(String? primary, String? fallback) {
+  final a = primary?.trim() ?? '';
+  if (a.isNotEmpty && a != 'null') return a;
+  final b = fallback?.trim() ?? '';
+  if (b.isNotEmpty && b != 'null') return b;
+  return '';
+}
+
+({String pickupName, String pickupPhone, String dropName, String dropPhone})
+    resolveDeliveryContacts({
+  required String? pickupName,
+  required String? pickupPhone,
+  required String? dropName,
+  required String? dropPhone,
+  required String? shipName,
+  required String? shipPhone,
+  SavedDeliveryContacts? saved,
+}) {
+  return (
+    pickupName: firstFilledContact(pickupName, saved?.pickupName),
+    pickupPhone: firstFilledContact(pickupPhone, saved?.pickupPhone),
+    dropName: firstFilledContact(
+      firstFilledContact(dropName, shipName),
+      saved?.dropName,
+    ),
+    dropPhone: firstFilledContact(
+      firstFilledContact(dropPhone, shipPhone),
+      saved?.dropPhone,
+    ),
+  );
+}
+
 class UserUpdateService {
   final Ref ref;
   UserUpdateService(this.ref);
@@ -46,6 +136,8 @@ class UserUpdateService {
   static const Set<String> _allowedKeys = {
     'ship_address', 'ship_city', 'postcode', 'ship_zone', 'ship_state', 'ship_town', 'ship_country',
     'ship_name', 'ship_email', 'ship_phone', 'ship_location',
+    'pickup_contact_name', 'pickup_contact_phone',
+    'drop_contact_name', 'drop_contact_phone',
     'sign_post',
     // চাইলে প্রোফাইলের জেনেরিক ফিল্ডও
     'address', 'state', 'country', 'location', 'name', 'email', 'phone',

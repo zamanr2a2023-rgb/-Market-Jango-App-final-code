@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/core/widget/urgent_badge.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
 
@@ -56,6 +57,20 @@ class _VendorMarketplaceLineProductCardState
   void dispose() {
     _qtyReason.dispose();
     super.dispose();
+  }
+
+  String? _autoRefundMessage(AutoRefundModel? refund) {
+    if (refund == null) return null;
+    if (refund.skipped) {
+      return 'No refund issued because payment was not completed.';
+    }
+    if (refund.creditedToWallet) {
+      final n = refund.credited == refund.credited.roundToDouble()
+          ? refund.credited.toStringAsFixed(0)
+          : refund.credited.toStringAsFixed(2);
+      return 'Amount returned to buyer wallet ($n).';
+    }
+    return null;
   }
 
   String _productTitle() {
@@ -135,7 +150,7 @@ class _VendorMarketplaceLineProductCardState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'This removes line #${widget.line.id} from the order.',
+              'This removes line #${widget.line.id}. If it was paid, the amount is returned to the buyer wallet.',
               style: TextStyle(
                 fontSize: 13.sp,
                 color: AllColor.grey500,
@@ -193,7 +208,11 @@ class _VendorMarketplaceLineProductCardState
       ),
     );
     final r = reason.text.trim();
-    reason.dispose();
+    // The field is still closing its input connection. Dispose next frame
+    // or FocusNode notifies a disposed controller and the screen goes red.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      reason.dispose();
+    });
     if (ok != true || !mounted) return;
     if (r.isEmpty) {
       GlobalSnackbar.show(
@@ -207,16 +226,19 @@ class _VendorMarketplaceLineProductCardState
     setState(() => _cancelBusy = true);
     var poppedRoute = false;
     try {
-      await VendorOrderApi.instance.cancelMarketplaceLine(
+      final refund = await VendorOrderApi.instance.cancelMarketplaceLine(
         invoiceItemId: widget.line.id,
         reason: r,
       );
       if (!mounted) return;
+      final note = _autoRefundMessage(refund);
       GlobalSnackbar.show(
         context,
         title: 'Cancelled',
-        message: 'Line removed',
-        type: CustomSnackType.success,
+        message: note == null ? 'Line removed' : 'Line removed. $note',
+        type: refund != null && refund.skipped
+            ? CustomSnackType.warning
+            : CustomSnackType.success,
       );
       if (widget.line.id == widget.screenLineId) {
         context.pop(true);
@@ -273,17 +295,22 @@ class _VendorMarketplaceLineProductCardState
     }
     setState(() => _qtyBusy = true);
     try {
-      await VendorOrderApi.instance.patchMarketplaceLineQuantity(
+      final previousQty = widget.line.quantity;
+      final refund = await VendorOrderApi.instance.patchMarketplaceLineQuantity(
         invoiceItemId: widget.line.id,
         quantity: _qty,
         reason: reason,
       );
+      final reducedBy = previousQty - _qty;
       if (!mounted) return;
+      final note = reducedBy > 0 ? _autoRefundMessage(refund) : null;
       GlobalSnackbar.show(
         context,
         title: 'Updated',
-        message: 'Quantity saved',
-        type: CustomSnackType.success,
+        message: note == null ? 'Quantity saved' : 'Quantity saved. $note',
+        type: refund != null && refund.skipped && reducedBy > 0
+            ? CustomSnackType.warning
+            : CustomSnackType.success,
       );
       _qtyReason.clear();
       await widget.onRefresh();
@@ -467,6 +494,10 @@ class _VendorMarketplaceLineProductCardState
                         ),
                       ),
                       SizedBox(width: 8.w),
+                      if (widget.line.isUrgent) ...[
+                        const UrgentBadge(),
+                        SizedBox(width: 6.w),
+                      ],
                       _statusBadge(),
                     ],
                   ),

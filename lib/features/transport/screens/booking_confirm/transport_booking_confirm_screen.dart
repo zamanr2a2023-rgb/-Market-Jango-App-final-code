@@ -6,7 +6,7 @@ import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
-import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
+import 'package:market_jango/features/buyer/screens/cart/logic/buyer_shiping_update_logic.dart';
 import 'package:market_jango/features/transport/screens/booking_confirm/data/create_shipment_data.dart';
 import 'package:market_jango/features/transport/screens/booking_confirm/transport_shipment_details_screen.dart';
 import 'package:market_jango/features/transport/screens/driver/screen/driver_details_screen.dart';
@@ -41,9 +41,13 @@ class TransportBookingConfirmScreen extends ConsumerStatefulWidget {
 
 class _TransportBookingConfirmScreenState
     extends ConsumerState<TransportBookingConfirmScreen> {
-  /// One list of controllers per package: [length, width, height, pieces, weight, buildingShop, phone]
+  /// One list of controllers per package: [length, width, height, pieces, weight, buildingShop]
   final List<List<TextEditingController>> _packageControllers = [];
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _pickupNameController = TextEditingController();
+  final TextEditingController _pickupPhoneController = TextEditingController();
+  final TextEditingController _dropNameController = TextEditingController();
+  final TextEditingController _dropPhoneController = TextEditingController();
 
   @override
   void initState() {
@@ -54,7 +58,6 @@ class _TransportBookingConfirmScreenState
   void _addPackage() {
     setState(() {
       _packageControllers.add([
-        TextEditingController(),
         TextEditingController(),
         TextEditingController(),
         TextEditingController(),
@@ -83,6 +86,10 @@ class _TransportBookingConfirmScreenState
       }
     }
     _messageController.dispose();
+    _pickupNameController.dispose();
+    _pickupPhoneController.dispose();
+    _dropNameController.dispose();
+    _dropPhoneController.dispose();
     super.dispose();
   }
 
@@ -108,9 +115,65 @@ class _TransportBookingConfirmScreenState
     final firstBuilding = _packageControllers.isNotEmpty && _packageControllers.first.length > 5
         ? _packageControllers.first[5].text.trim()
         : null;
-    final firstPhone = _packageControllers.isNotEmpty && _packageControllers.first.length > 6
-        ? _packageControllers.first[6].text.trim()
-        : null;
+
+    final pickupName = _pickupNameController.text.trim();
+    final pickupPhone = _pickupPhoneController.text.trim();
+    final dropName = _dropNameController.text.trim();
+    final dropPhone = _dropPhoneController.text.trim();
+    if (pickupName.isEmpty ||
+        dropName.isEmpty ||
+        !isValidContactPhone(pickupPhone) ||
+        !isValidContactPhone(dropPhone)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Pickup and drop-off name and valid phone are required '
+              '(7–20 chars: digits, spaces, hyphen, optional +).',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    for (var i = 0; i < packages.length; i++) {
+      final p = packages[i];
+      final n = i + 1;
+      if (p.weightKg == null || p.weightKg! <= 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Package $n: enter weight (kg).')),
+          );
+        }
+        return;
+      }
+      if (p.quantity < 1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Package $n: quantity must be at least 1.')),
+          );
+        }
+        return;
+      }
+      if (p.lengthCm == null ||
+          p.lengthCm! <= 0 ||
+          p.widthCm == null ||
+          p.widthCm! <= 0 ||
+          p.heightCm == null ||
+          p.heightCm! <= 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Package $n: enter length, width, and height (cm).',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
 
     final request = CreateShipmentRequest(
       driverId: driver.id,
@@ -118,14 +181,16 @@ class _TransportBookingConfirmScreenState
       originAddress: (origin != null && origin.isNotEmpty) ? origin : null,
       destinationAddress: (destination != null && destination.isNotEmpty) ? destination : null,
       pickupInstructions: firstBuilding?.isNotEmpty == true ? firstBuilding : null,
-      pickupContactPhone: firstPhone?.isNotEmpty == true ? firstPhone : null,
+      pickupContactName: pickupName,
+      pickupContactPhone: pickupPhone,
+      dropoffContactName: dropName,
+      dropoffContactPhone: dropPhone,
       messageToDriver: _messageController.text.trim().isNotEmpty ? _messageController.text.trim() : null,
       packages: packages,
     );
 
     try {
-      final token = await ref.read(authTokenProvider.future) ?? '';
-      final result = await createShipment(token: token, request: request);
+      final result = await createShipment(request: request);
       if (!mounted) return;
       context.push(
         TransportShipmentDetailsScreen.routeName,
@@ -133,8 +198,11 @@ class _TransportBookingConfirmScreenState
       );
     } catch (e) {
       if (mounted) {
+        final msg = e is CreateShipmentException
+            ? e.message
+            : e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(msg)),
         );
       }
     }
@@ -284,6 +352,50 @@ class _TransportBookingConfirmScreenState
               ),
             ),
             SizedBox(height: 28.h),
+            _sectionTitle(
+              ref.t(BKeys.pickup_contact_details, fallback: 'Pickup & drop contacts'),
+            ),
+            SizedBox(height: 10.h),
+            Container(
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              padding: EdgeInsets.all(16.w),
+              child: Column(
+                children: [
+                  _contactField(
+                    _pickupNameController,
+                    'Pickup contact name',
+                  ),
+                  SizedBox(height: 10.h),
+                  _contactField(
+                    _pickupPhoneController,
+                    ref.t(BKeys.phone_number),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  SizedBox(height: 14.h),
+                  _contactField(
+                    _dropNameController,
+                    'Drop-off contact name',
+                  ),
+                  SizedBox(height: 10.h),
+                  _contactField(
+                    _dropPhoneController,
+                    'Drop-off phone',
+                    keyboardType: TextInputType.phone,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 28.h),
             /// Package list
             _sectionTitle(ref.t(BKeys.create_package, fallback: 'Create package')),
             SizedBox(height: 12.h),
@@ -405,6 +517,40 @@ class _TransportBookingConfirmScreenState
       ),
     );
   }
+
+  Widget _contactField(
+    TextEditingController controller,
+    String label, {
+    TextInputType? keyboardType,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: TextStyle(fontSize: 14.sp, color: const Color(0xFF1E293B)),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(
+          color: const Color(0xFF64748B),
+          fontSize: 13.sp,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12.r),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12.r),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12.r),
+          borderSide: BorderSide(color: AllColor.blue500, width: 1.5),
+        ),
+      ),
+    );
+  }
 }
 
 /// Single package form: dimensions, pieces, weight, pickup/contact, remove.
@@ -438,7 +584,6 @@ class _PackageCard extends StatelessWidget {
     final piecesC = controllers.length > 3 ? controllers[3] : null;
     final weightC = controllers.length > 4 ? controllers[4] : null;
     final buildingC = controllers.length > 5 ? controllers[5] : null;
-    final phoneC = controllers.length > 6 ? controllers[6] : null;
 
     return Container(
       margin: EdgeInsets.only(bottom: 16.h),
@@ -538,12 +683,6 @@ class _PackageCard extends StatelessWidget {
             ),
             SizedBox(height: 16.h),
             _input(buildingC, ref.t(BKeys.building_shop_number_name)),
-            SizedBox(height: 10.h),
-            _input(
-              phoneC,
-              ref.t(BKeys.phone_number),
-              keyboardType: TextInputType.phone,
-            ),
           ],
         ),
       ),

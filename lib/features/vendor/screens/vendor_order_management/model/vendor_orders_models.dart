@@ -1,5 +1,7 @@
 // Models for vendor order management APIs (flexible JSON — backend may vary slightly).
 
+import 'package:market_jango/core/widget/urgent_badge.dart';
+
 int _toInt(dynamic v, {int d = 0}) {
   if (v == null) return d;
   if (v is int) return v;
@@ -268,6 +270,7 @@ class VendorMarketplaceLine {
   /// Buyer-brief accent (`doc/details.md`); optional from API.
   final String? orderColorKey;
   final String? suggestedColor;
+  final bool isUrgent;
 
   VendorMarketplaceLine({
     required this.id,
@@ -293,6 +296,7 @@ class VendorMarketplaceLine {
     this.outletStatus,
     this.orderColorKey,
     this.suggestedColor,
+    this.isUrgent = false,
   });
 
   /// Prefer API key; else outlet → `outlet`, else `single_vendor`.
@@ -364,6 +368,8 @@ class VendorMarketplaceLine {
           : j['outlet_status'].toString(),
       orderColorKey: colorKey.isEmpty ? null : colorKey,
       suggestedColor: suggested.isEmpty ? null : suggested,
+      isUrgent: urgentFromMap(j) ||
+          (ord is Map<String, dynamic> && urgentFromMap(ord)),
     );
   }
 }
@@ -398,6 +404,7 @@ class VendorMarketplaceLineDetail extends VendorMarketplaceLine {
     super.outletStatus,
     super.orderColorKey,
     super.suggestedColor,
+    super.isUrgent,
     required this.allowedNextStatuses,
     this.lineItems = const [],
   });
@@ -441,6 +448,7 @@ class VendorMarketplaceLineDetail extends VendorMarketplaceLine {
       outletStatus: base.outletStatus,
       orderColorKey: base.orderColorKey,
       suggestedColor: base.suggestedColor,
+      isUrgent: base.isUrgent,
       allowedNextStatuses: next,
       lineItems: lineItems,
     );
@@ -1300,4 +1308,53 @@ class VendorCreditPolicy {
     dueDays: 0,
     lateFee: 0,
   );
+}
+
+/// `auto_refund` on cancel-line and quantity-update responses.
+class AutoRefundModel {
+  final double credited;
+  final bool skipped;
+  final String? skipReason;
+  final int? refundId;
+
+  const AutoRefundModel({
+    required this.credited,
+    required this.skipped,
+    this.skipReason,
+    this.refundId,
+  });
+
+  bool get creditedToWallet => !skipped && credited > 0;
+
+  bool get unpaidOrCodPending =>
+      skipped &&
+      (skipReason == null ||
+          skipReason!.isEmpty ||
+          skipReason == 'unpaid_or_cod_pending');
+
+  factory AutoRefundModel.fromJson(Map<String, dynamic> j) {
+    final reason = j['skip_reason']?.toString().trim();
+    final idRaw = j['refund_id'];
+    final id = idRaw == null ? null : _toInt(idRaw);
+    return AutoRefundModel(
+      credited: _toDouble(j['credited']),
+      skipped: j['skipped'] == true ||
+          j['skipped'] == 1 ||
+          j['skipped']?.toString().toLowerCase() == 'true',
+      skipReason: (reason == null || reason.isEmpty || reason == 'null')
+          ? null
+          : reason,
+      refundId: id == null || id <= 0 ? null : id,
+    );
+  }
+
+  /// Reads `data.auto_refund` or a top-level `auto_refund`.
+  static AutoRefundModel? tryParse(Map<String, dynamic> top) {
+    Map<String, dynamic> source = top;
+    final data = top['data'];
+    if (data is Map<String, dynamic>) source = data;
+    final raw = source['auto_refund'];
+    if (raw is! Map) return null;
+    return AutoRefundModel.fromJson(Map<String, dynamic>.from(raw));
+  }
 }

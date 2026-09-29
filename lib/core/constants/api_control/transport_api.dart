@@ -1,4 +1,29 @@
+import 'package:market_jango/core/utils/auth_local_storage.dart';
+
 import 'global_api.dart';
+
+/// JSON shipment API errors (422 validation, etc.).
+String formatTransportApiError(Map<String, dynamic> json, int statusCode) {
+  final parts = <String>[];
+  final msg = json['message']?.toString();
+  if (msg != null && msg.isNotEmpty) parts.add(msg);
+  final errors = json['errors'];
+  if (errors is Map) {
+    for (final e in errors.entries) {
+      final k = e.key.toString();
+      final v = e.value;
+      if (v is List) {
+        for (final item in v) {
+          parts.add('• $k: $item');
+        }
+      } else if (v != null) {
+        parts.add('• $k: $v');
+      }
+    }
+  }
+  if (parts.isEmpty) return 'Request failed (HTTP $statusCode)';
+  return parts.join('\n');
+}
 
 class TransportAPIController {
   static final String _base_api = "$api/api";
@@ -15,6 +40,26 @@ class TransportAPIController {
 
   /// POST create shipment (draft) with packages
   static String get createShipment => "$_base_api/shipments";
+
+  /// Headers for `POST /api/shipments` (token, id, user_type, email).
+  static Future<Map<String, String>> shipmentCreateHeaders({
+    String? tokenOverride,
+  }) async {
+    final storage = AuthLocalStorage();
+    final token = tokenOverride ?? await storage.getToken();
+    final userId = await storage.getUserId();
+    final userJson = await storage.getUserJson();
+    final email = userJson?['email']?.toString() ?? '';
+
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'token': token,
+      if (userId != null && userId.isNotEmpty) 'id': userId,
+      'user_type': 'transport',
+      if (email.isNotEmpty) 'email': email,
+    };
+  }
 
   /// GET single shipment details
   static String shipmentById(int id) => "$_base_api/shipments/$id";

@@ -5,10 +5,15 @@ import 'package:market_jango/core/utils/order_source_color.dart';
 class AssignmentSourceStyle {
   AssignmentSourceStyle._();
 
-  static Color accent(String sourceColorKey, {String? suggestedColor}) {
+  static Color accent(
+    String sourceColorKey, {
+    String? suggestedColor,
+    bool isUrgent = false,
+  }) {
     return OrderSourceColor.resolve(
       orderColorKey: sourceColorKey,
       suggestedColor: suggestedColor,
+      isUrgent: isUrgent,
     );
   }
 }

@@ -812,11 +812,19 @@ Widget buildProfileSection(
         ],
       ),
       const Spacer(),
-      InkWell(
-        onTap: () {
-          Scaffold.of(context).openEndDrawer();
-        },
-        child: Icon(Icons.menu, size: 20.r, color: Colors.black),
+      Material(
+        color: AllColor.white,
+        elevation: 2,
+        shadowColor: Colors.black26,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => Scaffold.of(context).openEndDrawer(),
+          child: Padding(
+            padding: EdgeInsets.all(12.w),
+            child: Icon(Icons.menu, size: 24.r, color: Colors.black),
+          ),
+        ),
       ),
     ],
   );

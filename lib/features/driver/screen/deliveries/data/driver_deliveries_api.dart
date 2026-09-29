@@ -86,10 +86,23 @@ class DriverDeliveriesApi {
   Future<DriverAssignmentsPage> fetchDeliveries({
     int page = 1,
     String? status,
+    String? orderNumber,
+    String? pickLocation,
+    String? dropLocation,
+    String? fromDate,
+    String? toDate,
   }) async {
     final h = await _headers();
     final uri = Uri.parse(
-      DriverAPIController.driverDeliveries(page: page, status: status),
+      DriverAPIController.driverDeliveries(
+        page: page,
+        status: status,
+        orderNumber: orderNumber,
+        pickLocation: pickLocation,
+        dropLocation: dropLocation,
+        fromDate: fromDate,
+        toDate: toDate,
+      ),
     );
     final res = await http.get(uri, headers: h);
     _throwIfBad(res);

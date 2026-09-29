@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:market_jango/core/app_provider_container.dart';
 import 'package:market_jango/core/services/fcm_push_service.dart';
 import 'package:market_jango/features/vendor/offline_sync/data/offline_sale_queue_store.dart';
 import 'package:market_jango/features/vendor/offline_sync/data/offline_sync_manager.dart';
@@ -22,7 +23,8 @@ Future<void> main() async {
   }
 
   runApp(
-    ProviderScope(
+    UncontrolledProviderScope(
+      container: appProviderContainer,
       child: ScreenUtilInit(
         designSize: const Size(393, 852),
         minTextAdapt: true,

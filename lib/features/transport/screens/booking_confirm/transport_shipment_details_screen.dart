@@ -443,7 +443,7 @@ class _TransportShipmentDetailsScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('PICKUP & CONTACT', style: overline),
+                Text('PICKUP & DROP CONTACTS', style: overline),
                 SizedBox(height: 10.h),
                 if (shipment['user'] is Map<String, dynamic>) ...[
                   _accountLines(shipment['user'] as Map<String, dynamic>, bodyStyle, subtleStyle),
@@ -451,9 +451,35 @@ class _TransportShipmentDetailsScreenState
                   Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
                   SizedBox(height: 12.h),
                 ],
+                Text('Pickup name', style: subtleStyle),
+                SizedBox(height: 4.h),
+                Text(
+                  _em(shipment['pickup_contact_name']),
+                  style: valueStyle.copyWith(fontSize: 16.sp),
+                ),
+                SizedBox(height: 10.h),
                 Text('Pickup phone', style: subtleStyle),
                 SizedBox(height: 4.h),
-                Text(_em(shipment['pickup_contact_phone']), style: valueStyle.copyWith(fontSize: 17.sp)),
+                Text(
+                  _em(shipment['pickup_contact_phone']),
+                  style: valueStyle.copyWith(fontSize: 17.sp),
+                ),
+                SizedBox(height: 14.h),
+                Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
+                SizedBox(height: 14.h),
+                Text('Drop-off name', style: subtleStyle),
+                SizedBox(height: 4.h),
+                Text(
+                  _em(shipment['dropoff_contact_name']),
+                  style: valueStyle.copyWith(fontSize: 16.sp),
+                ),
+                SizedBox(height: 10.h),
+                Text('Drop-off phone', style: subtleStyle),
+                SizedBox(height: 4.h),
+                Text(
+                  _em(shipment['dropoff_contact_phone']),
+                  style: valueStyle.copyWith(fontSize: 17.sp),
+                ),
               ],
             ),
           ),

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/global_notification/data/notification_data.dart';
+import 'package:market_jango/core/screen/global_notification/model/all_notification_model.dart';
 
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 
@@ -81,14 +82,24 @@ class _GlobalNotificationsState
                                   }
                                 },
                                 child: NotificationTile(
-                                  title: n.name.isEmpty ? 'No Title' : n.name,
+                                  title: n.name.isEmpty
+                                      ? (n.eventType ==
+                                              NotificationEventType.autoLineRefund
+                                          ? 'Wallet refund'
+                                          : 'No Title')
+                                      : n.name,
                                   time: n.createdAt != null
                                       ? DateFormat.jm().format(n.createdAt!)
                                       : 'No time',
                                   isUnread: isUnread,
-                                  massage: n.message.isEmpty
-                                      ? 'No message'
-                                      : n.message,
+                                  massage: n.eventType ==
+                                          NotificationEventType.autoLineRefund
+                                      ? (n.message.trim().isNotEmpty
+                                          ? n.message
+                                          : n.walletRefundText)
+                                      : (n.message.isEmpty
+                                          ? 'No message'
+                                          : n.message),
                                 ),
                               ),
                             ),

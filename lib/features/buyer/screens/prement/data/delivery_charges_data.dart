@@ -29,6 +29,8 @@ class DeliveryChargeItem {
   final num finalDeliveryChargeDisplay;
   /// When charge is zero, API may set e.g. `no_matching_route`.
   final String skipReason;
+  final bool weightRequired;
+  final bool cubeRequired;
 
   const DeliveryChargeItem({
     required this.cartId,
@@ -48,6 +50,8 @@ class DeliveryChargeItem {
     required this.finalDeliveryCharge,
     required this.finalDeliveryChargeDisplay,
     required this.skipReason,
+    this.weightRequired = false,
+    this.cubeRequired = false,
   });
 
   factory DeliveryChargeItem.fromJson(Map<String, dynamic> json) {
@@ -90,8 +94,20 @@ class DeliveryChargeItem {
       finalDeliveryCharge: lineCharge,
       finalDeliveryChargeDisplay: lineChargeDisplay,
       skipReason: (json['skip_reason'] ?? '').toString(),
+      weightRequired: _flag(
+        json['weight_enabled'] ?? json['requires_weight'] ?? json['weight_required'],
+      ),
+      cubeRequired: _flag(
+        json['cube_enabled'] ?? json['requires_cube'] ?? json['cube_required'],
+      ),
     );
   }
+}
+
+bool _flag(dynamic v) {
+  if (v == true || v == 1) return true;
+  final s = v?.toString().trim().toLowerCase() ?? '';
+  return s == 'true' || s == '1' || s == 'yes';
 }
 
 /// Preferred route row from `data.routes[]` (doc/details.md).
@@ -107,6 +123,8 @@ class DeliveryRoute {
   final num weightBasedDisplay;
   final num cubeBasedDisplay;
   final num costDisplay;
+  final double? urgentFee;
+  final double? distanceKm;
 
   const DeliveryRoute({
     this.routeId,
@@ -120,6 +138,8 @@ class DeliveryRoute {
     this.weightBasedDisplay = 0,
     this.cubeBasedDisplay = 0,
     this.costDisplay = 0,
+    this.urgentFee,
+    this.distanceKm,
   });
 
   factory DeliveryRoute.fromJson(Map<String, dynamic> json) {
@@ -133,6 +153,13 @@ class DeliveryRoute {
       if (v is int) return v;
       if (v is num) return v.toInt();
       return int.tryParse('$v');
+    }
+
+    double? asDoubleOrNull(dynamic v) {
+      if (v == null) return null;
+      if (v is double) return v;
+      if (v is num) return v.toDouble();
+      return double.tryParse('$v');
     }
 
     final flat = asNum(json['flat']);
@@ -155,6 +182,8 @@ class DeliveryRoute {
       weightBasedDisplay: asNum(json['weight_based_display'] ?? weightBased),
       cubeBasedDisplay: asNum(json['cube_based_display'] ?? cubeBased),
       costDisplay: asNum(json['cost_display'] ?? cost),
+      urgentFee: asDoubleOrNull(json['urgent_fee']),
+      distanceKm: asDoubleOrNull(json['distance_km']),
     );
   }
 }
@@ -207,6 +236,10 @@ class DeliveryChargesResponse {
   final List<DeliveryRoute> routes;
   /// Legacy fallback when `data.routes` is absent.
   final List<DeliveryRouteSummary> routeSummaries;
+  final num urgentFee;
+  final num urgentFeeDisplay;
+  /// Echo from `data.is_urgent` / `data.cart_urgent_fee` when GET used `?is_urgent=`.
+  final bool isUrgentQuote;
 
   const DeliveryChargesResponse({
     required this.items,
@@ -228,6 +261,9 @@ class DeliveryChargesResponse {
     this.cartTotalWeightKg = 0,
     this.routes = const <DeliveryRoute>[],
     this.routeSummaries = const <DeliveryRouteSummary>[],
+    this.urgentFee = 0,
+    this.urgentFeeDisplay = 0,
+    this.isUrgentQuote = false,
   });
 
   /// Zone weight for summary: prefer `cart_total_weight_kg`.
@@ -254,6 +290,22 @@ class DeliveryChargesResponse {
     if (fromRoutes > 0) return fromRoutes;
 
     return zoneChargesApplied.values.fold<num>(0, (sum, v) => sum + v);
+  }
+
+  /// Blocks checkout when a matched route needs weight or cube and the cart has none.
+  String? get checkoutBlockReason {
+    for (final it in items) {
+      final skip = it.skipReason.toLowerCase();
+      final weightMissing =
+          (it.weightRequired || skip.contains('weight')) &&
+          it.effectiveWeightKg <= 0;
+      final cubeMissing =
+          (it.cubeRequired || skip.contains('cube')) && it.effectiveCubeM3 <= 0;
+      if (weightMissing || cubeMissing) {
+        return 'Product weight/cube information is required for delivery calculation.';
+      }
+    }
+    return null;
   }
 
   bool get hasDeliverySkipReason =>
@@ -433,6 +485,19 @@ class DeliveryChargesResponse {
         pickCurrency(data['display_currency'], ledgerCurrency);
 
     final cartTotalWeightKg = asNum(data['cart_total_weight_kg']);
+    final cartUrgentFee = asNum(data['cart_urgent_fee']);
+    final urgentFee = cartUrgentFee > 0
+        ? cartUrgentFee
+        : asNum(
+            data['urgent_fee'] ?? data['urgent_flat_fee'] ?? data['express_fee'],
+          );
+    final urgentFeeDisplay = displayOrLedger(
+      data['cart_urgent_fee_display'] ??
+          data['urgent_fee_display'] ??
+          data['urgent_flat_fee_display'],
+      urgentFee,
+    );
+    final isUrgentQuote = _flag(data['is_urgent']);
 
     return DeliveryChargesResponse(
       items: items,
@@ -454,22 +519,71 @@ class DeliveryChargesResponse {
       cartTotalWeightKg: cartTotalWeightKg,
       routes: routes,
       routeSummaries: routeSummaries,
+      urgentFee: urgentFee,
+      urgentFeeDisplay: urgentFeeDisplay,
+      isUrgentQuote: isUrgentQuote,
     );
   }
 }
 
+/// Checkout toggle: Normal vs Urgent. Fee comes from the delivery-charge API.
+final urgentDeliveryProvider = StateProvider<bool>((ref) => false);
+
+/// When API `data.is_urgent` does not match the user's toggle (non-fatal notice).
+String? deliveryUrgentQuoteMismatchNotice({
+  required bool userSelectedUrgent,
+  required DeliveryChargesResponse? charges,
+}) {
+  if (charges == null) return null;
+  if (charges.isUrgentQuote == userSelectedUrgent) return null;
+  if (userSelectedUrgent) {
+    return 'Urgent delivery is not available for this order. '
+        'Prices shown are for normal delivery.';
+  }
+  return 'Delivery quote did not match normal delivery. Pull to refresh and try again.';
+}
+
+/// Shown when GET delivery-charges fails instead of returning a breakdown.
+String? deliveryChargeLoadNotice(Object? error) {
+  if (error == null) return null;
+  final raw = error.toString().replaceFirst('Exception: ', '').trim();
+  if (raw.isEmpty) return null;
+  final lower = raw.toLowerCase();
+  if (lower.contains('weight') || lower.contains('cube')) {
+    final named = RegExp(r':\s*(.+)$').firstMatch(raw)?.group(1)?.trim();
+    const base =
+        'Product weight/cube information is required for delivery calculation.';
+    if (named != null && named.isNotEmpty && named.length < 80) {
+      return '$base ($named)';
+    }
+    return base;
+  }
+  return raw;
+}
+
 final cartDeliveryChargesProvider =
     FutureProvider.autoDispose<DeliveryChargesResponse?>((ref) async {
+  final isUrgent = ref.watch(urgentDeliveryProvider);
+
   // Guests must never fetch or see delivery charges.
   if (!await AuthGate.isLoggedIn()) return null;
 
   final auth = AuthLocalStorage();
   final token = await auth.getLoginToken();
   if (token == null || token.isEmpty) return null;
+  final userId = await auth.getUserId();
+  final userType = await auth.getUserType();
 
   final res = await http.get(
-    Uri.parse(BuyerAPIController.cartDeliveryCharges),
-    headers: {'Accept': 'application/json', 'token': token},
+    Uri.parse(
+      BuyerAPIController.cartDeliveryChargesWithUrgent(isUrgent: isUrgent),
+    ),
+    headers: {
+      'Accept': 'application/json',
+      if (token.isNotEmpty) 'token': token,
+      if (userId != null && userId.isNotEmpty) 'id': userId,
+      if (userType != null && userType.isNotEmpty) 'user_type': userType,
+    },
   );
 
   final map = jsonDecode(res.body) as Map<String, dynamic>;

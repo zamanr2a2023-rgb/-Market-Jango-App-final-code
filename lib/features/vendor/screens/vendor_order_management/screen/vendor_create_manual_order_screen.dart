@@ -22,7 +22,9 @@ import 'package:market_jango/features/vendor/offline_sync/provider/offline_sync_
 import 'package:market_jango/features/vendor/offline_sync/widget/offline_sync_banner.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/data/vendor_barcode_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_barcode/model/vendor_barcode_models.dart';
+import 'package:market_jango/features/vendor/screens/vendor_home/data/vendor_product_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/provider/vendor_orders_provider.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/data/walk_in_barcode_search_riverpod.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_pos_display_model.dart';
@@ -60,6 +62,13 @@ double _toDouble(dynamic v, {double d = 0}) {
   if (v == null) return d;
   if (v is num) return v.toDouble();
   return double.tryParse(v.toString().replaceAll(',', '')) ?? d;
+}
+
+/// POS price: walk-in when set, otherwise marketplace sell price.
+double _posUnitPrice(dynamic sell, [dynamic walkIn]) {
+  final walk = _toDouble(walkIn);
+  if (walk > 0) return walk;
+  return _toDouble(sell);
 }
 
 class _PosProduct {
@@ -397,7 +406,10 @@ class _VendorCreateManualOrderScreenState
         final id = _toInt(e['id']);
         if (id <= 0) continue;
         final name = e['name']?.toString() ?? 'Product $id';
-        final price = _toDouble(e['sell_price'] ?? e['price'] ?? e['regular_price']);
+        final price = _posUnitPrice(
+          e['sell_price'] ?? e['price'] ?? e['regular_price'],
+          e['walk_in_sell_price'] ?? e['walkin_sell_price'],
+        );
         final stock = _toInt(e['stock'] ?? e['quantity']);
         String? size;
         String? color;
@@ -430,7 +442,9 @@ class _VendorCreateManualOrderScreenState
         cacheById[id] = {
           'id': id,
           'name': name,
-          'sell_price': price,
+          'sell_price': e['sell_price'] ?? e['price'] ?? e['regular_price'],
+          'walk_in_sell_price':
+              e['walk_in_sell_price'] ?? e['walkin_sell_price'],
           'stock': stock,
           'size': size,
           'color': color,
@@ -453,13 +467,16 @@ class _VendorCreateManualOrderScreenState
             if (existing != null) {
               if (code.isNotEmpty) existing['barcode'] = code;
               existing['name'] = p.name;
-              existing['sell_price'] = p.sellPrice;
               existing['stock'] = p.stock;
+              if (p.walkInSellPrice > 0) {
+                existing['walk_in_sell_price'] = p.walkInSellPrice;
+              }
             } else {
               cacheById[p.id] = {
                 'id': p.id,
                 'name': p.name,
                 'sell_price': p.sellPrice,
+                'walk_in_sell_price': p.walkInSellPrice,
                 'stock': p.stock,
                 'size': p.variant.size,
                 'color': p.variant.color,
@@ -469,7 +486,7 @@ class _VendorCreateManualOrderScreenState
                 _PosProduct(
                   id: p.id,
                   name: p.name,
-                  sellPrice: p.sellPrice,
+                  sellPrice: p.posPrice,
                   stock: p.stock,
                   sizeLabel: p.variant.size,
                   colorLabel: p.variant.color,
@@ -495,7 +512,10 @@ class _VendorCreateManualOrderScreenState
           _PosProduct(
             id: id,
             name: e['name']?.toString() ?? 'Product $id',
-            sellPrice: _toDouble(e['sell_price'] ?? e['price']),
+            sellPrice: _posUnitPrice(
+              e['sell_price'] ?? e['price'],
+              e['walk_in_sell_price'] ?? e['walkin_sell_price'],
+            ),
             stock: _toInt(e['stock']),
             sizeLabel: e['size']?.toString(),
             colorLabel: e['color']?.toString(),
@@ -523,7 +543,7 @@ class _VendorCreateManualOrderScreenState
       return _PosProduct(
         id: b.id,
         name: b.name,
-        sellPrice: b.sellPrice,
+        sellPrice: b.posPrice,
         stock: b.stock,
         sizeLabel: null,
         colorLabel: null,
@@ -533,19 +553,28 @@ class _VendorCreateManualOrderScreenState
     }
   }
 
-  _PosProduct _posFromBarcode(VendorBarcodeProduct b) => _PosProduct(
-        id: b.id,
-        name: b.name,
-        sellPrice: b.sellPrice,
-        stock: b.stock,
-      );
+  _PosProduct _posFromBarcode(VendorBarcodeProduct b) {
+    final catalog = _findInCatalog(b.id);
+    final price = b.walkInSellPrice > 0
+        ? b.walkInSellPrice
+        : (catalog?.sellPrice ?? b.sellPrice);
+    return _PosProduct(
+      id: b.id,
+      name: b.name,
+      sellPrice: price,
+      stock: b.stock > 0 ? b.stock : (catalog?.stock ?? b.stock),
+    );
+  }
 
   _PosProduct _posFromCacheRow(Map<String, dynamic> e) {
     final id = _toInt(e['id']);
     return _PosProduct(
       id: id,
       name: e['name']?.toString() ?? 'Product $id',
-      sellPrice: _toDouble(e['sell_price'] ?? e['price']),
+      sellPrice: _posUnitPrice(
+        e['sell_price'] ?? e['price'],
+        e['walk_in_sell_price'] ?? e['walkin_sell_price'],
+      ),
       stock: _toInt(e['stock']),
       sizeLabel: e['size']?.toString(),
       colorLabel: e['color']?.toString(),
@@ -567,6 +596,7 @@ class _VendorCreateManualOrderScreenState
       'id': b.id,
       'name': b.name,
       'sell_price': b.sellPrice,
+      'walk_in_sell_price': b.walkInSellPrice,
       'stock': b.stock,
       'size': b.variant.size,
       'color': b.variant.color,
@@ -921,6 +951,9 @@ class _VendorCreateManualOrderScreenState
         customerPaid: paidApi,
         items: items,
       );
+      ref.invalidate(productNotifierProvider);
+      ref.invalidate(vendorManualOrdersProvider);
+      await _loadCatalog();
       if (!mounted) return;
       for (final l in _lines) {
         l.qty.removeListener(_onCartDraftChanged);
@@ -1960,7 +1993,7 @@ class _WalkInBarcodeSuggestionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sell = product.sellPrice.toStringAsFixed(2);
+    final sell = product.posPrice.toStringAsFixed(2);
     final regular = product.regularPrice.toStringAsFixed(2);
     final showRegular = product.regularPrice > 0 && regular != sell;
 

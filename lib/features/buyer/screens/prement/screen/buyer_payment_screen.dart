@@ -17,6 +17,7 @@ import 'package:market_jango/features/buyer/screens/prement/model/prement_model.
 import 'package:market_jango/features/buyer/screens/prement/widget/show_shipping_contract_sheet.dart';
 import 'package:market_jango/features/buyer/screens/prement/data/delivery_charges_data.dart';
 import 'package:market_jango/features/transport/screens/add_card_screen.dart';
+import 'package:market_jango/features/buyer/screens/cart/logic/buyer_shiping_update_logic.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/cart_data.dart';
 import 'package:market_jango/features/buyer/screens/cart/screen/shiping_address_update_botton_shet.dart';
 
@@ -32,6 +33,18 @@ class BuyerPaymentScreen extends ConsumerStatefulWidget {
 
 class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
   static const Color _deliveryTableBorder = Color(0xFF212121);
+
+  @override
+  void initState() {
+    super.initState();
+    loadSavedDeliveryContacts().then((saved) {
+      if (!mounted || saved == null) return;
+      final current = ref.read(savedDeliveryContactsProvider);
+      if (current == null) {
+        ref.read(savedDeliveryContactsProvider.notifier).state = saved;
+      }
+    });
+  }
 
   /// [currency] is a currency code (e.g. CDF/UGX); amounts come from API
   /// `*_display` fields — never converted client-side.
@@ -154,6 +167,69 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
     return parts.join(', ');
   }
 
+  Widget _deliveryChargeTotalsBreakdown(
+    DeliveryChargesResponse resp,
+    String currency,
+  ) {
+    double? routeDistance;
+    for (final r in resp.routes) {
+      if (r.distanceKm != null && r.distanceKm! > 0) {
+        routeDistance = r.distanceKm;
+        break;
+      }
+    }
+
+    Widget line(String label, String value) => Padding(
+          padding: EdgeInsets.symmetric(vertical: 4.h),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        border: Border.all(color: _deliveryTableBorder),
+        borderRadius: BorderRadius.circular(8.r),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          line(
+            'Delivery charge',
+            _fmtMoney(currency, resp.cartTotalDeliveryChargeDisplay),
+          ),
+          if (routeDistance != null) line('Distance', '$routeDistance km'),
+          if (resp.isUrgentQuote && resp.urgentFeeDisplay > 0)
+            line(
+              'Urgent delivery fee',
+              _fmtMoney(currency, resp.urgentFeeDisplay),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _deliveryChargeDetailTables(
     DeliveryChargesResponse resp,
     String currency,
@@ -182,6 +258,12 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
             cubeBased: r.cubeBased,
             cubeBasedDisplay: r.cubeBasedDisplay,
           ),
+          if (r.distanceKm != null && r.distanceKm! > 0)
+            'Distance: ${r.distanceKm} km',
+          if (resp.isUrgentQuote &&
+              r.urgentFee != null &&
+              r.urgentFee! > 0)
+            'Urgent fee: ${_fmtMoney(currency, r.urgentFee!)}',
         ];
         routeRows.add(
           _deliveryTableDataRow(
@@ -282,6 +364,8 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
           children: feeRows,
         ),
         SizedBox(height: 12.h),
+        _deliveryChargeTotalsBreakdown(resp, currency),
+        SizedBox(height: 12.h),
         Container(
           width: double.infinity,
           padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
@@ -378,6 +462,27 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget? _deliveryNotice({required String? notice}) {
+    if (notice == null) return null;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEE2E2),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: const Color(0xFFDC2626)),
+      ),
+      child: Text(
+        notice,
+        style: TextStyle(
+          color: const Color(0xFFB91C1C),
+          fontSize: 13.sp,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -481,12 +586,23 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                 : lines;
           }();
 
-    final contactLines = buyer == null
+    final savedContacts = ref.watch(savedDeliveryContactsProvider);
+    final contacts = resolveDeliveryContacts(
+      pickupName: buyer?.pickupContactName,
+      pickupPhone: buyer?.pickupContactPhone,
+      dropName: buyer?.dropContactName,
+      dropPhone: buyer?.dropContactPhone,
+      shipName: buyer?.shipName,
+      shipPhone: buyer?.shipPhone,
+      saved: savedContacts,
+    );
+    final contactLines = buyer == null && savedContacts == null
         ? const ['___,', '+____,', '_____']
         : [
-            (buyer.shipName ?? '—'),
-            (buyer.shipPhone ?? '—'),
-            (buyer.shipEmail ?? '—'),
+            'Pickup: ${contacts.pickupName.isEmpty ? '—' : contacts.pickupName}',
+            contacts.pickupPhone.isEmpty ? '—' : contacts.pickupPhone,
+            'Drop: ${contacts.dropName.isEmpty ? '—' : contacts.dropName}',
+            contacts.dropPhone.isEmpty ? '—' : contacts.dropPhone,
           ];
 
     // UI items map (ডিজাইন একই, কেবল ডেটা ম্যাপ করা)
@@ -527,7 +643,22 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
               .toList();
 
     final deliveryChargesAsync = ref.watch(cartDeliveryChargesProvider);
-    final charges = deliveryChargesAsync.valueOrNull;
+    final selectedShippingIndex = ref.watch(shippingMethodIndexProvider);
+    final urgent = ref.watch(urgentDeliveryProvider);
+    final deliveryChargesLoading =
+        selectedShippingIndex == 0 && deliveryChargesAsync.isLoading;
+    final charges = deliveryChargesLoading
+        ? null
+        : deliveryChargesAsync.valueOrNull;
+    final urgentMismatchNotice = deliveryUrgentQuoteMismatchNotice(
+      userSelectedUrgent: urgent,
+      charges: charges,
+    );
+    final checkoutEnabled = selectedShippingIndex != 0 ||
+        (!deliveryChargesLoading &&
+            !deliveryChargesAsync.hasError &&
+            urgentMismatchNotice == null &&
+            charges != null);
 
     final displayCurrency =
         charges?.displayCurrency ??
@@ -547,12 +678,10 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       ShippingOption(title: 'Own Pick up', cost: 0),
     ];
 
-    // ⬇️ currently selected shipping index (0 or 1)
-    final selectedShippingIndex = ref.watch(shippingMethodIndexProvider);
-
     /// Payable total: API `cart_total_with_delivery_and_fees` (incl. fees), not cart-only args.
     final double checkoutTotal;
     final double checkoutTotalDisplay;
+
     if (charges != null) {
       if (selectedShippingIndex == 0) {
         checkoutTotal = charges.grandTotal.toDouble();
@@ -609,15 +738,104 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
                     title: ref.t(BKeys.contactInformation),
                     lines: contactLines,
                     onEdit: () {
-                      showShippingContractSheet(context, ref, args);
+                      final updatedBuyer = cartAsync.maybeWhen(
+                        data: (cart) => cart.items.isNotEmpty
+                            ? cart.items.first.buyer
+                            : null,
+                        orElse: () => null,
+                      );
+                      final page = args;
+                      final sheetData = page == null
+                          ? null
+                          : PaymentPageData(
+                              buyer: updatedBuyer ?? page.buyer,
+                              items: page.items,
+                              subtotal: page.subtotal,
+                              deliveryTotal: page.deliveryTotal,
+                              grandTotal: page.grandTotal,
+                            );
+                      showShippingContractSheet(context, ref, sheetData);
                     },
                   ),
 
+                  if (selectedShippingIndex == 0) ...[
+                    SizedBox(height: 16.h),
+                    if (deliveryChargesLoading) ...[
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 18.w,
+                            height: 18.w,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          SizedBox(width: 10.w),
+                          Text(
+                            'Updating delivery charges…',
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12.h),
+                    ],
+                    _DeliverySpeedPicker(
+                      urgent: urgent,
+                      feeLabel: charges == null
+                          ? null
+                          : formatApiMoney(
+                              charges.urgentFeeDisplay.toDouble(),
+                              displayCurrency,
+                            ),
+                      onChanged: deliveryChargesLoading
+                          ? (_) {}
+                          : (value) {
+                              ref
+                                  .read(urgentDeliveryProvider.notifier)
+                                  .state = value;
+                            },
+                    ),
+                    if (urgentMismatchNotice != null) ...[
+                      SizedBox(height: 10.h),
+                      Text(
+                        urgentMismatchNotice,
+                        style: TextStyle(
+                          color: const Color(0xFFB45309),
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    if (charges?.checkoutBlockReason != null) ...[
+                      SizedBox(height: 10.h),
+                      Text(
+                        charges!.checkoutBlockReason!,
+                        style: TextStyle(
+                          color: const Color(0xFFB91C1C),
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
                   SizedBox(height: 20.h),
                   CustomItemShow(
                     items: uiItems,
                     options: options,
                     selectedIndex: selectedShippingIndex,
+                    deliveryNotice: selectedShippingIndex != 0
+                        ? null
+                        : _deliveryNotice(
+                            notice: deliveryChargesAsync.hasError
+                                ? deliveryChargeLoadNotice(
+                                    deliveryChargesAsync.error,
+                                  )
+                                : null,
+                          ),
                     onShippingChanged: (i) {
                       // Shipping selection only — order starts on Checkout tap.
                       ref.read(shippingMethodIndexProvider.notifier).state = i;
@@ -649,8 +867,11 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       // Bottom total: args থেকে
       bottomNavigationBar: CustomTotalCheckoutSection(
         totalPrice: checkoutTotal,
-        totalLabel: formatApiMoney(checkoutTotalDisplay, displayCurrency),
+        totalLabel: deliveryChargesLoading
+            ? 'Updating…'
+            : formatApiMoney(checkoutTotalDisplay, displayCurrency),
         context: context,
+        checkoutEnabled: checkoutEnabled,
         onCheckout: () => startCheckout(context),
       ),
     );
@@ -820,6 +1041,7 @@ class CustomItemShow extends StatefulWidget {
     this.selectedIndex = 0,
     this.onShippingChanged,
     this.onShippingDetails,
+    this.deliveryNotice,
     this.currency = 'UGX',
     this.titleItems = 'Items',
     this.titleShipping = 'Shipping Options',
@@ -830,6 +1052,7 @@ class CustomItemShow extends StatefulWidget {
   final int selectedIndex;
   final ValueChanged<int>? onShippingChanged;
   final VoidCallback? onShippingDetails;
+  final Widget? deliveryNotice;
   final String currency;
   final String titleItems;
   final String titleShipping;
@@ -876,7 +1099,11 @@ class _CustomItemShowState extends State<CustomItemShow> {
             physics: const NeverScrollableScrollPhysics(),
             itemBuilder: (_, i) => _itemRow(widget.items[i]),
           ),
-          SizedBox(height: 30.h),
+          SizedBox(height: 16.h),
+          if (widget.deliveryNotice != null) ...[
+            widget.deliveryNotice!,
+            SizedBox(height: 16.h),
+          ],
 
           Row(
             children: [
@@ -1201,3 +1428,102 @@ class _CustomItemShowState extends State<CustomItemShow> {
 //     ).showSnackBar(SnackBar(content: Text('Checkout failed: $e')));
 //   }
 // }
+
+class _DeliverySpeedPicker extends StatelessWidget {
+  const _DeliverySpeedPicker({
+    required this.urgent,
+    required this.onChanged,
+    this.feeLabel,
+  });
+
+  final bool urgent;
+  final ValueChanged<bool> onChanged;
+  final String? feeLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Delivery',
+          style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700),
+        ),
+        SizedBox(height: 8.h),
+        Row(
+          children: [
+            Expanded(
+              child: _SpeedChip(
+                label: 'Normal Delivery',
+                selected: !urgent,
+                onTap: () => onChanged(false),
+              ),
+            ),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: _SpeedChip(
+                label: 'Urgent Delivery',
+                selected: urgent,
+                urgentStyle: true,
+                onTap: () => onChanged(true),
+              ),
+            ),
+          ],
+        ),
+        if (urgent && feeLabel != null) ...[
+          SizedBox(height: 8.h),
+          Text(
+            'Urgent extra fee: $feeLabel',
+            style: TextStyle(
+              color: const Color(0xFFB91C1C),
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SpeedChip extends StatelessWidget {
+  const _SpeedChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.urgentStyle = false,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool urgentStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = urgentStyle && selected
+        ? const Color(0xFFB91C1C)
+        : AllColor.blue;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10.r),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 8.w),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.12) : Colors.white,
+          borderRadius: BorderRadius.circular(10.r),
+          border: Border.all(color: selected ? color : AllColor.grey200),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12.sp,
+            fontWeight: FontWeight.w700,
+            color: selected ? color : AllColor.black87,
+          ),
+        ),
+      ),
+    );
+  }
+}

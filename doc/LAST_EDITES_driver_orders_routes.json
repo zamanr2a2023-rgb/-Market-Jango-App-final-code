@@ -1,0 +1,128 @@
+{
+  "info": {
+    "name": "LAST EDITES — Driver orders filters + route limit",
+    "description": "Driver deliveries filters, max_routes on route-points, vendor assign-outlet.\nDoc: docs/FLUTTER_LAST_EDITES_DRIVER_ORDERS_ROUTES.md\n\nSet: baseUrl, token, id, routeId, itemId, outletId.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "" },
+    { "key": "id", "value": "" },
+    { "key": "vendorToken", "value": "" },
+    { "key": "vendorId", "value": "" },
+    { "key": "routeId", "value": "1" },
+    { "key": "itemId", "value": "1" },
+    { "key": "outletId", "value": "1" },
+    { "key": "orderNumber", "value": "" },
+    { "key": "pickLocation", "value": "" },
+    { "key": "dropLocation", "value": "" },
+    { "key": "fromDate", "value": "2026-01-01" },
+    { "key": "toDate", "value": "2026-12-31" }
+  ],
+  "item": [
+    {
+      "name": "1. Driver deliveries — all filters",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/driver/deliveries?order_number={{orderNumber}}&pick_location={{pickLocation}}&drop_location={{dropLocation}}&from_date={{fromDate}}&to_date={{toDate}}&status=all&page=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "driver", "deliveries"],
+          "query": [
+            { "key": "order_number", "value": "{{orderNumber}}" },
+            { "key": "pick_location", "value": "{{pickLocation}}" },
+            { "key": "drop_location", "value": "{{dropLocation}}" },
+            { "key": "from_date", "value": "{{fromDate}}" },
+            { "key": "to_date", "value": "{{toDate}}" },
+            { "key": "status", "value": "all" },
+            { "key": "page", "value": "1" }
+          ]
+        },
+        "description": "Urgent cards: is_urgent, order_color_key=urgent, suggested_color=#FF0000."
+      }
+    },
+    {
+      "name": "2. List route points (max_routes)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points?page=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points"],
+          "query": [{ "key": "page", "value": "1" }]
+        },
+        "description": "Expect data.max_routes (default 4), selected_route_count, items[].distance_km."
+      }
+    },
+    {
+      "name": "3. Add route (422 if at limit)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"delivery_charge_route_id\": {{routeId}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points"]
+        },
+        "description": "201 if under limit. 422 with max_routes + current_routes when subscription cap hit."
+      }
+    },
+    {
+      "name": "4. Remove route",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points/{{routeId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points", "{{routeId}}"]
+        }
+      }
+    },
+    {
+      "name": "5. Vendor assign outlet",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{vendorToken}}" },
+          { "key": "id", "value": "{{vendorId}}" },
+          { "key": "user_type", "value": "vendor" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"outlet_id\": {{outletId}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/orders/{{itemId}}/assign-outlet",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "orders", "{{itemId}}", "assign-outlet"]
+        },
+        "description": "Existing endpoint. itemId = invoice_item id."
+      }
+    }
+  ]
+}

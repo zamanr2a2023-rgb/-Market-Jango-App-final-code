@@ -9,15 +9,22 @@ class AuthAPIController {
   static String registerEmail= "$_base_api/register-email";
   static String registerVendorRequestStore= "$_base_api/vendor/register";
   static String business_type= "$_base_api/business-type";
-  /// Zone / state / town lists for Create Store (shared location catalog).
+  /// Zone / state / town lists for vendor & driver register (visibility-locations).
   static String get registerLocationZones =>
-      '$_base_api/buyer/delivery-charge-locations/zones';
+      '$_base_api/buyer/visibility-locations/zones';
   static String registerLocationStates({required String zone}) => Uri.parse(
-        '$_base_api/buyer/delivery-charge-locations/states',
+        '$_base_api/buyer/visibility-locations/states',
       ).replace(queryParameters: {'zone': zone.trim()}).toString();
-  static String registerLocationTowns({required String zoneName}) => Uri.parse(
-        '$_base_api/buyer/delivery-charge-locations/towns',
-      ).replace(queryParameters: {'zone_name': zoneName.trim()}).toString();
+  static String registerLocationTowns({
+    required String zone,
+    required String state,
+  }) =>
+      Uri.parse('$_base_api/buyer/visibility-locations/towns').replace(
+        queryParameters: {
+          'zone': zone.trim(),
+          'state': state.trim(),
+        },
+      ).toString();
   static String registerDriverCarInfo="$_base_api/driver/register";
   static String phoneVerifyOtp="$_base_api/user-verify-otp";
   static String resetPassword="$_base_api/reset-password";

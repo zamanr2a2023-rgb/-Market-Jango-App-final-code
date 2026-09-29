@@ -16,8 +16,35 @@ class BuyerAPIController {
   static String get visibilityLocationsZones =>
       '$_base_api/buyer/visibility-locations/zones';
 
+  /// `GET …/states?zone=` — register & visibility dropdowns.
+  static String visibilityLocationsStates({required String zone}) =>
+      Uri.parse('$_base_api/buyer/visibility-locations/states')
+          .replace(queryParameters: {'zone': zone.trim()})
+          .toString();
+
+  /// `GET …/towns?zone=&state=` — register & visibility dropdowns.
+  static String visibilityLocationsTowns({
+    required String zone,
+    required String state,
+  }) =>
+      Uri.parse('$_base_api/buyer/visibility-locations/towns')
+          .replace(
+            queryParameters: {
+              'zone': zone.trim(),
+              'state': state.trim(),
+            },
+          )
+          .toString();
+
   static String cart = "$_base_api/cart";
   static String get cartDeliveryCharges => "$_base_api/cart/delivery-charges";
+
+  /// `GET /api/cart/delivery-charges?is_urgent=0|1` (LAST EDITES checkout).
+  static String cartDeliveryChargesWithUrgent({required bool isUrgent}) {
+    return Uri.parse(cartDeliveryCharges)
+        .replace(queryParameters: {'is_urgent': isUrgent ? '1' : '0'})
+        .toString();
+  }
   static String cartDelete(int id) => "$_base_api/cart/$id";
   static String cart_create = "$_base_api/cart/create";
   static String category = "$_base_api/category";

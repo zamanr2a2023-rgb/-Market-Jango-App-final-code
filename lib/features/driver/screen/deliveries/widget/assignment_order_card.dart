@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
+import 'package:market_jango/core/widget/urgent_badge.dart';
 import 'package:market_jango/features/driver/screen/deliveries/model/driver_assignment_models.dart';
 import 'package:market_jango/features/driver/screen/deliveries/widget/assignment_metrics_row.dart';
 import 'package:market_jango/features/driver/screen/deliveries/widget/assignment_route_block.dart';
@@ -22,6 +23,7 @@ class AssignmentOrderCard extends StatelessWidget {
     final accent = AssignmentSourceStyle.accent(
       row.sourceColorKey,
       suggestedColor: row.suggestedColor,
+      isUrgent: row.isUrgent,
     );
 
     return Material(
@@ -62,6 +64,10 @@ class AssignmentOrderCard extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                              if (row.isUrgent) ...[
+                                const UrgentBadge(),
+                                SizedBox(width: 6.w),
+                              ],
                               AssignmentStatusBadge(row: row),
                             ],
                           ),

@@ -41,6 +41,8 @@ class InvoiceDetails {
   /// Optional breakdown fields if the API returns them.
   final String? deliveryCharge;
   final String? platformFee;
+  final bool? isUrgent;
+  final double? urgentFee;
 
   InvoiceDetails({
     required this.id,
@@ -63,11 +65,14 @@ class InvoiceDetails {
     required this.items,
     this.deliveryCharge,
     this.platformFee,
+    this.isUrgent,
+    this.urgentFee,
   });
 
   factory InvoiceDetails.fromJson(Map<String, dynamic> json) {
     final itemsList = json['items'] as List? ?? [];
     final platformRaw = json['platform_fee'] ?? json['platform_fees'] ?? json['service_fee'];
+    final deliveryType = json['delivery_type']?.toString().trim().toLowerCase();
     return InvoiceDetails(
       id: _toInt(json['id']),
       orderNumber: json['order_number']?.toString(),
@@ -91,6 +96,13 @@ class InvoiceDetails {
           .toList(),
       deliveryCharge: json['delivery_charge']?.toString(),
       platformFee: platformRaw?.toString(),
+      isUrgent: _parseBoolOrNull(json['is_urgent']) ??
+          (deliveryType == 'urgent' || deliveryType == 'express'
+              ? true
+              : deliveryType == 'normal'
+                  ? false
+                  : null),
+      urgentFee: _toDoubleOrNull(json['urgent_fee']),
     );
   }
 }
@@ -222,4 +234,21 @@ int _toInt(dynamic v) {
 DateTime? _toDate(dynamic v) {
   if (v == null) return null;
   return DateTime.tryParse(v.toString());
+}
+
+bool? _parseBoolOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is bool) return v;
+  if (v is num) return v != 0;
+  final s = v.toString().trim().toLowerCase();
+  if (s == 'true' || s == '1' || s == 'yes') return true;
+  if (s == 'false' || s == '0' || s == 'no') return false;
+  return null;
+}
+
+double? _toDoubleOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is double) return v;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString());
 }

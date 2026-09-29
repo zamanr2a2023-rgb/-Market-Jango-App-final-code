@@ -1,3 +1,5 @@
+import 'package:market_jango/core/widget/urgent_badge.dart';
+
 int _toInt(dynamic v, {int d = 0}) {
   if (v == null) return d;
   if (v is int) return v;
@@ -79,6 +81,7 @@ class DriverAssignmentPlace {
   final String label;
   final String name;
   final String address;
+  final String phone;
   final double? latitude;
   final double? longitude;
 
@@ -86,6 +89,7 @@ class DriverAssignmentPlace {
     required this.label,
     required this.name,
     required this.address,
+    this.phone = '',
     this.latitude,
     this.longitude,
   });
@@ -95,10 +99,16 @@ class DriverAssignmentPlace {
     required String fallbackLabel,
   }) {
     j ??= const {};
+    final contactName = _s(j['contact_name']).isNotEmpty
+        ? _s(j['contact_name'])
+        : _s(j['name']);
     return DriverAssignmentPlace(
       label: _s(j['label']).isEmpty ? fallbackLabel : _s(j['label']),
-      name: _s(j['name']),
+      name: contactName,
       address: _s(j['address']),
+      phone: _s(
+        j['phone'] ?? j['contact_phone'] ?? j['contactPhone'],
+      ),
       latitude: _toDoubleOrNull(j['latitude']),
       longitude: _toDoubleOrNull(j['longitude']),
     );
@@ -362,6 +372,7 @@ class DriverAssignmentRow {
   final DriverAssignmentBuyer buyer;
   final DriverAssignmentActions actions;
   final DriverLatestLocation? latestLocation;
+  final bool isUrgent;
   final Map<String, dynamic> raw;
 
   DriverAssignmentRow({
@@ -385,6 +396,7 @@ class DriverAssignmentRow {
     required this.buyer,
     required this.actions,
     this.latestLocation,
+    this.isUrgent = false,
     required this.raw,
   });
 
@@ -405,6 +417,36 @@ class DriverAssignmentRow {
         : (assignmentId ?? shipmentId ?? 0);
     final orderNumber = _s(j['order_number']);
     final loc = _map(j['latest_location']);
+    final pickupMap = Map<String, dynamic>.from(_map(j['pickup']) ?? {});
+    final dropMap = Map<String, dynamic>.from(_map(j['dropoff']) ?? {});
+    void fillContact(
+      Map<String, dynamic> place,
+      String nameKey,
+      String phoneKey,
+    ) {
+      if (_s(place['name']).isEmpty && _s(place['contact_name']).isEmpty) {
+        final n = _s(j[nameKey]);
+        if (n.isNotEmpty) place['name'] = n;
+      }
+      if (_s(place['phone']).isEmpty && _s(place['contact_phone']).isEmpty) {
+        final p = _s(j[phoneKey]);
+        if (p.isNotEmpty) place['phone'] = p;
+      }
+    }
+
+    fillContact(pickupMap, 'pickup_contact_name', 'pickup_contact_phone');
+    fillContact(dropMap, 'dropoff_contact_name', 'dropoff_contact_phone');
+    fillContact(dropMap, 'drop_contact_name', 'drop_contact_phone');
+    final vendorMap = _map(j['vendor']);
+    final buyerMap = _map(j['buyer']);
+    if (_s(pickupMap['phone']).isEmpty && _s(pickupMap['contact_phone']).isEmpty) {
+      final vp = _s(vendorMap?['phone']);
+      if (vp.isNotEmpty) pickupMap['phone'] = vp;
+    }
+    if (_s(dropMap['phone']).isEmpty && _s(dropMap['contact_phone']).isEmpty) {
+      final bp = _s(buyerMap?['phone']);
+      if (bp.isNotEmpty) dropMap['phone'] = bp;
+    }
     final colorKeyRaw = _s(j['order_color_key']).isNotEmpty
         ? _s(j['order_color_key'])
         : _s(j['source_color_key']);
@@ -423,11 +465,11 @@ class DriverAssignmentRow {
       acceptTimeoutSeconds: _toInt(j['accept_timeout_seconds'], d: 30),
       invoiceItemId: _toIntOrNull(j['invoice_item_id']),
       pickup: DriverAssignmentPlace.fromJson(
-        _map(j['pickup']),
+        pickupMap,
         fallbackLabel: 'From (Pickup)',
       ),
       dropoff: DriverAssignmentPlace.fromJson(
-        _map(j['dropoff']),
+        dropMap,
         fallbackLabel: 'To (Drop-off)',
       ),
       metrics: DriverAssignmentMetrics.fromJson(_map(j['metrics'])),
@@ -439,6 +481,7 @@ class DriverAssignmentRow {
         status: status,
       ),
       latestLocation: loc == null ? null : DriverLatestLocation.fromJson(loc),
+      isUrgent: urgentFromAssignmentJson(j),
       raw: Map<String, dynamic>.from(j),
     );
   }

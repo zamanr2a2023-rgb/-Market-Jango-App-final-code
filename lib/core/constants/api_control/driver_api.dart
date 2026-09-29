@@ -50,11 +50,27 @@ class DriverAPIController {
   }
 
   // --- Driver assignments (`doc/details.md`) — `/api/driver/deliveries` ---
-  static String driverDeliveries({int page = 1, String? status}) {
+  static String driverDeliveries({
+    int page = 1,
+    String? status,
+    String? orderNumber,
+    String? pickLocation,
+    String? dropLocation,
+    String? fromDate,
+    String? toDate,
+  }) {
     final q = <String, String>{'page': '$page'};
-    if (status != null && status.trim().isNotEmpty) {
-      q['status'] = status.trim();
+    void add(String key, String? value) {
+      final v = value?.trim() ?? '';
+      if (v.isNotEmpty) q[key] = v;
     }
+
+    add('status', status);
+    add('order_number', orderNumber);
+    add('pick_location', pickLocation);
+    add('drop_location', dropLocation);
+    add('from_date', fromDate);
+    add('to_date', toDate);
     return Uri.parse('$_base_api/driver/deliveries')
         .replace(queryParameters: q)
         .toString();

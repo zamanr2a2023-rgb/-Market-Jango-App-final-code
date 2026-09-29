@@ -11,33 +11,172 @@ import 'package:market_jango/features/buyer/screens/prement/model/prement_page_d
 
 void showShippingContractSheet(
   BuildContext context,
-  WidgetRef ref, // <-- ADD ref
+  WidgetRef ref,
   PaymentPageData? ares,
 ) {
-  showModalBottomSheet(
+  final messenger = ScaffoldMessenger.of(context);
+  showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AllColor.white,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
     ),
-    builder: (context) {
-      final nameCtrl = TextEditingController(text: ares?.buyer.shipName ?? "");
-      final phoneCtrl = TextEditingController(
-        text: ares?.buyer.shipPhone ?? "",
+    builder: (sheetContext) {
+      return _ShippingContractForm(
+        ref: ref,
+        page: ares,
+        onSaved: () {
+          Navigator.of(sheetContext).pop();
+          ref.invalidate(cartProvider);
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Contact info updated')),
+          );
+        },
       );
-      final emailCtrl = TextEditingController(
-        text: ares?.buyer.shipEmail ?? "",
-      );
+    },
+  );
+}
 
-      return Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
+class _ShippingContractForm extends StatefulWidget {
+  const _ShippingContractForm({
+    required this.ref,
+    required this.page,
+    required this.onSaved,
+  });
+
+  final WidgetRef ref;
+  final PaymentPageData? page;
+  final VoidCallback onSaved;
+
+  @override
+  State<_ShippingContractForm> createState() => _ShippingContractFormState();
+}
+
+class _ShippingContractFormState extends State<_ShippingContractForm> {
+  late final TextEditingController _pickupNameCtrl;
+  late final TextEditingController _pickupPhoneCtrl;
+  late final TextEditingController _dropNameCtrl;
+  late final TextEditingController _dropPhoneCtrl;
+  late final TextEditingController _emailCtrl;
+  String? _error;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final buyer = widget.page?.buyer;
+    final saved = widget.ref.read(savedDeliveryContactsProvider);
+    _pickupNameCtrl = TextEditingController(
+      text: firstFilledContact(buyer?.pickupContactName, saved?.pickupName),
+    );
+    _pickupPhoneCtrl = TextEditingController(
+      text: firstFilledContact(buyer?.pickupContactPhone, saved?.pickupPhone),
+    );
+    if ((saved?.pickupName.isEmpty ?? true) &&
+        (buyer?.pickupContactName.isEmpty ?? true)) {
+      loadSavedDeliveryContacts().then((stored) {
+        if (!mounted || stored == null) return;
+        widget.ref.read(savedDeliveryContactsProvider.notifier).state = stored;
+        if (_pickupNameCtrl.text.trim().isEmpty) {
+          _pickupNameCtrl.text = stored.pickupName;
+        }
+        if (_pickupPhoneCtrl.text.trim().isEmpty) {
+          _pickupPhoneCtrl.text = stored.pickupPhone;
+        }
+      });
+    }
+    _dropNameCtrl = TextEditingController(
+      text: (buyer?.dropContactName.isNotEmpty ?? false)
+          ? buyer!.dropContactName
+          : (buyer?.shipName ?? ''),
+    );
+    _dropPhoneCtrl = TextEditingController(
+      text: (buyer?.dropContactPhone.isNotEmpty ?? false)
+          ? buyer!.dropContactPhone
+          : (buyer?.shipPhone ?? ''),
+    );
+    _emailCtrl = TextEditingController(text: buyer?.shipEmail ?? '');
+  }
+
+  @override
+  void dispose() {
+    final pickupNameCtrl = _pickupNameCtrl;
+    final pickupPhoneCtrl = _pickupPhoneCtrl;
+    final dropNameCtrl = _dropNameCtrl;
+    final dropPhoneCtrl = _dropPhoneCtrl;
+    final emailCtrl = _emailCtrl;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      pickupNameCtrl.dispose();
+      pickupPhoneCtrl.dispose();
+      dropNameCtrl.dispose();
+      dropPhoneCtrl.dispose();
+      emailCtrl.dispose();
+    });
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final pickupName = _pickupNameCtrl.text.trim();
+    final pickupPhone = _pickupPhoneCtrl.text.trim();
+    final dropName = _dropNameCtrl.text.trim();
+    final dropPhone = _dropPhoneCtrl.text.trim();
+    String? error;
+    if (pickupName.isEmpty || dropName.isEmpty) {
+      error = 'Pickup and drop name are required.';
+    } else if (!isValidContactPhone(pickupPhone) ||
+        !isValidContactPhone(dropPhone)) {
+      error = 'Enter a valid phone number for pickup and drop.';
+    }
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    setState(() {
+      _error = null;
+      _saving = true;
+    });
+    try {
+      await widget.ref.read(userUpdateServiceProvider).updateUserFields(
+        fields: {
+          'pickup_contact_name': pickupName,
+          'pickup_contact_phone': pickupPhone,
+          'drop_contact_name': dropName,
+          'drop_contact_phone': dropPhone,
+          'ship_name': dropName,
+          'ship_phone': dropPhone,
+          if (_emailCtrl.text.trim().isNotEmpty)
+            'ship_email': _emailCtrl.text.trim(),
+        },
+      );
+      if (!mounted) return;
+      final saved = SavedDeliveryContacts(
+        pickupName: pickupName,
+        pickupPhone: pickupPhone,
+        dropName: dropName,
+        dropPhone: dropPhone,
+      );
+      widget.ref.read(savedDeliveryContactsProvider.notifier).state = saved;
+      await persistSavedDeliveryContacts(saved);
+      widget.onSaved();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
             Container(
               width: double.infinity,
               padding: EdgeInsets.fromLTRB(16.w, 16.h, 8.w, 16.h),
@@ -65,72 +204,60 @@ void showShippingContractSheet(
                 ],
               ),
             ),
-
-            // Form body
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
-              child: Container(
+              child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 16.h),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     CustomTextFormField(
-                      label: 'Name',
-                      controller: nameCtrl,
-                      hintText: 'Receiver Name',
+                      label: 'Pickup name',
+                      controller: _pickupNameCtrl,
+                      hintText: 'Pickup contact name',
                     ),
                     SizedBox(height: 12.h),
                     CustomTextFormField(
-                      label: 'Phone Number',
-                      controller: phoneCtrl,
-                      hintText: 'Phone',
+                      label: 'Pickup phone',
+                      controller: _pickupPhoneCtrl,
+                      hintText: 'Pickup phone',
+                      keyboardType: TextInputType.phone,
+                    ),
+                    SizedBox(height: 12.h),
+                    CustomTextFormField(
+                      label: 'Drop name',
+                      controller: _dropNameCtrl,
+                      hintText: 'Drop contact name',
+                    ),
+                    SizedBox(height: 12.h),
+                    CustomTextFormField(
+                      label: 'Drop phone',
+                      controller: _dropPhoneCtrl,
+                      hintText: 'Drop phone',
                       keyboardType: TextInputType.phone,
                     ),
                     SizedBox(height: 12.h),
                     CustomTextFormField(
                       label: 'Email Address',
-                      controller: emailCtrl,
+                      controller: _emailCtrl,
                       hintText: 'Email',
                       keyboardType: TextInputType.emailAddress,
                     ),
-                    SizedBox(height: 20.h),
-
+                    if (_error != null) ...[
+                      SizedBox(height: 12.h),
+                      Text(
+                        _error!,
+                        style: TextStyle(
+                          color: const Color(0xFFB91C1C),
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: 12.h),
                     GlobalSaveBotton(
-                      bottonName: 'Save Changes',
-                      onPressed: () async {
-                        try {
-                          await ref
-                              .read(userUpdateServiceProvider)
-                              .updateUserFields(
-                                fields: {
-                                  if (nameCtrl.text.trim().isNotEmpty)
-                                    'ship_name': nameCtrl.text,
-                                  if (phoneCtrl.text.trim().isNotEmpty)
-                                    'ship_phone': phoneCtrl.text,
-                                  if (emailCtrl.text.trim().isNotEmpty)
-                                    'ship_email': emailCtrl.text,
-                                },
-                              );
-                          if (context.mounted) {
-                            // Invalidate cart to refresh payment screen
-                            ref.invalidate(cartProvider);
-                            // Wait a bit for the cart to refresh
-                            await Future.delayed(const Duration(milliseconds: 300));
-                            context.pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Contact info updated'),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed: $e')),
-                            );
-                          }
-                        }
-                      },
+                      bottonName: _saving ? 'Saving...' : 'Save Changes',
+                      onPressed: _saving ? null : _save,
                     ),
                   ],
                 ),
@@ -138,9 +265,9 @@ void showShippingContractSheet(
             ),
           ],
         ),
-      );
-    },
-  );
+      ),
+    );
+  }
 }
 
 class CustomTextFormField extends StatelessWidget {

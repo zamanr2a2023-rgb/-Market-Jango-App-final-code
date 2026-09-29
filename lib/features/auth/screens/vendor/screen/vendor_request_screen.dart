@@ -51,7 +51,7 @@ class VendorRequestScreen extends ConsumerWidget {
   Future<void> _submit(BuildContext context, WidgetRef ref) async {
     final country = ref.read(selectedCountryProvider);
     final businessName = ref.read(businessNameProvider);
-    final businessType = ref.read(selectedBusinessTypeProvider);
+    final businessTypeId = ref.read(selectedBusinessTypeIdProvider);
     final address = ref.read(addressProvider);
     final files = ref.read(pickedFilesProvider);
     final latitude = ref.read(selectedLatitudeProvider);
@@ -62,7 +62,8 @@ class VendorRequestScreen extends ConsumerWidget {
 
     if (country == null ||
         businessName.isEmpty ||
-        businessType == null ||
+        businessTypeId == null ||
+        businessTypeId <= 0 ||
         address.isEmpty ||
         files.isEmpty ||
         zone == null ||
@@ -88,7 +89,7 @@ class VendorRequestScreen extends ConsumerWidget {
       url: AuthAPIController.registerVendorRequestStore,
       country: country.name,
       businessName: businessName,
-      businessType: businessType,
+      businessTypeIds: [businessTypeId],
       address: address,
       files: files,
       latitude: latitude,
@@ -216,7 +217,7 @@ class VendorRequestScreen extends ConsumerWidget {
                           _FieldLabel('Town'),
                           const VendorTownDropdown(),
                           SizedBox(height: 14.h),
-                          _FieldLabel('Full address'),
+                          _FieldLabel('Street'),
                           _StoreTextField(
                             initialValue: address,
                             hint: 'Street, landmark, building…',
@@ -404,7 +405,6 @@ class VendorRequestScreen extends ConsumerWidget {
 }
 
 final selectedCountryProvider = StateProvider<Country?>((ref) => null);
-final selectedBusinessTypeProvider = StateProvider<String?>((ref) => null);
 final businessNameProvider = StateProvider<String>((ref) => '');
 final addressProvider = StateProvider<String>((ref) => '');
 final pickedFilesProvider = StateProvider<List<File>>((ref) => []);
@@ -659,7 +659,7 @@ class BusinessTypeDropdown extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final businessTypesAsync = ref.watch(businessTypesProvider);
-    final selectedType = ref.watch(selectedBusinessTypeProvider);
+    final selectedId = ref.watch(selectedBusinessTypeIdProvider);
 
     return _dropdownShell(
       child: businessTypesAsync.when(
@@ -667,12 +667,11 @@ class BusinessTypeDropdown extends ConsumerWidget {
           if (types.isEmpty) {
             return _hintRow('No business types found', showChevron: false);
           }
-          final names = types.map((e) => e.name).toList();
-          final value = selectedType != null && names.contains(selectedType)
-              ? selectedType
-              : null;
+          final ids = types.map((e) => e.id).where((id) => id > 0).toList();
+          final value =
+              selectedId != null && ids.contains(selectedId) ? selectedId : null;
           return DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
+            child: DropdownButton<int>(
               isExpanded: true,
               hint: Text(
                 'Choose business type',
@@ -690,9 +689,10 @@ class BusinessTypeDropdown extends ConsumerWidget {
               dropdownColor: Colors.white,
               borderRadius: BorderRadius.circular(14.r),
               items: types
+                  .where((type) => type.id > 0)
                   .map(
-                    (type) => DropdownMenuItem<String>(
-                      value: type.name,
+                    (type) => DropdownMenuItem<int>(
+                      value: type.id,
                       child: Text(
                         type.name,
                         style: TextStyle(
@@ -705,7 +705,7 @@ class BusinessTypeDropdown extends ConsumerWidget {
                   )
                   .toList(),
               onChanged: (value) {
-                ref.read(selectedBusinessTypeProvider.notifier).state = value;
+                ref.read(selectedBusinessTypeIdProvider.notifier).state = value;
               },
             ),
           );
@@ -897,6 +897,7 @@ class VendorTownDropdown extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final zone = ref.watch(selectedVendorZoneProvider)?.trim() ?? '';
+    final stateName = ref.watch(selectedVendorStateProvider)?.trim() ?? '';
     final selected = ref.watch(selectedVendorTownProvider);
 
     if (zone.isEmpty) {
@@ -906,7 +907,18 @@ class VendorTownDropdown extends ConsumerWidget {
       );
     }
 
-    final townsAsync = ref.watch(vendorRegisterTownsProvider(zone));
+    if (stateName.isEmpty) {
+      return _dropdownShell(
+        enabled: false,
+        child: _hintRow('Select state first'),
+      );
+    }
+
+    final townParams = VendorRegisterTownParams(
+      zone: zone,
+      state: stateName,
+    );
+    final townsAsync = ref.watch(vendorRegisterTownsProvider(townParams));
 
     return _dropdownShell(
       child: townsAsync.when(
@@ -967,7 +979,7 @@ class VendorTownDropdown extends ConsumerWidget {
           ),
         ),
         error: (err, _) => InkWell(
-          onTap: () => ref.invalidate(vendorRegisterTownsProvider(zone)),
+          onTap: () => ref.invalidate(vendorRegisterTownsProvider(townParams)),
           child: _hintRow('Tap to retry towns'),
         ),
       ),

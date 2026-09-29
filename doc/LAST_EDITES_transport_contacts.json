@@ -1,0 +1,80 @@
+{
+  "info": {
+    "name": "LAST EDITES — Transport pickup/drop contacts",
+    "description": "Shipment create requires pickup/dropoff name+phone. Driver payload shows contacts.\nDoc: docs/FLUTTER_LAST_EDITES_TRANSPORT_CONTACTS.md\n\nSet: baseUrl, token, id, driverId, shipmentId.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "" },
+    { "key": "id", "value": "" },
+    { "key": "driverToken", "value": "" },
+    { "key": "driverUserId", "value": "" },
+    { "key": "driverId", "value": "1" },
+    { "key": "shipmentId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "1. Create shipment with contacts",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "transport" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"driver_id\": {{driverId}},\n  \"origin_address\": \"Kampala warehouse\",\n  \"destination_address\": \"Entebbe airport\",\n  \"pickup_contact_name\": \"Alice Pickup\",\n  \"pickup_contact_phone\": \"+256700000001\",\n  \"dropoff_contact_name\": \"Bob Drop\",\n  \"dropoff_contact_phone\": \"0700 000 002\",\n  \"packages\": [\n    { \"weight_kg\": 5, \"quantity\": 1, \"length_cm\": 20, \"width_cm\": 15, \"height_cm\": 10 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/shipments",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "shipments"]
+        },
+        "description": "201 with shipment.pickup_contact_* and dropoff_contact_*. Copy shipment.id."
+      }
+    },
+    {
+      "name": "2. Create shipment — bad phone (expect 422)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "transport" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"driver_id\": {{driverId}},\n  \"origin_address\": \"A\",\n  \"destination_address\": \"B\",\n  \"pickup_contact_name\": \"Alice\",\n  \"pickup_contact_phone\": \"abc\",\n  \"dropoff_contact_name\": \"Bob\",\n  \"dropoff_contact_phone\": \"12\",\n  \"packages\": [{ \"weight_kg\": 1, \"quantity\": 1 }]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/shipments",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "shipments"]
+        },
+        "description": "Expect 422 — phone must match +?[0-9\\s-]{7,20}."
+      }
+    },
+    {
+      "name": "3. Driver deliveries (see pickup/dropoff contacts)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{driverToken}}" },
+          { "key": "id", "value": "{{driverUserId}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/driver/deliveries?page=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "driver", "deliveries"],
+          "query": [{ "key": "page", "value": "1" }]
+        },
+        "description": "Shipment cards: pickup.name/phone, dropoff.name/phone."
+      }
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "info": {
+    "name": "LAST EDITES — Vendor & Driver register",
+    "description": "Vendor zone/state/town + street. Driver number_plate + location dropdowns.\nDoc: docs/FLUTTER_LAST_EDITES_REGISTER.md\n\nSet: baseUrl, token, id. Use visibility-locations for dropdown values.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "" },
+    { "key": "id", "value": "" },
+    { "key": "zone", "value": "LA" },
+    { "key": "state", "value": "Central" },
+    { "key": "town", "value": "Kampala" }
+  ],
+  "item": [
+    {
+      "name": "1. List zones (dropdown)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/buyer/visibility-locations/zones",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "buyer", "visibility-locations", "zones"]
+        }
+      }
+    },
+    {
+      "name": "2. List states",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/buyer/visibility-locations/states?zone={{zone}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "buyer", "visibility-locations", "states"],
+          "query": [{ "key": "zone", "value": "{{zone}}" }]
+        }
+      }
+    },
+    {
+      "name": "3. List towns",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/buyer/visibility-locations/towns?zone={{zone}}&state={{state}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "buyer", "visibility-locations", "towns"],
+          "query": [
+            { "key": "zone", "value": "{{zone}}" },
+            { "key": "state", "value": "{{state}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Vendor register",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "vendor" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"country\": \"Uganda\",\n  \"business_name\": \"Fresh Mart\",\n  \"business_type_ids\": [1],\n  \"zone\": \"{{zone}}\",\n  \"state\": \"{{state}}\",\n  \"town\": \"{{town}}\",\n  \"address\": \"Plot 12, Market Street\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "register"]
+        },
+        "description": "zone/state/town + address all required."
+      }
+    },
+    {
+      "name": "5. Driver register (number_plate)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"car_name\": \"Toyota Hiace\",\n  \"number_plate\": \"UBA 123A\",\n  \"zone\": \"{{zone}}\",\n  \"state\": \"{{state}}\",\n  \"town\": \"{{town}}\",\n  \"transport_type\": \"car\",\n  \"price\": \"5000\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/driver/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "driver", "register"]
+        },
+        "description": "Use number_plate (not car_model). zone/state/town required."
+      }
+    }
+  ]
+}

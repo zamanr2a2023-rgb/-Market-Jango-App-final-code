@@ -71,3 +71,6 @@ final businessTypesProvider =
   }
   return items;
 });
+
+/// Selected business type id for vendor Create Store (`business_type_ids`).
+final selectedBusinessTypeIdProvider = StateProvider<int?>((ref) => null);

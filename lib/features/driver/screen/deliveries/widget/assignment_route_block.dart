@@ -130,6 +130,19 @@ class _PlaceRow extends StatelessWidget {
                   color: AllColor.black,
                 ),
               ),
+              if (place.phone.isNotEmpty) ...[
+                SizedBox(height: 2.h),
+                Text(
+                  place.phone,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: compact ? 11.sp : 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AllColor.black87,
+                  ),
+                ),
+              ],
               if (address.isNotEmpty && !compact) ...[
                 SizedBox(height: 2.h),
                 Text(

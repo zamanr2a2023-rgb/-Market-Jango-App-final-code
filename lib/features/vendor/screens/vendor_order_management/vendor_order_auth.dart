@@ -18,3 +18,23 @@ Future<Map<String, String>> vendorOrderApiHeaders({String? tokenOverride}) async
     if (email.isNotEmpty) 'email': email,
   };
 }
+
+/// Multipart product uploads — no `Content-Type` (client sets boundary).
+Future<Map<String, String>> vendorMultipartApiHeaders({
+  String? tokenOverride,
+}) async {
+  final storage = AuthLocalStorage();
+  final token = tokenOverride ?? await storage.getToken();
+  final userId = await storage.getUserId();
+  final userType = await storage.getUserType();
+  final userJson = await storage.getUserJson();
+  final email = userJson?['email']?.toString() ?? '';
+
+  return {
+    'Accept': 'application/json',
+    if (token != null && token.isNotEmpty) 'token': token,
+    if (userId != null && userId.isNotEmpty) 'id': userId,
+    'user_type': (userType != null && userType.isNotEmpty) ? userType : 'vendor',
+    if (email.isNotEmpty) 'email': email,
+  };
+}

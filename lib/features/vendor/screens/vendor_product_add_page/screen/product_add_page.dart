@@ -25,6 +25,13 @@ import '../widget/ai_generate_title_section.dart';
 import '../widget/generic_attribute_picker.dart';
 import '../widget/specification_section.dart';
 
+bool _isPositiveNumberField(String text) {
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return false;
+  final value = double.tryParse(trimmed);
+  return value != null && value > 0;
+}
+
 class ProductAddPage extends ConsumerStatefulWidget {
   const ProductAddPage({super.key});
 
@@ -518,6 +525,8 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
     _buyingPriceC.dispose();
     _stockC.dispose();
     _weightC.dispose();
+    _cubeC.dispose();
+    _walkInC.dispose();
     _lengthC.dispose();
     _widthC.dispose();
     _heightC.dispose();
@@ -581,14 +590,14 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
             children: [
               Expanded(
                 child: _Labeled(
-                  label: 'Current price (UGX)',
+                  label: 'Marketplace sell price (UGX)',
                   labelColor: labelBlue,
                   child: TextField(
                     controller: _currentC,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       fillColor: AllColor.white,
-                      hintText: 'Current Price (UGX)',
+                      hintText: 'Marketplace sell price (UGX)',
                       enabledBorder: border(),
                       focusedBorder: border(),
                     ),
@@ -633,6 +642,21 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
             ),
           ],
           SizedBox(height: 16.h),
+          _Labeled(
+            label: 'Walk-in sell price (UGX)',
+            labelColor: labelBlue,
+            child: TextField(
+              controller: _walkInC,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                fillColor: AllColor.white,
+                hintText: 'POS / walk-in price (UGX)',
+                enabledBorder: border(),
+                focusedBorder: border(),
+              ),
+            ),
+          ),
+          SizedBox(height: 16.h),
           // Stock and Weight row
           Row(
             children: [
@@ -672,6 +696,23 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                 ),
               ),
             ],
+          ),
+          SizedBox(height: 16.h),
+          _Labeled(
+            label: 'Cube (m³)',
+            labelColor: labelBlue,
+            child: TextField(
+              controller: _cubeC,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                fillColor: AllColor.white,
+                hintText: 'e.g. 0.02',
+                enabledBorder: border(),
+                focusedBorder: border(),
+              ),
+            ),
           ),
           SizedBox(height: 16.h),
           // Weight unit
@@ -936,6 +977,68 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                 return;
               }
 
+              if (!_isPositiveNumberField(_walkInC.text)) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please enter walk-in sell price",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+
+              final isOwner =
+                  ref.read(isVendorOwnerProvider).valueOrNull == true;
+              if (isOwner && !_isPositiveNumberField(_buyingPriceC.text)) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please enter buying price",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+
+              if (!_isPositiveNumberField(_weightC.text)) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please enter weight (must be greater than 0)",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+
+              if (!_isPositiveNumberField(_lengthC.text)) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please enter length",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+
+              if (!_isPositiveNumberField(_widthC.text)) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please enter width",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+
+              if (!_isPositiveNumberField(_heightC.text)) {
+                GlobalSnackbar.show(
+                  context,
+                  title: "Validation Error",
+                  message: "Please enter height",
+                  type: CustomSnackType.error,
+                );
+                return;
+              }
+
               // Validate cover image
               if (_cover == null) {
                 GlobalSnackbar.show(
@@ -969,6 +1072,7 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                 description: desc,
                 regularPrice: _previousC.text,
                 sellPrice: _currentC.text,
+                walkInSellPrice: _walkInC.text,
                 buyingPrice: ref.read(isVendorOwnerProvider).valueOrNull == true
                     ? _buyingPriceC.text
                     : null,
@@ -977,6 +1081,7 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
                 specification: specification,
                 stock: _stockC.text,
                 weight: _weightC.text,
+                cube: _cubeC.text,
                 weightUnit: _weightUnit,
                 length: _lengthC.text,
                 width: _widthC.text,
@@ -1015,6 +1120,8 @@ class _PriceAndImagesSectionState extends ConsumerState<PriceAndImagesSection> {
   final _buyingPriceC = TextEditingController();
   final _stockC = TextEditingController();
   final _weightC = TextEditingController();
+  final _cubeC = TextEditingController();
+  final _walkInC = TextEditingController();
   final _lengthC = TextEditingController();
   final _widthC = TextEditingController();
   final _heightC = TextEditingController();

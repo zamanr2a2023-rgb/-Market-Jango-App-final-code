@@ -14,7 +14,10 @@ class CreateShipmentRequest {
   final double? destinationLatitude;
   final double? destinationLongitude;
   final String? pickupInstructions;
-  final String? pickupContactPhone;
+  final String pickupContactName;
+  final String pickupContactPhone;
+  final String dropoffContactName;
+  final String dropoffContactPhone;
   final double? declaredValue;
   final String? declaredValueCurrency;
   final String? messageToDriver;
@@ -30,7 +33,10 @@ class CreateShipmentRequest {
     this.destinationLatitude,
     this.destinationLongitude,
     this.pickupInstructions,
-    this.pickupContactPhone,
+    required this.pickupContactName,
+    required this.pickupContactPhone,
+    required this.dropoffContactName,
+    required this.dropoffContactPhone,
     this.declaredValue,
     this.declaredValueCurrency,
     this.messageToDriver,
@@ -53,8 +59,10 @@ class CreateShipmentRequest {
       'destination_longitude': destinationLongitude,
     if (pickupInstructions != null && pickupInstructions!.isNotEmpty)
       'pickup_instructions': pickupInstructions,
-    if (pickupContactPhone != null && pickupContactPhone!.isNotEmpty)
-      'pickup_contact_phone': pickupContactPhone,
+    'pickup_contact_name': pickupContactName.trim(),
+    'pickup_contact_phone': pickupContactPhone.trim(),
+    'dropoff_contact_name': dropoffContactName.trim(),
+    'dropoff_contact_phone': dropoffContactPhone.trim(),
     if (declaredValue != null) 'declared_value': declaredValue,
     if (declaredValueCurrency != null)
       'declared_value_currency': declaredValueCurrency,
@@ -101,25 +109,39 @@ class CreateShipmentResult {
   });
 }
 
-/// Calls POST $baseUrl/shipments. Throws on non-success.
+/// Thrown when create shipment fails (includes Laravel 422 field errors).
+class CreateShipmentException implements Exception {
+  CreateShipmentException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+/// Calls POST $baseUrl/shipments. Throws [CreateShipmentException] on failure.
 Future<CreateShipmentResult> createShipment({
-  required String token,
   required CreateShipmentRequest request,
 }) async {
   final uri = Uri.parse(TransportAPIController.createShipment);
+  final headers = await TransportAPIController.shipmentCreateHeaders();
   final res = await http.post(
     uri,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      if (token.isNotEmpty) 'token': token,
-    },
+    headers: headers,
     body: jsonEncode(request.toJson()),
   );
 
-  final json = jsonDecode(res.body) as Map<String, dynamic>;
-  if (json['status'] != 'success') {
-    throw Exception(json['message']?.toString() ?? 'Failed to create shipment');
+  final decoded = jsonDecode(res.body);
+  final json = decoded is Map<String, dynamic>
+      ? decoded
+      : <String, dynamic>{'message': res.body};
+
+  final ok = res.statusCode >= 200 &&
+      res.statusCode < 300 &&
+      json['status']?.toString().toLowerCase() == 'success';
+
+  if (!ok) {
+    throw CreateShipmentException(
+      formatTransportApiError(json, res.statusCode),
+    );
   }
 
   final data = json['data'] as Map<String, dynamic>? ?? {};

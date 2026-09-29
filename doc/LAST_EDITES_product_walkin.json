@@ -1,0 +1,95 @@
+{
+  "info": {
+    "name": "LAST EDITES — Product walk-in pricing",
+    "description": "Vendor product create with walk_in_sell_price, buying_price, dims.\nDoc: docs/FLUTTER_LAST_EDITES_PRODUCT_WALKIN.md\n\nSet collection variables: baseUrl, token, id, email. Attach image files in Postman.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "" },
+    { "key": "id", "value": "" },
+    { "key": "email", "value": "" },
+    { "key": "productId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "1. Create product (marketplace + walk-in)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "email", "value": "{{email}}" },
+          { "key": "user_type", "value": "vendor" }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "name", "value": "Sugar 1kg", "type": "text" },
+            { "key": "regular_price", "value": "150", "type": "text" },
+            { "key": "sell_price", "value": "140", "type": "text" },
+            { "key": "buying_price", "value": "100", "type": "text" },
+            { "key": "walk_in_sell_price", "value": "130", "type": "text" },
+            { "key": "stock", "value": "50", "type": "text" },
+            { "key": "weight", "value": "1", "type": "text" },
+            { "key": "length", "value": "10", "type": "text" },
+            { "key": "width", "value": "10", "type": "text" },
+            { "key": "height", "value": "10", "type": "text" },
+            { "key": "image", "type": "file", "src": [] },
+            { "key": "files[]", "type": "file", "src": [] }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/product/create",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "product", "create"]
+        },
+        "description": "422 without walk_in_sell_price / buying_price / weight / dims. Copy returned id to productId."
+      }
+    },
+    {
+      "name": "2. Update walk-in price",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "email", "value": "{{email}}" },
+          { "key": "user_type", "value": "vendor" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"walk_in_sell_price\": 125,\n  \"sell_price\": \"140\",\n  \"buying_price\": 100\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/product/update/{{productId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "product", "update", "{{productId}}"]
+        }
+      }
+    },
+    {
+      "name": "3. Create manual (walk-in) order",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "vendor" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_name\": \"Walk-in Customer\",\n  \"payment_method\": \"Cash\",\n  \"items\": [\n    { \"product_id\": {{productId}}, \"quantity\": 1 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/manual-orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "manual-orders"]
+        },
+        "description": "Unit price should be walk_in_sell_price (not marketplace sell_price). Same stock decremented."
+      }
+    }
+  ]
+}

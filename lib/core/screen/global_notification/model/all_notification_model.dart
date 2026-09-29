@@ -7,6 +7,7 @@ enum NotificationEventType {
   follow,
   review,
   announcement,
+  autoLineRefund,
   unknown,
 }
 
@@ -28,6 +29,9 @@ NotificationEventType parseNotificationEventType(dynamic raw) {
     case 'announcement':
     case 'announce':
       return NotificationEventType.announcement;
+    case 'auto_line_refund':
+    case 'auto-line-refund':
+      return NotificationEventType.autoLineRefund;
     default:
       return NotificationEventType.unknown;
   }
@@ -49,6 +53,12 @@ class NotificationModel {
   final int? promotionId;
   final String? deepLink;
 
+  /// `auto_line_refund`: `cancel` or `quantity_reduce`.
+  final String? changeType;
+  final double? amount;
+  final int? orderId;
+  final int? refundId;
+
   NotificationModel({
     required this.id,
     required this.name,
@@ -64,14 +74,24 @@ class NotificationModel {
     this.vendorId,
     this.promotionId,
     this.deepLink,
+    this.changeType,
+    this.amount,
+    this.orderId,
+    this.refundId,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     final senderRaw = json['sender'];
+    final nested = json['data'] is Map<String, dynamic>
+        ? json['data'] as Map<String, dynamic>
+        : const <String, dynamic>{};
     final eventRaw = json['event_type'] ??
         json['eventType'] ??
         json['type'] ??
-        json['notification_type'];
+        json['notification_type'] ??
+        nested['event_type'] ??
+        nested['type'] ??
+        nested['notification_type'];
 
     int? toId(dynamic v) {
       if (v == null) return null;
@@ -79,6 +99,14 @@ class NotificationModel {
       if (v is num) return v.toInt() > 0 ? v.toInt() : null;
       return int.tryParse(v.toString());
     }
+
+    double? toAmount(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString().replaceAll(',', ''));
+    }
+
+    dynamic pick(String key) => json[key] ?? nested[key];
 
     return NotificationModel(
       id: json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}') ?? 0,
@@ -108,8 +136,25 @@ class NotificationModel {
       promotionId: toId(json['promotion_id'] ?? json['promo_id']),
       deepLink: json['deep_link']?.toString() ??
           json['deeplink']?.toString() ??
-          json['link']?.toString(),
+          json['link']?.toString() ??
+          nested['deep_link']?.toString(),
+      changeType: pick('change_type')?.toString(),
+      amount: toAmount(pick('amount')),
+      orderId: toId(pick('order_id') ?? pick('orderId')),
+      refundId: toId(pick('refund_id') ?? pick('refundId')),
     );
+  }
+
+  String get walletRefundText {
+    final n = amount;
+    final shown = n == null
+        ? null
+        : (n == n.roundToDouble() ? n.toStringAsFixed(0) : n.toStringAsFixed(2));
+    if (shown != null && shown.isNotEmpty) {
+      return '$shown has been returned to your wallet';
+    }
+    if (message.trim().isNotEmpty) return message.trim();
+    return 'A refund has been returned to your wallet';
   }
 
   String get formattedTime {

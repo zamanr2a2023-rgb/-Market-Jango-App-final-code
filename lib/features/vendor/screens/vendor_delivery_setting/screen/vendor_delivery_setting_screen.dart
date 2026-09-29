@@ -7,7 +7,9 @@ import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/widget/global_pagination.dart';
+import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/vendor/screens/vendor_delivery_setting/data/vendor_route_points_data.dart';
+import 'package:market_jango/features/vendor/screens/vendor_delivery_setting/model/vendor_route_point_model.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
 class VendorDeliverySettingScreen extends ConsumerStatefulWidget {
@@ -24,6 +26,7 @@ class _VendorDeliverySettingScreenState
     extends ConsumerState<VendorDeliverySettingScreen> {
   final _searchController = TextEditingController();
   Timer? _debounce;
+  int? _busyRouteId;
 
   @override
   void initState() {
@@ -45,6 +48,100 @@ class _VendorDeliverySettingScreenState
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _addRoute(int id) async {
+    if (_busyRouteId != null) return;
+    setState(() => _busyRouteId = id);
+    try {
+      await ref.read(routePointsProvider.notifier).optIn(id);
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Added',
+        message: 'Route added',
+        type: CustomSnackType.success,
+      );
+    } on RouteLimitException {
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Route limit',
+        message:
+            'Route limit reached. Upgrade subscription to add more routes.',
+        type: CustomSnackType.error,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Add route',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        type: CustomSnackType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _busyRouteId = null);
+    }
+  }
+
+  Future<void> _removeRoute(int id) async {
+    if (_busyRouteId != null) return;
+    setState(() => _busyRouteId = id);
+    try {
+      await ref.read(routePointsProvider.notifier).optOut(id);
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Removed',
+        message: 'Route removed',
+        type: CustomSnackType.success,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      GlobalSnackbar.show(
+        context,
+        title: 'Remove route',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        type: CustomSnackType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _busyRouteId = null);
+    }
+  }
+
+  Widget _actionCell(RoutePointItem item, {required bool limitReached}) {
+    final busy = _busyRouteId == item.id;
+    if (busy) {
+      return SizedBox(
+        width: 18.r,
+        height: 18.r,
+        child: CircularProgressIndicator(strokeWidth: 2, color: AllColor.orange),
+      );
+    }
+    if (item.isSelected) {
+      return TextButton(
+        onPressed: _busyRouteId == null ? () => _removeRoute(item.id) : null,
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.red.shade700,
+          padding: EdgeInsets.symmetric(horizontal: 8.w),
+          minimumSize: Size(64.w, 32.h),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        child: Text('Remove', style: TextStyle(fontSize: 12.sp)),
+      );
+    }
+    return TextButton(
+      onPressed: (_busyRouteId != null || limitReached)
+          ? null
+          : () => _addRoute(item.id),
+      style: TextButton.styleFrom(
+        foregroundColor: AllColor.orange,
+        padding: EdgeInsets.symmetric(horizontal: 8.w),
+        minimumSize: Size(64.w, 32.h),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text('Add', style: TextStyle(fontSize: 12.sp)),
+    );
   }
 
   @override
@@ -101,6 +198,8 @@ class _VendorDeliverySettingScreenState
             }
             final items = response.items;
             final pagination = response.pagination;
+            final limitReached = response.routeLimitReached;
+            final maxRoutes = response.maxRoutes;
 
             return SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -155,6 +254,27 @@ class _VendorDeliverySettingScreenState
                       }
                     },
                   ),
+                  SizedBox(height: 12.h),
+                  if (maxRoutes != null)
+                    Text(
+                      'Selected routes: ${response.effectiveSelectedCount}/$maxRoutes',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AllColor.black,
+                      ),
+                    ),
+                  if (limitReached) ...[
+                    SizedBox(height: 4.h),
+                    Text(
+                      'Maximum routes reached',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
+                  ],
                   SizedBox(height: 16.h),
                   // Table - horizontal scroll with fixed column widths so all columns visible
                   if (items.isEmpty)
@@ -242,7 +362,9 @@ class _VendorDeliverySettingScreenState
                                     item.cubicBaseRange ?? '—',
                                     style: TextStyle(fontSize: 12.sp),
                                   )),
-                                  const DataCell(Text('—')),
+                                  DataCell(
+                                    _actionCell(item, limitReached: limitReached),
+                                  ),
                                 ],
                               );
                             }).toList(),

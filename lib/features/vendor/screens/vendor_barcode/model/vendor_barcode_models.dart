@@ -109,6 +109,7 @@ class VendorBarcodeProduct {
   final String name;
   final String barcode;
   final double sellPrice;
+  final double walkInSellPrice;
   final double regularPrice;
   final int stock;
   final String image;
@@ -130,6 +131,7 @@ class VendorBarcodeProduct {
     required this.name,
     required this.barcode,
     required this.sellPrice,
+    this.walkInSellPrice = 0,
     required this.regularPrice,
     required this.stock,
     required this.image,
@@ -147,6 +149,9 @@ class VendorBarcodeProduct {
     required this.vendor,
   });
 
+  /// POS uses walk-in price when the product has one.
+  double get posPrice => walkInSellPrice > 0 ? walkInSellPrice : sellPrice;
+
   factory VendorBarcodeProduct.fromJson(Map<String, dynamic> j) {
     final w = j['weight'];
     return VendorBarcodeProduct(
@@ -154,6 +159,9 @@ class VendorBarcodeProduct {
       name: _s(j['name']),
       barcode: _s(j['barcode']),
       sellPrice: _toDouble(j['sell_price']),
+      walkInSellPrice: _toDouble(
+        j['walk_in_sell_price'] ?? j['walkin_sell_price'],
+      ),
       regularPrice: _toDouble(j['regular_price']),
       stock: _toInt(j['stock']),
       image: _s(j['image']),

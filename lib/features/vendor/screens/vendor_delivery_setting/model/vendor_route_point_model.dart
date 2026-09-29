@@ -241,15 +241,40 @@ class RoutePointItem {
   }
 }
 
+int? _toIntOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString());
+}
+
 /// Full list response: data.items + data.pagination (pass API response["data"] to fromJson).
 class RoutePointsResponse {
   final List<RoutePointItem> items;
   final RoutePointsPagination pagination;
 
+  /// Subscription cap from `data.max_routes`. Null when the API omits it.
+  final int? maxRoutes;
+
+  /// How many routes are already selected (`data.selected_route_count`).
+  final int? selectedRouteCount;
+
   RoutePointsResponse({
     required this.items,
     required this.pagination,
+    this.maxRoutes,
+    this.selectedRouteCount,
   });
+
+  int get effectiveSelectedCount =>
+      selectedRouteCount ?? items.where((e) => e.isSelected).length;
+
+  /// True when the subscription cap is known and already filled.
+  bool get routeLimitReached {
+    final max = maxRoutes;
+    if (max == null || max <= 0) return false;
+    return effectiveSelectedCount >= max;
+  }
 
   factory RoutePointsResponse.fromJson(Map<String, dynamic> j) {
     final itemsList = j['items'] as List<dynamic>? ?? [];
@@ -261,6 +286,11 @@ class RoutePointsResponse {
     final pagination = pagMap is Map<String, dynamic>
         ? RoutePointsPagination.fromJson(pagMap)
         : RoutePointsPagination.empty();
-    return RoutePointsResponse(items: items, pagination: pagination);
+    return RoutePointsResponse(
+      items: items,
+      pagination: pagination,
+      maxRoutes: _toIntOrNull(j['max_routes']),
+      selectedRouteCount: _toIntOrNull(j['selected_route_count']),
+    );
   }
 }

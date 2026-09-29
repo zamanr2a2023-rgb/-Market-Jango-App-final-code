@@ -12,6 +12,7 @@ import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/core/widget/sreeen_brackground.dart';
 import 'package:market_jango/features/auth/screens/phone_number_screen.dart';
 import '../data/route_data.dart';
+import '../data/vendor_location_data.dart';
 import '../logic/register_car_info_riverpod.dart';
 
 
@@ -25,8 +26,7 @@ class CarInfoScreen extends ConsumerStatefulWidget {
 
 class _CarInfoScreenState extends ConsumerState<CarInfoScreen> {
   final _carNameCtrl = TextEditingController();
-  final _carModelCtrl = TextEditingController();
-  final _locationCtrl = TextEditingController();
+  final _plateCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
   String? _selectedRouteId;
   String? _selectedTransportType;
@@ -56,8 +56,7 @@ class _CarInfoScreenState extends ConsumerState<CarInfoScreen> {
   void dispose() {
     _termsTapRecognizer.dispose();
     _carNameCtrl.dispose();
-    _carModelCtrl.dispose();
-    _locationCtrl.dispose();
+    _plateCtrl.dispose();
     _priceCtrl.dispose();
     super.dispose();
   }
@@ -108,12 +107,16 @@ class _CarInfoScreenState extends ConsumerState<CarInfoScreen> {
   }
 
   Future<void> _submit() async {
-    if (_carNameCtrl.text.isEmpty ||
-        _carModelCtrl.text.isEmpty ||
-        _locationCtrl.text.isEmpty ||
-        _priceCtrl.text.isEmpty ||
+    final zone = ref.read(selectedVendorZoneProvider)?.trim() ?? '';
+    final stateName = ref.read(selectedVendorStateProvider)?.trim() ?? '';
+    final town = ref.read(selectedVendorTownProvider)?.trim() ?? '';
+    if (_carNameCtrl.text.trim().isEmpty ||
+        _plateCtrl.text.trim().isEmpty ||
+        zone.isEmpty ||
+        stateName.isEmpty ||
+        town.isEmpty ||
+        _priceCtrl.text.trim().isEmpty ||
         _selectedTransportType == null ||
-        _selectedRouteId == null ||
         _pickedFiles.isEmpty) {
       GlobalSnackbar.show(
         context,
@@ -138,28 +141,39 @@ class _CarInfoScreenState extends ConsumerState<CarInfoScreen> {
     await notifier.registerDriver(
       url: AuthAPIController.registerDriverCarInfo,
       carName: _carNameCtrl.text.trim(),
-      carModel: _carModelCtrl.text.trim(),
-      location: _locationCtrl.text.trim(),
+      numberPlate: _plateCtrl.text.trim(),
       price: _priceCtrl.text.trim(),
       transportType: _selectedTransportType!,
-      routeId: _selectedRouteId!,
+      routeId: _selectedRouteId,
       files: _pickedFiles,
+      zone: zone,
+      stateName: stateName,
+      town: town,
     );
 
     await Future.delayed(const Duration(milliseconds: 100));
     final result = ref.read(driverRegisterProvider);
 
-    if (result is AsyncData && result.value != null) {
-      GlobalSnackbar.show(
-        context,
-        title: "Success",
-        message: "Driver registered successfully!",
-        type: CustomSnackType.success,
-      );
-      if (context.mounted) {
+    if (!context.mounted) return;
+    result.when(
+      data: (driver) {
+        if (driver == null) return;
+        GlobalSnackbar.show(
+          context,
+          title: 'Success',
+          message: 'Driver registered successfully!',
+          type: CustomSnackType.success,
+        );
         context.push(PhoneNumberScreen.routeName);
-      }
-    }
+      },
+      error: (e, _) => GlobalSnackbar.show(
+        context,
+        title: 'Error',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        type: CustomSnackType.error,
+      ),
+      loading: () {},
+    );
   }
 
   @override
@@ -180,130 +194,134 @@ class _CarInfoScreenState extends ConsumerState<CarInfoScreen> {
                 const CustomBackButton(),
                 SizedBox(height: 20.h),
                 Center(child: Text("Car Information", style: textTheme.titleLarge)),
-                SizedBox(height: 20.h),
+                SizedBox(height: 8.h),
                 Center(
-                  child: Text("Get started with your access in just a few steps",
-                      style: textTheme.bodySmall),
-                ),
-                SizedBox(height: 40.h),
-
-                /// Transport type dropdown (shown first)
-                Container(
-                  height: 60.h,
-                  padding: EdgeInsets.symmetric(horizontal: 16.h),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF8E7),
-                    borderRadius: BorderRadius.circular(30.r),
-                    border: Border.all(
-                        color: AllColor.textBorderColor, width: 0.5.sp),
+                  child: Text(
+                    "Add your vehicle, plate, and location",
+                    style: textTheme.bodySmall,
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      hint: const Text("Choose Transport Type"),
-                      value: _selectedTransportType,
-                      icon: const Icon(Icons.arrow_drop_down),
-                      dropdownColor: Colors.white,
-                      borderRadius: BorderRadius.circular(30.r),
-                      items: _transportTypes.map((type) {
-                        return DropdownMenuItem<String>(
-                          value: type,
-                          child: Text(
-                            _labelForTransportType(type),
-                            style: const TextStyle(color: Colors.black87),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedTransportType = value;
-                        });
-                      },
+                ),
+                SizedBox(height: 28.h),
+                const _SectionTitle('Vehicle'),
+                _Labeled(
+                  label: 'Transport type',
+                  child: _driverFieldShell(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        hint: const Text('Choose transport type'),
+                        value: _selectedTransportType,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(16.r),
+                        items: _transportTypes.map((type) {
+                          return DropdownMenuItem<String>(
+                            value: type,
+                            child: Text(
+                              _labelForTransportType(type),
+                              style: const TextStyle(color: Colors.black87),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() => _selectedTransportType = value);
+                        },
+                      ),
                     ),
                   ),
                 ),
-                SizedBox(height: 28.h),
-
-                TextFormField(
-                  controller: _carNameCtrl,
-                  decoration: const InputDecoration(hintText: 'Enter your Car Brand Name'),
+                SizedBox(height: 14.h),
+                _Labeled(
+                  label: 'Brand name',
+                  child: TextFormField(
+                    controller: _carNameCtrl,
+                    decoration: const InputDecoration(hintText: 'e.g. Toyota'),
+                  ),
                 ),
-                SizedBox(height: 30.h),
-
-                TextFormField(
-                  controller: _carModelCtrl,
-                  decoration: const InputDecoration(hintText: 'Enter your brand model'),
+                SizedBox(height: 14.h),
+                _Labeled(
+                  label: 'Number plate',
+                  child: TextFormField(
+                    controller: _plateCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(hintText: 'e.g. UAX 123A'),
+                  ),
                 ),
-                SizedBox(height: 30.h),
-
-                TextFormField(
-                  controller: _locationCtrl,
-                  decoration: const InputDecoration(hintText: 'Enter your Location'),
+                SizedBox(height: 22.h),
+                const _SectionTitle('Location'),
+                const _Labeled(label: 'Zone', child: _DriverZoneField()),
+                SizedBox(height: 14.h),
+                const _Labeled(label: 'State', child: _DriverStateField()),
+                SizedBox(height: 14.h),
+                const _Labeled(label: 'Town', child: _DriverTownField()),
+                SizedBox(height: 22.h),
+                const _SectionTitle('Route'),
+                _Labeled(
+                  label: 'Price',
+                  child: TextFormField(
+                    controller: _priceCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(hintText: 'Enter your price'),
+                  ),
                 ),
-                SizedBox(height: 30.h),
-
-                TextFormField(
-                  controller: _priceCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(hintText: 'Enter your Price'),
-                ),
-                SizedBox(height: 28.h),
+                SizedBox(height: 14.h),
 
                 /// Route dropdown
-                routeAsync.when(
-                  data: (routes) {
-                    return Container(
-                      height: 60.h,
-                      padding: EdgeInsets.symmetric(horizontal: 16.h),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF8E7),
-                        borderRadius: BorderRadius.circular(30.r),
-                        border: Border.all(
-                            color: AllColor.textBorderColor, width: 0.5.sp),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
-                          isExpanded: true,
-                          hint: const Text("Enter your driving route"),
-                          value: _selectedRouteId == null
-                              ? null
-                              : int.tryParse(_selectedRouteId!),
-                          icon: const Icon(Icons.arrow_drop_down),
-                          dropdownColor: Colors.white,
-                          borderRadius: BorderRadius.circular(30.r),
-                          items: routes.map((route) {
-                            return DropdownMenuItem<int>(
-                              value: route.id,
-                              child: Text(route.name,
-                                  style: const TextStyle(color: Colors.black87)),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedRouteId = value?.toString();
-                            });
-                          },
+                _Labeled(
+                  label: 'Driving route (optional)',
+                  child: routeAsync.when(
+                    data: (routes) {
+                      return _driverFieldShell(
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            isExpanded: true,
+                            hint: const Text('Select route if required'),
+                            value: _selectedRouteId == null
+                                ? null
+                                : int.tryParse(_selectedRouteId!),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                            dropdownColor: Colors.white,
+                            borderRadius: BorderRadius.circular(16.r),
+                            items: routes.map((route) {
+                              return DropdownMenuItem<int>(
+                                value: route.id,
+                                child: Text(
+                                  route.name,
+                                  style: const TextStyle(color: Colors.black87),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedRouteId = value?.toString();
+                              });
+                            },
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                  loading: () => const Center(child: Text('Loading...')),
-                  error: (e, _) => Text("Failed to load routes: $e"),
+                      );
+                    },
+                    loading: () => _driverFieldShell(
+                      child: const Text('Loading routes...'),
+                    ),
+                    error: (e, _) => Text('Failed to load routes: $e'),
+                  ),
                 ),
 
-                SizedBox(height: 28.h),
-
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 15.w),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
+                SizedBox(height: 22.h),
+                const _SectionTitle('Documents'),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: 4.w, bottom: 8.h),
                     child: Text(
-                      "Upload your driving license & other documents",
-                      style: TextStyle(fontSize: 14.sp, color: AllColor.black),
+                      'Driving license and other documents',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: AllColor.black.withValues(alpha: 0.55),
+                      ),
                     ),
                   ),
                 ),
-                SizedBox(height: 12.h),
                 InkWell(
                   onTap: _pickFiles,
                   child: Container(
@@ -393,6 +411,227 @@ class _CarInfoScreenState extends ConsumerState<CarInfoScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.only(left: 4.w, bottom: 12.h),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 16.sp,
+            fontWeight: FontWeight.w800,
+            color: AllColor.black,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Labeled extends StatelessWidget {
+  const _Labeled({required this.label, required this.child});
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: 6.w, bottom: 6.h),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF2B6CB0),
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+Widget _driverFieldShell({required Widget child}) {
+  return Container(
+    height: 60.h,
+    padding: EdgeInsets.symmetric(horizontal: 16.w),
+    alignment: Alignment.centerLeft,
+    decoration: BoxDecoration(
+      color: const Color(0xFFFEF8E7),
+      borderRadius: BorderRadius.circular(30.r),
+      border: Border.all(color: AllColor.textBorderColor, width: 0.5.sp),
+    ),
+    child: child,
+  );
+}
+
+class _DriverZoneField extends ConsumerWidget {
+  const _DriverZoneField();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final zonesAsync = ref.watch(vendorRegisterZonesProvider);
+    final selected = ref.watch(selectedVendorZoneProvider);
+    return _driverFieldShell(
+      child: zonesAsync.when(
+        data: (zones) {
+          final value =
+              selected != null && zones.contains(selected) ? selected : null;
+          return DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              hint: const Text('Select zone'),
+              value: value,
+              icon: const Icon(Icons.arrow_drop_down),
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(20.r),
+              items: zones
+                  .map(
+                    (z) => DropdownMenuItem<String>(
+                      value: z,
+                      child: Text(z, style: const TextStyle(color: Colors.black87)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: zones.isEmpty
+                  ? null
+                  : (v) {
+                      ref.read(selectedVendorZoneProvider.notifier).state = v;
+                      ref.read(selectedVendorStateProvider.notifier).state = null;
+                      ref.read(selectedVendorTownProvider.notifier).state = null;
+                    },
+            ),
+          );
+        },
+        loading: () => const Text('Loading zones...'),
+        error: (_, __) => InkWell(
+          onTap: () => ref.invalidate(vendorRegisterZonesProvider),
+          child: const Text('Tap to retry zones'),
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverStateField extends ConsumerWidget {
+  const _DriverStateField();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final zone = ref.watch(selectedVendorZoneProvider)?.trim() ?? '';
+    final selected = ref.watch(selectedVendorStateProvider);
+    if (zone.isEmpty) {
+      return _driverFieldShell(child: const Text('Select zone first'));
+    }
+    final statesAsync = ref.watch(vendorRegisterStatesProvider(zone));
+    return _driverFieldShell(
+      child: statesAsync.when(
+        data: (states) {
+          final value =
+              selected != null && states.contains(selected) ? selected : null;
+          return DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              hint: const Text('Select state'),
+              value: value,
+              icon: const Icon(Icons.arrow_drop_down),
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(20.r),
+              items: states
+                  .map(
+                    (s) => DropdownMenuItem<String>(
+                      value: s,
+                      child: Text(s, style: const TextStyle(color: Colors.black87)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: states.isEmpty
+                  ? null
+                  : (v) {
+                      ref.read(selectedVendorStateProvider.notifier).state = v;
+                      ref.read(selectedVendorTownProvider.notifier).state = null;
+                    },
+            ),
+          );
+        },
+        loading: () => const Text('Loading states...'),
+        error: (_, __) => InkWell(
+          onTap: () => ref.invalidate(vendorRegisterStatesProvider(zone)),
+          child: const Text('Tap to retry states'),
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverTownField extends ConsumerWidget {
+  const _DriverTownField();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final zone = ref.watch(selectedVendorZoneProvider)?.trim() ?? '';
+    final stateName = ref.watch(selectedVendorStateProvider)?.trim() ?? '';
+    final selected = ref.watch(selectedVendorTownProvider);
+    if (zone.isEmpty) {
+      return _driverFieldShell(child: const Text('Select zone first'));
+    }
+    if (stateName.isEmpty) {
+      return _driverFieldShell(child: const Text('Select state first'));
+    }
+    final townParams = VendorRegisterTownParams(
+      zone: zone,
+      state: stateName,
+    );
+    final townsAsync = ref.watch(vendorRegisterTownsProvider(townParams));
+    return _driverFieldShell(
+      child: townsAsync.when(
+        data: (towns) {
+          final value =
+              selected != null && towns.contains(selected) ? selected : null;
+          return DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              hint: const Text('Select town'),
+              value: value,
+              icon: const Icon(Icons.arrow_drop_down),
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(20.r),
+              items: towns
+                  .map(
+                    (t) => DropdownMenuItem<String>(
+                      value: t,
+                      child: Text(t, style: const TextStyle(color: Colors.black87)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: towns.isEmpty
+                  ? null
+                  : (v) {
+                      ref.read(selectedVendorTownProvider.notifier).state = v;
+                    },
+            ),
+          );
+        },
+        loading: () => const Text('Loading towns...'),
+        error: (_, __) => InkWell(
+          onTap: () => ref.invalidate(vendorRegisterTownsProvider(townParams)),
+          child: const Text('Tap to retry towns'),
         ),
       ),
     );

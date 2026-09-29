@@ -8,6 +8,7 @@ import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/localization/Keys/buyer_kay.dart';
 import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/core/widget/urgent_badge.dart';
 import 'package:market_jango/features/driver/screen/deliveries/data/driver_deliveries_api.dart';
 import 'package:market_jango/features/driver/screen/deliveries/model/driver_assignment_models.dart';
 import 'package:market_jango/features/driver/screen/deliveries/provider/driver_deliveries_provider.dart';
@@ -183,39 +184,192 @@ class _DriverDeliveryDetailScreenState
     final ctrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Decline order'),
-        content: TextField(
-          controller: ctrl,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Reason',
-            hintText: 'Required (max 500 chars)',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Decline'),
-          ),
-        ],
-      ),
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) {
+        var showError = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final reason = ctrl.text.trim();
+            final canDecline = reason.isNotEmpty;
+            return Dialog(
+              backgroundColor: AllColor.white,
+              insetPadding: EdgeInsets.symmetric(horizontal: 28.w),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20.r),
+              ),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20.w, 22.h, 20.w, 16.h),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 40.r,
+                          height: 40.r,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1F2),
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                          child: Icon(
+                            Icons.do_not_disturb_on_outlined,
+                            color: const Color(0xFFB91C1C),
+                            size: 22.r,
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Decline order',
+                                style: TextStyle(
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF111827),
+                                ),
+                              ),
+                              SizedBox(height: 2.h),
+                              Text(
+                                'A short reason is required.',
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  color: AllColor.grey500,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 16.h),
+                    TextField(
+                      controller: ctrl,
+                      maxLines: 4,
+                      minLines: 3,
+                      maxLength: 500,
+                      textCapitalization: TextCapitalization.sentences,
+                      onChanged: (_) => setLocal(() => showError = false),
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color: const Color(0xFF111827),
+                        height: 1.4,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Why are you declining this order?',
+                        hintStyle: TextStyle(
+                          fontSize: 14.sp,
+                          color: AllColor.grey,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF9FAFB),
+                        counterStyle: TextStyle(
+                          fontSize: 11.sp,
+                          color: AllColor.grey500,
+                        ),
+                        errorText: showError ? 'Enter a reason to continue.' : null,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14.w,
+                          vertical: 12.h,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                          borderSide: BorderSide(color: AllColor.grey200),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                          borderSide: BorderSide(
+                            color: AllColor.loginButtomColor,
+                            width: 1.5,
+                          ),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                          borderSide: const BorderSide(color: Color(0xFFEF4444)),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFEF4444),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF374151),
+                              side: const BorderSide(color: Color(0xFFE5E7EB)),
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 10.w),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              if (!canDecline) {
+                                setLocal(() => showError = true);
+                                return;
+                              }
+                              Navigator.pop(ctx, true);
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: canDecline
+                                  ? AllColor.loginButtomColor
+                                  : const Color(0xFFE5E7EB),
+                              foregroundColor: canDecline
+                                  ? AllColor.white
+                                  : const Color(0xFF9CA3AF),
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                            ),
+                            child: Text(
+                              'Decline',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
-    if (ok != true || !mounted) return;
     final reason = ctrl.text.trim();
-    if (reason.isEmpty) {
-      GlobalSnackbar.show(
-        context,
-        title: 'Validation',
-        message: 'Reason is required.',
-        type: CustomSnackType.error,
-      );
-      return;
-    }
+    ctrl.dispose();
+    if (ok != true || !mounted) return;
     await _run(() async {
       await DriverDeliveriesApi.instance.reject(
         widget.assignmentId,
@@ -362,6 +516,7 @@ class _OrderHeader extends StatelessWidget {
     final accent = AssignmentSourceStyle.accent(
       row.sourceColorKey,
       suggestedColor: row.suggestedColor,
+      isUrgent: row.isUrgent,
     );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -387,6 +542,10 @@ class _OrderHeader extends StatelessWidget {
             ),
           ),
         ),
+        if (row.isUrgent) ...[
+          const UrgentBadge(),
+          SizedBox(width: 6.w),
+        ],
         AssignmentStatusBadge(row: row),
       ],
     );

@@ -7,11 +7,15 @@ import 'package:flutter/foundation.dart'
 import 'package:logger/logger.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:market_jango/core/app_provider_container.dart';
 import 'package:market_jango/core/constants/api_control/notification_api.dart';
+import 'package:market_jango/core/screen/global_notification/data/notification_data.dart';
 import 'package:market_jango/core/screen/global_notification/model/all_notification_model.dart';
 import 'package:market_jango/core/screen/global_notification/screen/global_notifications_screen.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
+import 'package:market_jango/features/buyer/screens/wallet/provider/buyer_wallet_provider.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
 import 'package:market_jango/features/buyer/screens/product/product_details.dart';
 import 'package:market_jango/firebase_options.dart';
@@ -119,7 +123,13 @@ class FcmPushService {
           'FCM [opened from tray] title=${m.notification?.title} data=${m.data}',
         );
       }
-      handleNotificationNavigation(Map<String, dynamic>.from(m.data));
+      final data = Map<String, dynamic>.from(m.data);
+      _handleAutoLineRefund(
+        data,
+        showToast: true,
+        fallbackBody: m.notification?.body,
+      );
+      handleNotificationNavigation(data);
     });
 
     final initial = await messaging.getInitialMessage();
@@ -131,7 +141,13 @@ class FcmPushService {
       }
       // Defer until router is ready.
       Future<void>.delayed(const Duration(milliseconds: 800), () {
-        handleNotificationNavigation(Map<String, dynamic>.from(initial.data));
+        final data = Map<String, dynamic>.from(initial.data);
+        _handleAutoLineRefund(
+          data,
+          showToast: true,
+          fallbackBody: initial.notification?.body,
+        );
+        handleNotificationNavigation(data);
       });
     }
 
@@ -161,6 +177,14 @@ class FcmPushService {
       );
     }
 
+    if (event == NotificationEventType.autoLineRefund) {
+      _handleAutoLineRefund(
+        Map<String, dynamic>.from(message.data),
+        showToast: true,
+        fallbackBody: body,
+      );
+    }
+
     _local.show(
       id: message.hashCode,
       title: title,
@@ -181,6 +205,13 @@ class FcmPushService {
 
   /// Navigate based on FCM / local notification payload (STEP_05 event types).
   static void handleNotificationNavigation(Map<String, dynamic> data) {
+    final event = parseNotificationEventType(
+      data['event_type'] ?? data['type'] ?? data['notification_type'],
+    );
+    if (event == NotificationEventType.autoLineRefund) {
+      _refreshWalletAfterRefund();
+    }
+
     final deepLink = data['deep_link']?.toString() ??
         data['deeplink']?.toString() ??
         data['link']?.toString();
@@ -190,10 +221,6 @@ class FcmPushService {
         return;
       } catch (_) {}
     }
-
-    final event = parseNotificationEventType(
-      data['event_type'] ?? data['type'] ?? data['notification_type'],
-    );
     int? toId(dynamic v) {
       if (v == null) return null;
       if (v is int) return v > 0 ? v : null;
@@ -226,6 +253,9 @@ class FcmPushService {
         case NotificationEventType.review:
           router.push(GlobalNotificationsScreen.routeName);
           break;
+        case NotificationEventType.autoLineRefund:
+          router.push(GlobalNotificationsScreen.routeName);
+          break;
         case NotificationEventType.unknown:
           router.push(GlobalNotificationsScreen.routeName);
           break;
@@ -233,6 +263,53 @@ class FcmPushService {
     } catch (e) {
       debugPrint('FCM navigation error: $e');
     }
+  }
+
+  static void _refreshWalletAfterRefund() {
+    final container = appProviderContainer;
+    container.invalidate(buyerWalletOverviewProvider);
+    container.invalidate(buyerWalletTransactionsProvider);
+    container.invalidate(notificationProvider);
+    container.read(buyerWalletOverviewProvider.future).ignore();
+    container.read(buyerWalletTransactionsProvider.future).ignore();
+  }
+
+  static String _refundToast(Map<String, dynamic> data, String? fallbackBody) {
+    final raw = data['amount']?.toString().trim();
+    if (raw != null && raw.isNotEmpty && raw != 'null') {
+      final n = double.tryParse(raw.replaceAll(',', ''));
+      if (n != null) {
+        final shown = n == n.roundToDouble()
+            ? n.toStringAsFixed(0)
+            : n.toStringAsFixed(2);
+        return '$shown has been returned to your wallet';
+      }
+      return '$raw has been returned to your wallet';
+    }
+    final body = fallbackBody?.trim();
+    if (body != null && body.isNotEmpty) return body;
+    return 'A refund has been returned to your wallet';
+  }
+
+  static void _handleAutoLineRefund(
+    Map<String, dynamic> data, {
+    required bool showToast,
+    String? fallbackBody,
+  }) {
+    final event = parseNotificationEventType(
+      data['event_type'] ?? data['type'] ?? data['notification_type'],
+    );
+    if (event != NotificationEventType.autoLineRefund) return;
+    _refreshWalletAfterRefund();
+    if (!showToast) return;
+    final ctx = router.routerDelegate.navigatorKey.currentContext;
+    if (ctx == null) return;
+    GlobalSnackbar.show(
+      ctx,
+      title: 'Wallet',
+      message: _refundToast(data, fallbackBody),
+      type: CustomSnackType.success,
+    );
   }
 
   /// Call after login or on cold start when a session already exists.

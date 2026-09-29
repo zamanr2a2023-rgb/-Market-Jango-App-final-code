@@ -18,6 +18,7 @@ class CustomTotalCheckoutSection extends StatelessWidget {
     required this.context,
     this.totalLabel,
     this.onCheckout, // optional external handler
+    this.checkoutEnabled = true,
   });
 
   final double totalPrice;
@@ -25,6 +26,7 @@ class CustomTotalCheckoutSection extends StatelessWidget {
   final String? totalLabel;
   final BuildContext context;
   final VoidCallback? onCheckout;
+  final bool checkoutEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -65,15 +67,18 @@ class CustomTotalCheckoutSection extends StatelessWidget {
           ),
 
           ElevatedButton(
-            onPressed: () {
-              if (onCheckout != null) {
-                onCheckout!();
-              } else {
-                _defaultCheckout(context);
-              }
-            },
+            onPressed: checkoutEnabled
+                ? () {
+                    if (onCheckout != null) {
+                      onCheckout!();
+                    } else {
+                      _defaultCheckout(context);
+                    }
+                  }
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AllColor.blue,
+              disabledBackgroundColor: AllColor.grey300,
               padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 10.h),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8.r),

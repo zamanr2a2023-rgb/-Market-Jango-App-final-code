@@ -5,6 +5,7 @@ import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/global_pagination.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
+import 'package:market_jango/core/widget/urgent_badge.dart';
 import 'package:market_jango/features/driver/screen/outlets/data/driver_outlets_api.dart';
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
@@ -292,12 +293,24 @@ class _BinOrderCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      order.orderNumber,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14.sp,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            order.orderNumber,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.sp,
+                            ),
+                          ),
+                        ),
+                        if (order.isUrgent) ...[
+                          SizedBox(width: 6.w),
+                          const UrgentBadge(),
+                        ],
+                      ],
                     ),
                     SizedBox(height: 4.h),
                     Text(

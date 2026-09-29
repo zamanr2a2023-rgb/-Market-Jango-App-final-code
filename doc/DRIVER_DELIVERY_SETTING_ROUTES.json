@@ -1,0 +1,167 @@
+{
+  "info": {
+    "name": "Driver Delivery Setting — multi-route pick",
+    "description": "Flutter Delivery setting screen. Driver can Add/Remove many delivery-charge routes.\nDoc: docs/FLUTTER_DRIVER_DELIVERY_SETTING_ROUTES.md\n\nSet collection variables: baseUrl, token, id, routeIdA, routeIdB.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "" },
+    { "key": "id", "value": "" },
+    { "key": "routeIdA", "value": "1" },
+    { "key": "routeIdB", "value": "2" },
+    { "key": "search", "value": "LA" }
+  ],
+  "item": [
+    {
+      "name": "1. List route points (page 1)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points?page=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points"],
+          "query": [{ "key": "page", "value": "1" }]
+        },
+        "description": "Expect data.items[].is_selected boolean. Copy two item ids into routeIdA / routeIdB."
+      }
+    },
+    {
+      "name": "2. Search by zone name",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points?search={{search}}&page=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points"],
+          "query": [
+            { "key": "search", "value": "{{search}}" },
+            { "key": "page", "value": "1" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "3. Add route A",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"delivery_charge_route_id\": {{routeIdA}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points"]
+        },
+        "description": "201 success. Idempotent if already selected."
+      }
+    },
+    {
+      "name": "4. Add route B (multi-select)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"delivery_charge_route_id\": {{routeIdB}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points"]
+        },
+        "description": "Proves driver can keep more than one route. Both A and B stay selected."
+      }
+    },
+    {
+      "name": "5. List again (both is_selected true)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points?page=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points"],
+          "query": [{ "key": "page", "value": "1" }]
+        },
+        "description": "Find routeIdA and routeIdB — both should have is_selected: true."
+      }
+    },
+    {
+      "name": "6. Remove route A only",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points/{{routeIdA}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points", "{{routeIdA}}"]
+        },
+        "description": "Only A is removed. B remains selected."
+      }
+    },
+    {
+      "name": "7. List after remove (A false, B true)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points?page=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points"],
+          "query": [{ "key": "page", "value": "1" }]
+        }
+      }
+    },
+    {
+      "name": "8. Remove route B",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "driver" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/vendor/route-points/{{routeIdB}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "vendor", "route-points", "{{routeIdB}}"]
+        }
+      }
+    }
+  ]
+}

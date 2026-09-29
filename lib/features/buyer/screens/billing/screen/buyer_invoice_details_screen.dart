@@ -576,6 +576,15 @@ class _InvoiceWireframeCard extends StatelessWidget {
                   ref.t(BKeys.deliveryCharge, fallback: 'Delivery charge'),
                   _summaryAmount(_effectiveDeliveryChargeRaw()),
                 ),
+                if (details.isUrgent == true) ...[
+                  SizedBox(height: 8.h),
+                  _feeLine(
+                    'Urgent delivery',
+                    details.urgentFee != null && details.urgentFee! > 0
+                        ? '$_currency ${details.urgentFee!.toStringAsFixed(2)}'
+                        : 'Yes',
+                  ),
+                ],
                 SizedBox(height: 8.h),
                 _feeLine(
                   ref.t(BKeys.tax, fallback: 'Tax'),

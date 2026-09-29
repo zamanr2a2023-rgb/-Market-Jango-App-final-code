@@ -1,0 +1,93 @@
+{
+  "info": {
+    "name": "LAST EDITES — Checkout Normal vs Urgent",
+    "description": "Buyer checkout urgent toggle + delivery preview + invoice create.\nDoc: docs/FLUTTER_LAST_EDITES_CHECKOUT_URGENT.md\n\nSet collection variables: baseUrl, token, id.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8000" },
+    { "key": "token", "value": "" },
+    { "key": "id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Delivery charges — Normal (is_urgent=0)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "buyer" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/cart/delivery-charges?is_urgent=0",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "cart", "delivery-charges"],
+          "query": [{ "key": "is_urgent", "value": "0" }]
+        },
+        "description": "Expect data.is_urgent false, cart_urgent_fee 0, routes[].urgent_fee 0."
+      }
+    },
+    {
+      "name": "2. Delivery charges — Urgent (is_urgent=1)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "buyer" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/cart/delivery-charges?is_urgent=1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "cart", "delivery-charges"],
+          "query": [{ "key": "is_urgent", "value": "1" }]
+        },
+        "description": "Expect data.is_urgent true, cart_urgent_fee > 0 when route has urgent_flat_fee, routes[].distance_km present when set."
+      }
+    },
+    {
+      "name": "3. Invoice create — Urgent",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "buyer" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"OPU\",\n  \"is_urgent\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/invoice/create",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "invoice", "create"]
+        },
+        "description": "Stores invoice.is_urgent + urgent_fee. 422 if product missing weight/cube."
+      }
+    },
+    {
+      "name": "4. Invoice create — Normal",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "token", "value": "{{token}}" },
+          { "key": "id", "value": "{{id}}" },
+          { "key": "user_type", "value": "buyer" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"OPU\",\n  \"is_urgent\": false\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/invoice/create",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "invoice", "create"]
+        }
+      }
+    }
+  ]
+}

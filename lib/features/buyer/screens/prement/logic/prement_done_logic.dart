@@ -7,7 +7,9 @@ import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/buyer_api.dart';
 import 'package:market_jango/core/utils/auth_gate.dart';
 import 'package:market_jango/core/utils/get_token_sharedpefarens.dart';
+import 'package:market_jango/features/buyer/screens/cart/logic/buyer_shiping_update_logic.dart';
 import 'package:market_jango/features/buyer/screens/cart/logic/cart_data.dart';
+import 'package:market_jango/features/buyer/screens/cart/model/cart_model.dart';
 import 'package:market_jango/features/buyer/screens/prement/data/delivery_charges_data.dart';
 import 'package:market_jango/features/buyer/screens/prement/logic/global_logger.dart';
 import 'package:market_jango/features/buyer/screens/prement/logic/prement_reverpod.dart';
@@ -18,6 +20,41 @@ import 'package:market_jango/features/buyer/screens/prement/screen/payment_compl
 import 'package:market_jango/features/buyer/screens/prement/screen/web_view_screen.dart';
 import 'package:market_jango/features/buyer/screens/wallet/data/buyer_wallet_api.dart';
 import 'package:market_jango/features/buyer/screens/wallet/provider/buyer_wallet_provider.dart';
+
+String? _deliveryContactError(BuildContext context, ProviderContainer container) {
+  try {
+    final cart = container.read(cartProvider).valueOrNull;
+    Buyer? b = (cart != null && cart.items.isNotEmpty)
+        ? cart.items.first.buyer
+        : null;
+    if (b == null) {
+      final extra = GoRouterState.of(context).extra;
+      if (extra is PaymentPageData) b = extra.buyer;
+    }
+    final saved = container.read(savedDeliveryContactsProvider);
+    if (b == null && saved == null) return null;
+    final contacts = resolveDeliveryContacts(
+      pickupName: b?.pickupContactName,
+      pickupPhone: b?.pickupContactPhone,
+      dropName: b?.dropContactName,
+      dropPhone: b?.dropContactPhone,
+      shipName: b?.shipName,
+      shipPhone: b?.shipPhone,
+      saved: saved,
+    );
+    final pickupName = contacts.pickupName;
+    final pickupPhone = contacts.pickupPhone;
+    final dropName = contacts.dropName;
+    final dropPhone = contacts.dropPhone;
+    if (pickupName.isEmpty ||
+        dropName.isEmpty ||
+        !isValidContactPhone(pickupPhone) ||
+        !isValidContactPhone(dropPhone)) {
+      return 'Pickup and drop name and a valid phone are required.';
+    }
+  } catch (_) {}
+  return null;
+}
 
 bool _jsonStatusIsSuccess(Map<String, dynamic> top) {
   final st = top['status']?.toString().toLowerCase();
@@ -79,6 +116,42 @@ Future<void> startCheckout(BuildContext context) async {
 
   final container = ProviderScope.containerOf(context, listen: false);
   final selectedIndex = container.read(shippingMethodIndexProvider);
+  if (selectedIndex == 0) {
+    final chargeState = container.read(cartDeliveryChargesProvider);
+    if (chargeState.isLoading) {
+      await _showMessagePopup(
+        context,
+        'Delivery charges are updating. Please wait a moment.',
+      );
+      return;
+    }
+    final loadNotice = chargeState.hasError
+        ? deliveryChargeLoadNotice(chargeState.error)
+        : null;
+    if (loadNotice != null) {
+      await _showMessagePopup(context, loadNotice);
+      return;
+    }
+    final block = chargeState.valueOrNull?.checkoutBlockReason;
+    if (block != null) {
+      await _showMessagePopup(context, block);
+      return;
+    }
+    final urgentSelected = container.read(urgentDeliveryProvider);
+    final mismatch = deliveryUrgentQuoteMismatchNotice(
+      userSelectedUrgent: urgentSelected,
+      charges: chargeState.valueOrNull,
+    );
+    if (mismatch != null) {
+      await _showMessagePopup(context, mismatch);
+      return;
+    }
+    final contactError = _deliveryContactError(context, container);
+    if (contactError != null) {
+      await _showMessagePopup(context, contactError);
+      return;
+    }
+  }
 
   // Own pick up: only place order after explicit Checkout + confirm (no gateway dialog).
   if (selectedIndex == 1) {
@@ -287,6 +360,11 @@ Future<void> _executeInvoiceCheckout(
       'token: ${maskToken(token)})',
     );
 
+    final deliveryShipping =
+        container.read(shippingMethodIndexProvider) == 0;
+    final urgentDelivery = deliveryShipping &&
+        container.read(urgentDeliveryProvider);
+
     final res = await http.post(
       uri,
       headers: {
@@ -294,7 +372,11 @@ Future<void> _executeInvoiceCheckout(
         'Content-Type': 'application/json',
         if (token != null && token.isNotEmpty) 'token': token,
       },
-      body: jsonEncode({'payment_method': paymentMethod}),
+      body: jsonEncode({
+        'payment_method': paymentMethod,
+        'is_urgent': urgentDelivery,
+        'delivery_type': urgentDelivery ? 'urgent' : 'normal',
+      }),
     );
 
     if (context.mounted) {

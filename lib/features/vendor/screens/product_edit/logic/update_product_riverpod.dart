@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/vendor_api.dart';
-import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/vendor_order_auth.dart';
 import 'package:market_jango/core/utils/image_check_before_post.dart';
 import 'package:market_jango/features/vendor/screens/vendor_product_add_page/logic/creat_product_provider.dart';
 import 'package:path/path.dart' as p;
@@ -31,6 +31,8 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
     Map<String, String> specification = const {},
     String? stock,
     String? weight,
+    String? cube,
+    String? walkInSellPrice,
     String? weightUnit,
     String? length,
     String? width,
@@ -45,15 +47,11 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       state = const AsyncLoading();
 
-      final token = await AuthLocalStorage().getToken();
       final uri = Uri.parse(VendorAPIController.product_update(id));
 
       final req = http.MultipartRequest('POST', uri);
 
-      if (token != null && token.isNotEmpty) {
-        req.headers['token'] = token;
-      }
-      req.headers['Accept'] = 'application/json';
+      req.headers.addAll(await vendorMultipartApiHeaders());
 
       void addField(String key, String? value) {
         if (value != null && value.trim().isNotEmpty) {
@@ -65,11 +63,13 @@ class UpdateProductNotifier extends StateNotifier<AsyncValue<void>> {
       addField('description', description);
       addField('regular_price', regularPrice);
       addField('sell_price', sellPrice);
+      addField('walk_in_sell_price', walkInSellPrice);
       addField('buying_price', buyingPrice);
 
       if (categoryId != null) req.fields['category_id'] = '$categoryId';
       addField('stock', stock);
       addField('weight', weight);
+      addField('cube', cube);
       addField('weight_unit', weightUnit);
       addField('length', length);
       addField('width', width);

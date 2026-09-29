@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
-import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/features/auth/data/register_api_headers.dart';
 
 import '../model/vendor_request_model.dart';
 
@@ -20,36 +20,33 @@ class VendorRegisterNotifier extends StateNotifier<AsyncValue<VendorModel?>> {
     required String url,
     required String country,
     required String businessName,
-    required String businessType,
+    required List<int> businessTypeIds,
     required String address,
     required List<File> files,
     double? latitude,
     double? longitude,
-    String? zone,
-    String? stateName,
-    String? town,
+    required String zone,
+    required String stateName,
+    required String town,
   }) async {
     state = const AsyncLoading();
 
     try {
-      final authStorage = AuthLocalStorage();
-      final token = await authStorage.getToken();
-      if (token == null || token.isEmpty) throw 'Missing auth token';
+      if (businessTypeIds.isEmpty) {
+        throw 'Select at least one business type';
+      }
 
       var request = http.MultipartRequest('POST', Uri.parse(url));
-      request.headers.addAll({'Accept': 'application/json', 'token': token});
+      request.headers
+          .addAll(await registerMultipartHeaders(userType: 'vendor'));
 
       request.fields['country'] = country;
       request.fields['business_name'] = businessName;
-      request.fields['business_type'] = businessType;
+      request.fields['business_type_ids'] = jsonEncode(businessTypeIds);
       request.fields['address'] = address;
-
-      final z = zone?.trim() ?? '';
-      final s = stateName?.trim() ?? '';
-      final t = town?.trim() ?? '';
-      if (z.isNotEmpty) request.fields['zone'] = z;
-      if (s.isNotEmpty) request.fields['state'] = s;
-      if (t.isNotEmpty) request.fields['town'] = t;
+      request.fields['zone'] = zone.trim();
+      request.fields['state'] = stateName.trim();
+      request.fields['town'] = town.trim();
 
       if (latitude != null && longitude != null) {
         request.fields['latitude'] = latitude.toString();

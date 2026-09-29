@@ -529,6 +529,11 @@ class _PlanCard extends StatelessWidget {
                 _Chip(text: 'Region: ${plan.region}'),
               if (plan.deliveryZone != null && plan.deliveryZone!.isNotEmpty)
                 _Chip(text: 'Delivery zone: ${plan.deliveryZone}'),
+              if (plan.maxRoutes != null)
+                _Chip(text: 'Routes: ${plan.maxRoutes}'),
+              if (plan.trialDays != null && plan.trialDays! > 0)
+                _Chip(text: 'Trial: ${plan.trialDays} days'),
+              if (plan.isFreePlan) _Chip(text: 'Free plan'),
               if (plan.isGlobalForVendor && plan.isGlobalForDriver)
                 _Chip(text: 'Global'),
             ],

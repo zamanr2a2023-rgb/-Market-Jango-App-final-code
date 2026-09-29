@@ -455,7 +455,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _Label(
-                              'Current price (UGX)',
+                              'Marketplace sell price (UGX)',
                               color: const Color(0xFF2B6CB0),
                             ),
                             SizedBox(height: 6.h),
@@ -557,6 +557,39 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                     ),
                   ],
                   SizedBox(height: 10.h),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _Label(
+                        'Walk-in sell price (UGX)',
+                        color: const Color(0xFF2B6CB0),
+                      ),
+                      SizedBox(height: 6.h),
+                      TextFormField(
+                        controller: walkInPriceController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          fillColor: AllColor.white,
+                          hintText: 'POS / walk-in price (UGX)',
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: AllColor.grey,
+                              width: 1.2,
+                            ),
+                            borderRadius: BorderRadius.circular(5.r),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: AllColor.grey,
+                              width: 1.2,
+                            ),
+                            borderRadius: BorderRadius.circular(5.r),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10.h),
 
                   /// Stock and Weight row
                   Row(
@@ -640,6 +673,34 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                       if (v == null) return;
                       setState(() => _weightUnit = v);
                     },
+                  ),
+                  SizedBox(height: 10.h),
+
+                  _Label('Cube (m³)', color: const Color(0xFF2B6CB0)),
+                  SizedBox(height: 6.h),
+                  TextFormField(
+                    controller: cubeController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      fillColor: AllColor.white,
+                      hintText: 'e.g. 0.02',
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: AllColor.grey,
+                          width: 1.2,
+                        ),
+                        borderRadius: BorderRadius.circular(5.r),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: AllColor.grey,
+                          width: 1.2,
+                        ),
+                        borderRadius: BorderRadius.circular(5.r),
+                      ),
+                    ),
                   ),
                   SizedBox(height: 10.h),
 
@@ -874,6 +935,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                                   description: nn(descriptionController.text),
                                   regularPrice: nn(regularPriceController.text),
                                   sellPrice: nn(priceController.text),
+                                  walkInSellPrice: nn(walkInPriceController.text),
                                   buyingPrice:
                                       ref.read(isVendorOwnerProvider).valueOrNull ==
                                           true
@@ -886,6 +948,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
                                   specification: specs,
                                   stock: nn(stockController.text),
                                   weight: nn(weightController.text),
+                                  cube: nn(cubeController.text),
                                   weightUnit: _weightUnit,
                                   length: nn(lengthController.text),
                                   width: nn(widthController.text),
@@ -944,6 +1007,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
   late TextEditingController buyingPriceController;
   late TextEditingController stockController;
   late TextEditingController weightController;
+  late TextEditingController cubeController;
+  late TextEditingController walkInPriceController;
   late TextEditingController lengthController;
   late TextEditingController widthController;
   late TextEditingController heightController;
@@ -975,6 +1040,10 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
       text: widget.product.stock?.toString() ?? '',
     );
     weightController = TextEditingController(text: widget.product.weight ?? '');
+    cubeController = TextEditingController(text: widget.product.cube ?? '');
+    walkInPriceController = TextEditingController(
+      text: widget.product.walkInSellPrice ?? '',
+    );
     lengthController = TextEditingController(text: widget.product.length ?? '');
     widthController = TextEditingController(text: widget.product.width ?? '');
     heightController = TextEditingController(text: widget.product.height ?? '');
@@ -1117,6 +1186,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
     buyingPriceController.dispose();
     stockController.dispose();
     weightController.dispose();
+    cubeController.dispose();
+    walkInPriceController.dispose();
     lengthController.dispose();
     widthController.dispose();
     heightController.dispose();

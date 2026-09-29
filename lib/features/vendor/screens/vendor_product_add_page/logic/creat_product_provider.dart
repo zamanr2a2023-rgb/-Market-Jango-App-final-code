@@ -7,7 +7,7 @@ import 'package:logger/logger.dart';
 import 'package:market_jango/core/constants/api_control/vendor_api.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/vendor_order_auth.dart';
 
 final createProductProvider =
 StateNotifierProvider<CreateProductNotifier, AsyncValue<String>>(
@@ -78,6 +78,8 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
     Map<String, String> specification = const {},
     required String stock,
     required String weight,
+    String? cube,
+    String? walkInSellPrice,
     String weightUnit = 'kg',
     String? length,
     String? width,
@@ -91,8 +93,6 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
   }) async {
     try {
       state = const AsyncLoading(); // how loading state
-      final authStorage = AuthLocalStorage();
-      final token = await authStorage.getToken();
       // 🔻 compress (cover + gallery)
       final cover = await _compress(image);
       final gallery = <File>[];
@@ -104,9 +104,7 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
       final uri = Uri.parse(VendorAPIController.product_create);
       final request = http.MultipartRequest('POST', uri);
 
-      request.headers.addAll({
-        if (token != null) 'token': token,
-      });
+      request.headers.addAll(await vendorMultipartApiHeaders());
 
       
       // Text fields — match POST /product/create form-data
@@ -116,6 +114,9 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
       request.fields['sell_price'] = sellPrice;
       if (buyingPrice != null && buyingPrice.trim().isNotEmpty) {
         request.fields['buying_price'] = buyingPrice.trim();
+      }
+      if (walkInSellPrice != null && walkInSellPrice.trim().isNotEmpty) {
+        request.fields['walk_in_sell_price'] = walkInSellPrice.trim();
       }
       request.fields['category_id'] = categoryId.toString();
       request.fields['stock'] = stock;
@@ -132,6 +133,7 @@ class CreateProductNotifier extends StateNotifier<AsyncValue<String>> {
         }
       }
 
+      addOptional('cube', cube);
       addOptional('length', length);
       addOptional('width', width);
       addOptional('height', height);

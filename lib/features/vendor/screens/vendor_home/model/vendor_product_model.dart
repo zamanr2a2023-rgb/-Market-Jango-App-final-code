@@ -22,6 +22,8 @@ class VendorProduct {
   final List<ProductImage> images;
   final int? stock;
   final String? weight; // weight value
+  final String? cube;
+  final String? walkInSellPrice;
   final String weightUnit;
   final String? length;
   final String? width;
@@ -55,6 +57,8 @@ class VendorProduct {
     required this.images,
     this.stock,
     this.weight,
+    this.cube,
+    this.walkInSellPrice,
     this.weightUnit = 'kg',
     this.length,
     this.width,
@@ -148,6 +152,10 @@ class VendorProduct {
                   ? (json['stock'] as num).toInt() 
                   : int.tryParse(json['stock'].toString()))),
       weight: json['weight']?.toString(),
+      cube: optString(json['cube'] ?? json['cube_value'] ?? json['cube_m3']),
+      walkInSellPrice: optString(
+        json['walk_in_sell_price'] ?? json['walkin_sell_price'],
+      ),
       weightUnit: () {
         final u = json['weight_unit']?.toString().trim();
         return (u == null || u.isEmpty) ? 'kg' : u;

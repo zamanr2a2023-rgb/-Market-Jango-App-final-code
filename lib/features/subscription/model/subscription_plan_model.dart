@@ -24,6 +24,9 @@ class SubscriptionPlanModel {
 
   final bool hasMarketplace;
   final bool hasWalkIn;
+  final int? maxRoutes;
+  final int? trialDays;
+  final bool isFreePlan;
 
   SubscriptionPlanModel({
     required this.id,
@@ -45,6 +48,9 @@ class SubscriptionPlanModel {
     this.deliveryZone,
     this.hasMarketplace = false,
     this.hasWalkIn = false,
+    this.maxRoutes,
+    this.trialDays,
+    this.isFreePlan = false,
   });
 
   factory SubscriptionPlanModel.fromJson(Map<String, dynamic> json) {
@@ -82,6 +88,11 @@ class SubscriptionPlanModel {
       ),
       hasMarketplace: asBool(json['has_marketplace'] ?? json['hasMarketplace']),
       hasWalkIn: asBool(json['has_walk_in'] ?? json['hasWalkIn']),
+      maxRoutes: (json['max_routes'] as num?)?.toInt(),
+      trialDays: (json['trial_days'] as num?)?.toInt(),
+      isFreePlan: asBool(
+        json['free_plan'] ?? json['is_free'] ?? json['is_free_plan'],
+      ),
     );
   }
 

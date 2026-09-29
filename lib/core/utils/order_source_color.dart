@@ -8,6 +8,7 @@ class OrderSourceColor {
   static const Color multiVendor = Color(0xFF4CAF50);
   static const Color outlet = Color(0xFFFF9800);
   static const Color transport = Color(0xFFF44336);
+  static const Color urgent = Color(0xFFFF0000);
   static const Color fallback = Color(0xFF455A64);
 
   /// Normalize API / legacy keys to canonical `order_color_key` values.
@@ -41,13 +42,23 @@ class OrderSourceColor {
         return outlet;
       case 'transport':
         return transport;
+      case 'urgent':
+        return urgent;
       default:
         return fallback;
     }
   }
 
   /// Prefer `suggested_color` hex when valid; else map [orderColorKey].
-  static Color resolve({String? orderColorKey, String? suggestedColor}) {
+  static Color resolve({
+    String? orderColorKey,
+    String? suggestedColor,
+    bool isUrgent = false,
+  }) {
+    final keyUrgent = normalizeKey(orderColorKey) == 'urgent';
+    if (isUrgent || keyUrgent) {
+      return _parseHex(suggestedColor) ?? urgent;
+    }
     final hex = _parseHex(suggestedColor);
     if (hex != null) return hex;
     return fromKey(orderColorKey);

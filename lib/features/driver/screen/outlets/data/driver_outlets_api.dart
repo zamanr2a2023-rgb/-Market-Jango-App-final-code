@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/driver_api.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/core/widget/urgent_badge.dart';
 
 int _toInt(dynamic value, {int fallback = 0}) {
   if (value is int) return value;
@@ -66,6 +67,7 @@ class DriverOutletBinOrder {
     required this.dropoffAddress,
     required this.buyerName,
     required this.buyerPhone,
+    this.isUrgent = false,
   });
 
   final int id;
@@ -82,6 +84,7 @@ class DriverOutletBinOrder {
   final String dropoffAddress;
   final String buyerName;
   final String buyerPhone;
+  final bool isUrgent;
 
   factory DriverOutletBinOrder.fromJson(Map<String, dynamic> json) {
     final product = json['product'] is Map<String, dynamic>
@@ -115,6 +118,7 @@ class DriverOutletBinOrder {
       dropoffAddress: dropoff['address']?.toString() ?? '',
       buyerName: dropoff['buyer_name']?.toString() ?? '',
       buyerPhone: dropoff['buyer_phone']?.toString() ?? '',
+      isUrgent: urgentFromMap(json),
     );
   }
 }

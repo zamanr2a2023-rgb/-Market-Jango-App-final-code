@@ -3,41 +3,49 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
-import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/features/auth/data/register_api_headers.dart';
 import '../model/car_info_model.dart';
+
 final driverRegisterProvider =
-StateNotifierProvider<DriverRegisterNotifier, AsyncValue<DriverRegisterModel?>>(
+    StateNotifierProvider<DriverRegisterNotifier, AsyncValue<DriverRegisterModel?>>(
         (ref) => DriverRegisterNotifier());
+
 class DriverRegisterNotifier extends StateNotifier<AsyncValue<DriverRegisterModel?>> {
   DriverRegisterNotifier() : super(const AsyncValue.data(null));
+
   Future<void> registerDriver({
     required String url,
     required String carName,
-    required String carModel,
-    required String location,
+    required String numberPlate,
     required String price,
     required String transportType,
-    required String routeId,
     required List<File> files,
+    required String zone,
+    required String stateName,
+    required String town,
+    String? routeId,
   }) async {
     state = const AsyncValue.loading();
     try {
-      final authStorage = AuthLocalStorage();
-      final token = await authStorage.getToken();
-      if (token == null || token.isEmpty) throw 'Missing auth token';
+      final plate = numberPlate.trim();
+      if (plate.isEmpty) throw 'Number plate is required';
+
       var request = http.MultipartRequest('POST', Uri.parse(url));
-      request.headers.addAll({
-        // 'Accept': 'application/json',
-        'token': token,
-      });
-      request.fields.addAll({
-        'car_name': carName,
-        'car_model': carModel,
-        'location': location,
-        'price': price,
-        'transport_type': transportType,
-        'route_id': routeId,
-      });
+      request.headers
+          .addAll(await registerMultipartHeaders(userType: 'driver'));
+
+      request.fields['car_name'] = carName.trim();
+      request.fields['number_plate'] = plate;
+      request.fields['price'] = price.trim();
+      request.fields['transport_type'] = transportType.trim();
+      request.fields['zone'] = zone.trim();
+      request.fields['state'] = stateName.trim();
+      request.fields['town'] = town.trim();
+
+      final route = routeId?.trim() ?? '';
+      if (route.isNotEmpty) {
+        request.fields['route_id'] = route;
+      }
 
       for (var file in files) {
         final filename = file.path.split('/').last;
@@ -45,7 +53,6 @@ class DriverRegisterNotifier extends StateNotifier<AsyncValue<DriverRegisterMode
           'files[]',
           file.path,
           filename: filename,
-          // contentType optional — http automatically detects mime type
         );
         request.files.add(fileStream);
       }

@@ -11,7 +11,7 @@ import 'package:market_jango/features/driver/screen/deliveries/widget/assignment
 import 'package:market_jango/features/vendor/widgets/custom_back_button.dart';
 
 /// `GET /api/driver/deliveries` — `doc/details.md`.
-class DriverDeliveriesScreen extends ConsumerWidget {
+class DriverDeliveriesScreen extends ConsumerStatefulWidget {
   const DriverDeliveriesScreen({super.key, this.asTab = false});
 
   static const routeName = '/driver/deliveries';
@@ -20,14 +20,20 @@ class DriverDeliveriesScreen extends ConsumerWidget {
   final bool asTab;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DriverDeliveriesScreen> createState() =>
+      _DriverDeliveriesScreenState();
+}
+
+class _DriverDeliveriesScreenState extends ConsumerState<DriverDeliveriesScreen> {
+  @override
+  Widget build(BuildContext context) {
     final page = ref.watch(driverDeliveriesPageProvider);
     final statusFilter = ref.watch(driverDeliveriesStatusFilterProvider);
     final async = ref.watch(driverDeliveriesListProvider);
 
     return Scaffold(
       backgroundColor: AllColor.white,
-      appBar: asTab
+      appBar: widget.asTab
           ? null
           : AppBar(
               backgroundColor: AllColor.white,
@@ -47,11 +53,11 @@ class DriverDeliveriesScreen extends ConsumerWidget {
               centerTitle: true,
             ),
       body: SafeArea(
-        top: asTab,
+        top: widget.asTab,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(height: asTab ? 12.h : 4.h),
+            SizedBox(height: widget.asTab ? 12.h : 4.h),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 12.w),
               child: _StatusChips(
@@ -63,7 +69,12 @@ class DriverDeliveriesScreen extends ConsumerWidget {
                 },
               ),
             ),
-            SizedBox(height: 12.h),
+            SizedBox(height: 10.h),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12.w),
+              child: _DeliveriesSearchFiltersPanel(),
+            ),
+            SizedBox(height: 8.h),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () async {
@@ -306,6 +317,194 @@ class _DeliveriesError extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DeliveriesSearchFiltersPanel extends ConsumerStatefulWidget {
+  const _DeliveriesSearchFiltersPanel();
+
+  @override
+  ConsumerState<_DeliveriesSearchFiltersPanel> createState() =>
+      _DeliveriesSearchFiltersPanelState();
+}
+
+class _DeliveriesSearchFiltersPanelState
+    extends ConsumerState<_DeliveriesSearchFiltersPanel> {
+  final _orderNumberC = TextEditingController();
+  final _pickupC = TextEditingController();
+  final _dropC = TextEditingController();
+  String _fromDate = '';
+  String _toDate = '';
+  bool _expanded = false;
+
+  @override
+  void dispose() {
+    _orderNumberC.dispose();
+    _pickupC.dispose();
+    _dropC.dispose();
+    super.dispose();
+  }
+
+  DriverDeliveriesSearchFilters _currentFilters() {
+    return DriverDeliveriesSearchFilters(
+      orderNumber: _orderNumberC.text.trim(),
+      pickLocation: _pickupC.text.trim(),
+      dropLocation: _dropC.text.trim(),
+      fromDate: _fromDate,
+      toDate: _toDate,
+    );
+  }
+
+  void _applyTextDebounced() {
+    ref
+        .read(driverDeliveriesAppliedFiltersProvider.notifier)
+        .applyTextDebounced(_currentFilters());
+  }
+
+  Future<void> _pickDate({required bool isFrom}) async {
+    final initial = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    final s =
+        '${picked.year.toString().padLeft(4, '0')}-'
+        '${picked.month.toString().padLeft(2, '0')}-'
+        '${picked.day.toString().padLeft(2, '0')}';
+    setState(() {
+      if (isFrom) {
+        _fromDate = s;
+      } else {
+        _toDate = s;
+      }
+    });
+    ref
+        .read(driverDeliveriesAppliedFiltersProvider.notifier)
+        .applyImmediately(_currentFilters());
+  }
+
+  void _clearFilters() {
+    _orderNumberC.clear();
+    _pickupC.clear();
+    _dropC.clear();
+    setState(() {
+      _fromDate = '';
+      _toDate = '';
+    });
+    ref.read(driverDeliveriesAppliedFiltersProvider.notifier).clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inputBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8.r),
+      borderSide: BorderSide(color: AllColor.grey200),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: BorderRadius.circular(8.r),
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 6.h),
+            child: Row(
+              children: [
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 22.sp,
+                  color: AllColor.black87,
+                ),
+                SizedBox(width: 6.w),
+                Text(
+                  'Search & filters',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.black,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: _clearFilters,
+                  child: Text(
+                    'Clear',
+                    style: TextStyle(fontSize: 12.sp),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded) ...[
+          TextField(
+            controller: _orderNumberC,
+            onChanged: (_) => _applyTextDebounced(),
+            style: TextStyle(fontSize: 13.sp),
+            decoration: InputDecoration(
+              labelText: 'Order number',
+              isDense: true,
+              border: inputBorder,
+              enabledBorder: inputBorder,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          TextField(
+            controller: _pickupC,
+            onChanged: (_) => _applyTextDebounced(),
+            style: TextStyle(fontSize: 13.sp),
+            decoration: InputDecoration(
+              labelText: 'Pickup location',
+              isDense: true,
+              border: inputBorder,
+              enabledBorder: inputBorder,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          TextField(
+            controller: _dropC,
+            onChanged: (_) => _applyTextDebounced(),
+            style: TextStyle(fontSize: 13.sp),
+            decoration: InputDecoration(
+              labelText: 'Drop location',
+              isDense: true,
+              border: inputBorder,
+              enabledBorder: inputBorder,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _pickDate(isFrom: true),
+                  child: Text(
+                    _fromDate.isEmpty ? 'From date' : 'From: $_fromDate',
+                    style: TextStyle(fontSize: 12.sp),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _pickDate(isFrom: false),
+                  child: Text(
+                    _toDate.isEmpty ? 'To date' : 'To: $_toDate',
+                    style: TextStyle(fontSize: 12.sp),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
