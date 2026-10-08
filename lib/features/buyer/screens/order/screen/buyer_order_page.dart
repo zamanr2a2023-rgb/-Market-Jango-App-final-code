@@ -10,6 +10,9 @@ import 'package:market_jango/core/utils/image_controller.dart';
 import 'package:market_jango/core/widget/TupperTextAndBackButton.dart';
 import 'package:market_jango/features/buyer/screens/billing/screen/buyer_invoice_details_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/data/buyer_orders_data.dart';
+import 'package:market_jango/features/buyer/screens/order/util/buyer_mark_received_action.dart';
+import 'package:market_jango/features/buyer/screens/order/provider/buyer_quantity_changes_provider.dart';
+import 'package:market_jango/features/buyer/screens/order/screen/buyer_quantity_changes_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/model/order_summary.dart';
 import 'package:market_jango/features/buyer/screens/order/widget/custom_buyer_order_upper_image.dart';
 
@@ -23,7 +26,8 @@ class BuyerOrderPage extends ConsumerStatefulWidget {
   ConsumerState<BuyerOrderPage> createState() => _BuyerOrderPageState();
 }
 
-class _BuyerOrderPageState extends ConsumerState<BuyerOrderPage> {
+class _BuyerOrderPageState extends ConsumerState<BuyerOrderPage>
+    with WidgetsBindingObserver {
   String? _userId;
   /// 0 = To receive (not completed), 1 = All orders
   int _orderFilterTab = 0;
@@ -31,8 +35,25 @@ class _BuyerOrderPageState extends ConsumerState<BuyerOrderPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserId();
   }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(buyerOrdersProvider.notifier).refresh();
+    }
+  }
+
+  Future<void> _refreshOrders() =>
+      ref.read(buyerOrdersProvider.notifier).refresh();
 
   Future<void> _loadUserId() async {
     final authStorage = AuthLocalStorage();
@@ -46,6 +67,7 @@ class _BuyerOrderPageState extends ConsumerState<BuyerOrderPage> {
   @override
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(buyerOrdersProvider);
+    final pendingQtyAsync = ref.watch(buyerPendingQuantityChangesCountProvider);
 
     final userAsync = (_userId == null)
         ? const AsyncValue.loading()
@@ -58,7 +80,56 @@ class _BuyerOrderPageState extends ConsumerState<BuyerOrderPage> {
           child: Column(
             children: [
               Tuppertextandbackbutton(screenName: ref.t(BKeys.myOrders)),
-              SizedBox(height: 12.h),
+              SizedBox(height: 8.h),
+              pendingQtyAsync.when(
+                data: (count) {
+                  if (count <= 0) return const SizedBox.shrink();
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: 8.h),
+                    child: Material(
+                      color: AllColor.orange50.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(10.r),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10.r),
+                        onTap: () =>
+                            context.push(BuyerQuantityChangesScreen.routeName),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.w,
+                            vertical: 10.h,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.fact_check_outlined,
+                                color: AllColor.loginButtomColor,
+                                size: 22.sp,
+                              ),
+                              SizedBox(width: 10.w),
+                              Expanded(
+                                child: Text(
+                                  '$count quantity change${count == 1 ? '' : 's'} need your approval',
+                                  style: TextStyle(
+                                    fontSize: 13.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: AllColor.black,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: AllColor.grey500,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
 
               /// Top user image
               userAsync.when(
@@ -96,29 +167,48 @@ class _BuyerOrderPageState extends ConsumerState<BuyerOrderPage> {
 
               /// Orders list (grouped by day; tap → invoice / order details)
               Expanded(
-                child: ordersAsync.when(
-                  data: (page) {
-                    final all = page?.orders ?? const <Order>[];
-                    final filtered = _orderFilterTab == 0
-                        ? all.where((o) => !o.isCompleted).toList()
-                        : all;
-                    return CusotomShowOrder(
-                      orders: filtered,
-                      groupByDate: true,
-                      onOrderTap: (ctx, order) {
-                        ctx.push(
-                          BuyerInvoiceDetailsScreen.routeName,
-                          extra: BuyerInvoiceDetailsArgs(
-                            order.invoiceId,
-                            fromMyOrders: true,
-                          ),
-                        );
-                      },
-                    );
-                  },
-                  loading: () =>
-                      const Center(child: Text('Loading...')),
-                  error: (e, _) => Center(child: Text(e.toString())),
+                child: RefreshIndicator(
+                  color: AllColor.loginButtomColor,
+                  onRefresh: _refreshOrders,
+                  child: ordersAsync.when(
+                    data: (page) {
+                      final all = page?.orders ?? const <Order>[];
+                      final filtered = _orderFilterTab == 0
+                          ? all.where((o) => o.belongsInToReceiveTab).toList()
+                          : all;
+                      return CusotomShowOrder(
+                        orders: filtered,
+                        groupByDate: true,
+                        onOrderTap: (ctx, order) {
+                          ctx.push(
+                            BuyerInvoiceDetailsScreen.routeName,
+                            extra: BuyerInvoiceDetailsArgs(
+                              order.invoiceId,
+                              fromMyOrders: true,
+                            ),
+                          );
+                        },
+                      );
+                    },
+                    loading: () => ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: 120.h,
+                          child: const Center(child: Text('Loading...')),
+                        ),
+                      ],
+                    ),
+                    error: (e, _) => ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: 120.h,
+                          child: Center(child: Text(e.toString())),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
 
@@ -196,11 +286,21 @@ class CusotomShowOrder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
-      return Center(
-        child: Text(
-          'No orders yet.',
-          style: TextStyle(fontSize: 14.sp, color: AllColor.grey),
-        ),
+      return ListView(
+        physics: scrollable
+            ? const AlwaysScrollableScrollPhysics()
+            : const NeverScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 80.h,
+            child: Center(
+              child: Text(
+                'No orders yet.',
+                style: TextStyle(fontSize: 14.sp, color: AllColor.grey),
+              ),
+            ),
+          ),
+        ],
       );
     }
 
@@ -209,7 +309,9 @@ class CusotomShowOrder extends StatelessWidget {
         itemCount: orders.length,
         padding: EdgeInsets.zero,
         physics: scrollable
-            ? const BouncingScrollPhysics()
+            ? const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              )
             : const NeverScrollableScrollPhysics(),
         shrinkWrap: !scrollable,
         separatorBuilder: (_, __) => SizedBox(height: 10.h),
@@ -253,7 +355,9 @@ class CusotomShowOrder extends StatelessWidget {
     return ListView(
       padding: EdgeInsets.zero,
       physics: scrollable
-          ? const BouncingScrollPhysics()
+          ? const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            )
           : const NeverScrollableScrollPhysics(),
       shrinkWrap: !scrollable,
       children: children,
@@ -323,20 +427,20 @@ class _OrderFilterChip extends StatelessWidget {
   }
 }
 
-class _OrderCard extends StatelessWidget {
+class _OrderCard extends ConsumerWidget {
   const _OrderCard({required this.order, this.onTap});
   final Order order;
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final imageUrl = order.product.image;
 
     final address = order.shipAddress?.isNotEmpty == true
         ? order.shipAddress!
         : (order.pickupAddress ?? '');
 
-    final card = Container(
+    return Container(
       padding: EdgeInsets.only(top: 10.h, bottom: 10.h, right: 8.w, left: 8.w),
       decoration: BoxDecoration(
         color: AllColor.white,
@@ -349,36 +453,68 @@ class _OrderCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ProductImage(imageUrl),
-          SizedBox(width: 14.w),
-          Expanded(
-            child: _Texts(
-              orderCode: order.orderCode,
-              address: address,
-              description: order.statusDescription,
-              status: order.effectiveStatus,
-              paymentLabel: order.paymentLabel,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(5.r),
+              onTap: onTap,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _ProductImage(imageUrl),
+                  SizedBox(width: 14.w),
+                  Expanded(
+                    child: _Texts(
+                      orderCode: order.orderCode,
+                      address: address,
+                      description: order.statusDescription,
+                      status: order.effectiveStatus,
+                      paymentLabel: order.paymentLabel,
+                    ),
+                  ),
+                  if (onTap != null) ...[
+                    SizedBox(width: 4.w),
+                    Icon(
+                      Icons.chevron_right,
+                      color: AllColor.grey500,
+                      size: 22.sp,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-          if (onTap != null) ...[
-            SizedBox(width: 4.w),
-            Icon(Icons.chevron_right, color: AllColor.grey500, size: 22.sp),
+          if (order.canMarkReceived) ...[
+            SizedBox(height: 8.h),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => buyerConfirmAndMarkReceived(
+                  context,
+                  ref,
+                  invoiceItemId: order.id,
+                  invoiceId: order.invoiceId,
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: AllColor.loginButtomColor,
+                  padding: EdgeInsets.symmetric(horizontal: 8.w),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Received',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
           ],
         ],
-      ),
-    );
-
-    if (onTap == null) return card;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(5.r),
-        onTap: onTap,
-        child: card,
       ),
     );
   }

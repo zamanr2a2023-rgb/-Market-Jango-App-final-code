@@ -237,7 +237,11 @@ Future<void> _payShipmentWithWallet(
 
     ref.invalidate(transportWalletOverviewProvider);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment success')),
+      const SnackBar(
+        content: Text(
+          'Payment successful. Your driver can see this job under Pending.',
+        ),
+      ),
     );
     context.go(TransportBooking.routeName);
   } catch (e) {
@@ -283,7 +287,11 @@ Future<void> _payShipmentWithGateway(
 
     if (result?.success == true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment success')),
+        const SnackBar(
+          content: Text(
+            'Payment successful. Your driver can see this job under Pending.',
+          ),
+        ),
       );
       context.go(TransportBooking.routeName);
     } else {

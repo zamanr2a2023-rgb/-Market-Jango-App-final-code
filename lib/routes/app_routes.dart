@@ -48,6 +48,7 @@ import 'package:market_jango/features/vendor/screens/wallet/screen/vendor_wallet
 import 'package:market_jango/features/transport/screens/wallet/screen/transport_wallet_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_history_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_page.dart';
+import 'package:market_jango/features/buyer/screens/order/screen/buyer_quantity_changes_screen.dart';
 import 'package:market_jango/features/buyer/screens/prement/screen/buyer_payment_screen.dart';
 import 'package:market_jango/features/buyer/screens/product/product_details.dart';
 import 'package:market_jango/features/buyer/screens/review/review_screen.dart';
@@ -1082,6 +1083,11 @@ final GoRouter router = GoRouter(
       path: BuyerRefundsScreen.routeName,
       name: BuyerRefundsScreen.routeName,
       builder: (context, state) => const BuyerRefundsScreen(),
+    ),
+    GoRoute(
+      path: BuyerQuantityChangesScreen.routeName,
+      name: BuyerQuantityChangesScreen.routeName,
+      builder: (context, state) => const BuyerQuantityChangesScreen(),
     ),
     GoRoute(
       path: BuyerRefundDetailScreen.routeName,

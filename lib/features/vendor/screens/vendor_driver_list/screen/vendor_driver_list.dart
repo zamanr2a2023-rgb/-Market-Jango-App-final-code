@@ -8,11 +8,11 @@ import 'package:market_jango/core/localization/tr.dart';
 import 'package:market_jango/core/screen/buyer_massage/model/chat_history_route_model.dart';
 import 'package:market_jango/core/screen/buyer_massage/screen/global_chat_screen.dart';
 import 'package:market_jango/core/utils/image_controller.dart';
-import 'package:market_jango/core/widget/global_pagination.dart';
 import 'package:market_jango/features/transport/screens/driver/screen/driver_details_screen.dart';
 import 'package:market_jango/features/vendor/screens/vendor_asign_to_order_driver/screen/asign_to_order_driver.dart';
-import 'package:market_jango/features/vendor/screens/vendor_driver_list/data/driver_list_data.dart';
-import 'package:market_jango/features/vendor/screens/vendor_driver_list/model/driver_list_model.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_available_drivers_loader.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_driver_assign_filters.dart';
 import 'package:market_jango/features/vendor/screens/vendor_outlets/data/vendor_outlets_api.dart';
 import 'package:market_jango/features/vendor/screens/vendor_outlets/screen/assign_to_order_outlet.dart';
 import 'package:market_jango/core/utils/auth_local_storage.dart';
@@ -28,18 +28,66 @@ class VendorDriverList extends ConsumerStatefulWidget {
 
 class _VendorDriverListState extends ConsumerState<VendorDriverList> {
   final _search = TextEditingController();
+  final _pickup = TextEditingController();
+  final _drop = TextEditingController();
   bool _showOutlets = false;
+  String? _transportType;
+  List<VendorAvailableDriver> _availableDrivers = [];
+  bool _driversLoading = false;
+  String? _driversError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvailableDrivers();
+  }
 
   @override
   void dispose() {
     _search.dispose();
+    _pickup.dispose();
+    _drop.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAvailableDrivers() async {
+    setState(() {
+      _driversLoading = true;
+      _driversError = null;
+    });
+    try {
+      final q = _search.text.trim();
+      final list = await VendorAvailableDriversLoader.instance.fetch(
+        search: q.isEmpty ? null : q,
+        pickLocation: _pickup.text.trim(),
+        dropLocation: _drop.text.trim(),
+        transportType: _transportType,
+      );
+      if (mounted) {
+        setState(() {
+          _availableDrivers = list;
+          _driversLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _driversError = e.toString().replaceFirst('Exception: ', '');
+          _driversLoading = false;
+        });
+      }
+    }
+  }
+
+  void _clearDriverFilters() {
+    _pickup.clear();
+    _drop.clear();
+    setState(() => _transportType = null);
+    _loadAvailableDrivers();
   }
 
   @override
   Widget build(BuildContext context) {
-    final driverAsync = ref.watch(driverNotifierProvider);
-    final driverNotifier = ref.read(driverNotifierProvider.notifier);
     final searchQuery = _search.text.trim().toLowerCase();
     final showBack = context.canPop();
 
@@ -55,6 +103,9 @@ class _VendorDriverListState extends ConsumerState<VendorDriverList> {
               child: TextField(
                 controller: _search,
                 onChanged: (_) => setState(() {}),
+                onSubmitted: (_) {
+                  if (!_showOutlets) _loadAvailableDrivers();
+                },
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: _showOutlets
@@ -103,100 +154,97 @@ class _VendorDriverListState extends ConsumerState<VendorDriverList> {
                 ],
               ),
             ),
+            if (!_showOutlets) ...[
+              SizedBox(height: 8.h),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
+                child: VendorDriverAssignFilters(
+                  pickupController: _pickup,
+                  dropController: _drop,
+                  selectedTransport: _transportType,
+                  onTransportChanged: (v) => setState(() => _transportType = v),
+                  onSearch: _loadAvailableDrivers,
+                  onClear: _clearDriverFilters,
+                  enabled: !_driversLoading,
+                ),
+              ),
+            ],
             SizedBox(height: 12.h),
             if (_showOutlets)
               Expanded(child: _OutletsList(searchQuery: searchQuery))
             else
               Expanded(
-                child: driverAsync.when(
-                  data: (data) {
-                    final allDrivers = data?.drivers ?? [];
-
-                    // Filter drivers based on search query
-                    final filteredDrivers = allDrivers.where((driver) {
-                      if (searchQuery.isEmpty) return true;
-                      final name = driver.user.name.toLowerCase();
-                      final phone = driver.user.phone.toLowerCase();
-                      final location = driver.location.toLowerCase();
-                      return name.contains(searchQuery) ||
-                          phone.contains(searchQuery) ||
-                          location.contains(searchQuery);
-                    }).toList();
-
-                    if (filteredDrivers.isEmpty && searchQuery.isNotEmpty) {
-                      return Center(
+                child: _driversLoading
+                    ? Center(child: Text(ref.t(BKeys.loading)))
+                    : _driversError != null
+                    ? Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.w),
+                          child: Text(
+                            _driversError!,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    : _availableDrivers.isEmpty
+                    ? Center(
                         child: Text(
                           ref.t(BKeys.no_data),
                           style: TextStyle(color: AllColor.black54),
                         ),
-                      );
-                    }
-
-                    return Column(
-                      children: [
-                        Expanded(
-                          child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-                            physics: const BouncingScrollPhysics(),
-                            itemCount: filteredDrivers.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 12),
-                            itemBuilder: (_, i) {
-                              final driver = filteredDrivers[i];
-                              return _DriverCard(
-                                data: driver,
-                                onAssign: () {
-                                  context.push(
-                                    AssignToOrderDriver.routeName,
-                                    extra: AssignToOrderDriverArgs(
-                                      driverId: driver.id,
-                                      driverName: driver.user.name,
-                                    ),
-                                  );
-                                },
-                                onChat: () async {
-                                  final authStorage = AuthLocalStorage();
-                                  final userIdStr = await authStorage
-                                      .getUserId();
-                                  if (userIdStr == null || userIdStr.isEmpty) {
-                                    throw Exception("user id not founde");
-                                  }
-                                  final myUserId = int.tryParse(userIdStr);
-                                  if (myUserId == null) {
-                                    throw Exception("Invalid user id");
-                                  }
-                                  context.push(
-                                    GlobalChatScreen.routeName,
-                                    extra: ChatArgs(
-                                      partnerId: driver.user.id,
-                                      partnerName: driver.user.name,
-                                      partnerImage: driver.user.image,
-                                      myUserId: myUserId,
-                                    ),
-                                  );
-                                },
-                              );
-                            },
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadAvailableDrivers,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
                           ),
-                        ),
-                        if (data != null && searchQuery.isEmpty)
-                          Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8.h),
-                            child: GlobalPagination(
-                              currentPage: data.currentPage,
-                              totalPages: data.lastPage,
-                              onPageChanged: (page) {
-                                driverNotifier.changePage(page);
+                          itemCount: _availableDrivers.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, i) {
+                            final driver = _availableDrivers[i];
+                            return _AvailableDriverCard(
+                              data: driver,
+                              onAssign: () {
+                                context.push(
+                                  AssignToOrderDriver.routeName,
+                                  extra: AssignToOrderDriverArgs(
+                                    driverId: driver.id,
+                                    driverName: driver.name,
+                                  ),
+                                );
                               },
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                  loading: () => Center(child: Text(ref.t(BKeys.loading))),
-                  error: (error, stackTrace) =>
-                      Center(child: Text(error.toString())),
-                ),
+                              onChat: driver.userId == null
+                                  ? null
+                                  : () async {
+                                      final authStorage = AuthLocalStorage();
+                                      final userIdStr = await authStorage
+                                          .getUserId();
+                                      if (userIdStr == null ||
+                                          userIdStr.isEmpty) {
+                                        throw Exception('user id not founde');
+                                      }
+                                      final myUserId = int.tryParse(userIdStr);
+                                      if (myUserId == null) {
+                                        throw Exception('Invalid user id');
+                                      }
+                                      if (!context.mounted) return;
+                                      context.push(
+                                        GlobalChatScreen.routeName,
+                                        extra: ChatArgs(
+                                          partnerId: driver.userId!,
+                                          partnerName: driver.name,
+                                          partnerImage: driver.userImage ?? '',
+                                          myUserId: myUserId,
+                                        ),
+                                      );
+                                    },
+                            );
+                          },
+                        ),
+                      ),
               ),
           ],
         ),
@@ -579,23 +627,34 @@ String _formatDriverPrice(String price) {
 
 /* ===================== CARD WIDGET ===================== */
 
-class _DriverCard extends ConsumerWidget {
-  final Driver data;
-  final VoidCallback onAssign;
-  final VoidCallback onChat;
-
-  const _DriverCard({
+class _AvailableDriverCard extends ConsumerWidget {
+  const _AvailableDriverCard({
     required this.data,
     required this.onAssign,
-    required this.onChat,
+    this.onChat,
   });
 
+  final VendorAvailableDriver data;
+  final VoidCallback onAssign;
+  final VoidCallback? onChat;
+
   @override
-  Widget build(BuildContext context, ref) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final name = data.name.isNotEmpty ? data.name : 'Driver';
+    final transport = data.transportType?.trim();
+    final transportLabel = transport != null && transport.isNotEmpty
+        ? VendorDriverAssignFilters.labelForTransport(transport.toLowerCase())
+        : null;
+
     return GestureDetector(
-      onTap: () {
-        context.push(DriverDetailsScreen.routeName, extra: data.user.id);
-      },
+      onTap: data.userId != null
+          ? () {
+              context.push(
+                DriverDetailsScreen.routeName,
+                extra: data.userId,
+              );
+            }
+          : null,
       child: Container(
         decoration: BoxDecoration(
           color: AllColor.white,
@@ -608,22 +667,18 @@ class _DriverCard extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     height: 60.h,
                     width: 60.w,
                     color: AllColor.grey100,
-                    child: data.user.image.isNotEmpty
+                    child: (data.userImage ?? '').isNotEmpty
                         ? FirstTimeShimmerImage(
-                            imageUrl: data.user.image,
+                            imageUrl: data.userImage!,
                             fit: BoxFit.cover,
                           )
-                        : Container(
-                            color: AllColor.grey100,
-                            child: Icon(Icons.person, color: AllColor.grey),
-                          ),
+                        : Icon(Icons.person, color: AllColor.grey),
                   ),
                 ),
                 SizedBox(width: 10.h),
@@ -631,15 +686,12 @@ class _DriverCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Name + Online/Offline pill
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
-                              data.user.name.isNotEmpty
-                                  ? data.user.name
-                                  : 'Driver',
+                              name,
                               style: TextStyle(
                                 color: AllColor.black,
                                 fontWeight: FontWeight.w700,
@@ -648,35 +700,24 @@ class _DriverCard extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Builder(
-                            builder: (_) {
-                              final isOnline =
-                                  data.user.isActive == 1 ||
-                                  data.user.status.toLowerCase() == 'active' ||
-                                  data.user.status.toLowerCase() == 'online';
-                              final statusColor = isOnline
-                                  ? Colors.green
-                                  : AllColor.grey500;
-                              return Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 10.h,
-                                  vertical: 5.w,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(.12),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: statusColor),
-                                ),
-                                child: Text(
-                                  isOnline ? 'Online' : 'Offline',
-                                  style: TextStyle(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12.sp,
-                                  ),
-                                ),
-                              );
-                            },
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10.h,
+                              vertical: 5.w,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.green),
+                            ),
+                            child: Text(
+                              'Available',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.sp,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -686,16 +727,14 @@ class _DriverCard extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              data.user.phone.isNotEmpty
-                                  ? data.user.phone
-                                  : '—',
+                              (data.phone ?? '').isNotEmpty ? data.phone! : '—',
                               style: TextStyle(color: AllColor.black54),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           Text(
-                            _formatDriverPrice(data.price),
+                            _formatDriverPrice(data.price ?? ''),
                             style: TextStyle(
                               color: AllColor.black,
                               fontWeight: FontWeight.w800,
@@ -705,18 +744,30 @@ class _DriverCard extends ConsumerWidget {
                         ],
                       ),
                       Text(
-                        data.location.isNotEmpty ? data.location : '—',
+                        (data.location ?? '').isNotEmpty
+                            ? data.location!
+                            : '—',
                         style: TextStyle(color: AllColor.black54),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (transportLabel != null) ...[
+                        SizedBox(height: 4.h),
+                        Text(
+                          transportLabel,
+                          style: TextStyle(
+                            color: AllColor.black87,
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                       SizedBox(height: 10.h),
                     ],
                   ),
                 ),
               ],
             ),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -733,7 +784,6 @@ class _DriverCard extends ConsumerWidget {
                       padding: EdgeInsets.symmetric(horizontal: 16.h),
                     ),
                     child: Text(
-                      // 'Assign to order',
                       ref.t(BKeys.assignedOrder),
                       style: TextStyle(
                         color: AllColor.white,
@@ -742,24 +792,24 @@ class _DriverCard extends ConsumerWidget {
                     ),
                   ),
                 ),
-
-                SizedBox(
-                  height: 40.h,
-                  width: 40.w,
-                  child: Material(
-                    color: AllColor.blue500,
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
+                if (onChat != null)
+                  SizedBox(
+                    height: 40.h,
+                    width: 40.w,
+                    child: Material(
+                      color: AllColor.blue500,
                       borderRadius: BorderRadius.circular(10),
-                      onTap: onChat,
-                      child: Icon(
-                        Icons.chat,
-                        size: 20.sp,
-                        color: AllColor.white,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: onChat,
+                        child: Icon(
+                          Icons.chat,
+                          size: 20.sp,
+                          color: AllColor.white,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ],

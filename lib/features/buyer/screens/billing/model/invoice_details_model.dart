@@ -1,5 +1,7 @@
 // Model for GET api/InvoiceProductList/{id} response.
 
+import 'package:market_jango/features/buyer/screens/order/model/buyer_line_receipt_fields.dart';
+
 class InvoiceDetailsResponse {
   final String? status;
   final String? message;
@@ -121,6 +123,12 @@ class InvoiceItemDetail {
   final InvoiceProductDetail? product;
   final InvoiceVendorDetail? vendor;
 
+  final DateTime? deliveredAt;
+  final DateTime? receivedAt;
+  final String? receivedVia;
+  final DateTime? autoReceiveDeadlineAt;
+  final bool canMarkReceived;
+
   InvoiceItemDetail({
     required this.id,
     required this.quantity,
@@ -133,28 +141,56 @@ class InvoiceItemDetail {
     this.createdAt,
     this.product,
     this.vendor,
+    this.deliveredAt,
+    this.receivedAt,
+    this.receivedVia,
+    this.autoReceiveDeadlineAt,
+    this.canMarkReceived = false,
   });
 
-  factory InvoiceItemDetail.fromJson(Map<String, dynamic> json) =>
-      InvoiceItemDetail(
-        id: _toInt(json['id']),
-        quantity: _toInt(json['quantity']),
-        status: json['status']?.toString() ?? '',
-        totalPay: json['total_pay']?.toString() ?? '0',
-        lineDeliveryCharge: json['delivery_charge']?.toString(),
-        invoiceId: _toInt(json['invoice_id']),
-        productId: _toInt(json['product_id']),
-        vendorId: _toInt(json['vendor_id']),
-        createdAt: _toDate(json['created_at']),
-        product: json['product'] is Map<String, dynamic>
-            ? InvoiceProductDetail.fromJson(
-                json['product'] as Map<String, dynamic>)
-            : null,
-        vendor: json['vendor'] is Map<String, dynamic>
-            ? InvoiceVendorDetail.fromJson(
-                json['vendor'] as Map<String, dynamic>)
-            : null,
+  bool get isReceived {
+    final s = status.toLowerCase().trim();
+    return s == 'received' || receivedAt != null;
+  }
+
+  BuyerLineReceiptFields get receiptFields => BuyerLineReceiptFields(
+        deliveredAt: deliveredAt,
+        receivedAt: receivedAt,
+        receivedVia: receivedVia,
+        autoReceiveDeadlineAt: autoReceiveDeadlineAt,
+        canMarkReceived: canMarkReceived,
+        statusRaw: status,
       );
+
+  factory InvoiceItemDetail.fromJson(Map<String, dynamic> json) {
+    final receipt = BuyerLineReceiptFields.fromJson(json);
+    return InvoiceItemDetail(
+      id: _toInt(json['id']),
+      quantity: _toInt(json['quantity']),
+      status: json['status']?.toString() ?? '',
+      totalPay: json['total_pay']?.toString() ?? '0',
+      lineDeliveryCharge: json['delivery_charge']?.toString(),
+      invoiceId: _toInt(json['invoice_id']),
+      productId: _toInt(json['product_id']),
+      vendorId: _toInt(json['vendor_id']),
+      createdAt: _toDate(json['created_at']),
+      product: json['product'] is Map<String, dynamic>
+          ? InvoiceProductDetail.fromJson(
+              json['product'] as Map<String, dynamic>,
+            )
+          : null,
+      vendor: json['vendor'] is Map<String, dynamic>
+          ? InvoiceVendorDetail.fromJson(
+              json['vendor'] as Map<String, dynamic>,
+            )
+          : null,
+      deliveredAt: receipt.deliveredAt,
+      receivedAt: receipt.receivedAt,
+      receivedVia: receipt.receivedVia,
+      autoReceiveDeadlineAt: receipt.autoReceiveDeadlineAt,
+      canMarkReceived: receipt.canMarkReceived,
+    );
+  }
 }
 
 class InvoiceProductDetail {

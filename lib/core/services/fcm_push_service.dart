@@ -15,6 +15,7 @@ import 'package:market_jango/core/screen/global_notification/screen/global_notif
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/buyer/screens/buyer_home_screen.dart';
+import 'package:market_jango/features/buyer/screens/order/screen/buyer_quantity_changes_screen.dart';
 import 'package:market_jango/features/buyer/screens/wallet/provider/buyer_wallet_provider.dart';
 import 'package:market_jango/features/buyer/screens/buyer_vendor_profile/screen/buyer_vendor_profile_screen.dart';
 import 'package:market_jango/features/buyer/screens/product/product_details.dart';
@@ -260,6 +261,9 @@ class FcmPushService {
           break;
         case NotificationEventType.autoLineRefund:
           router.push(GlobalNotificationsScreen.routeName);
+          break;
+        case NotificationEventType.orderQuantityChangePending:
+          router.push(BuyerQuantityChangesScreen.routeName);
           break;
         case NotificationEventType.unknown:
           router.push(GlobalNotificationsScreen.routeName);

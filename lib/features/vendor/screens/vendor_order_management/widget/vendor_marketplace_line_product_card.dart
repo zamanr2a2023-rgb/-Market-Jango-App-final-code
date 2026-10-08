@@ -136,6 +136,8 @@ class _VendorMarketplaceLineProductCardState
       _qtyDirty &&
       _qtyReason.text.trim().isNotEmpty;
 
+  /// Pending state is kept in [_localPendingQtyChange] after PATCH; line GET may
+  /// not include `change_request` until backend eager-loads it (reload can hide banner).
   String _pendingQtyBannerText() {
     final pending = _pendingQtyChange;
     final proposed = pending?.proposedQuantity;

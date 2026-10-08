@@ -193,13 +193,19 @@ class VendorOrderApi {
     return _marketplaceDetailFromTop(top);
   }
 
-  /// `GET /vendor/drivers/available` — optional `search` on driver user name.
+  /// `GET /vendor/drivers/available` — optional `search`, `pick_location`, `drop_location`.
   Future<List<VendorAvailableDriver>> fetchAvailableDrivers({
     String? search,
+    String? pickLocation,
+    String? dropLocation,
   }) async {
     final headers = await vendorOrderApiHeaders();
     final uri = Uri.parse(
-      VendorAPIController.vendorDriversAvailable(search: search),
+      VendorAPIController.vendorDriversAvailable(
+        search: search,
+        pickLocation: pickLocation,
+        dropLocation: dropLocation,
+      ),
     );
     final res = await http.get(uri, headers: headers);
     _throwIfBad(res);

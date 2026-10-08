@@ -12,6 +12,9 @@ import 'package:market_jango/core/widget/sreeen_brackground.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/buyer/screens/billing/data/invoice_details_data.dart';
 import 'package:market_jango/features/buyer/screens/billing/model/invoice_details_model.dart';
+import 'package:market_jango/features/buyer/screens/billing/util/buyer_invoice_fulfillment.dart';
+import 'package:market_jango/features/buyer/screens/order/data/buyer_orders_data.dart';
+import 'package:market_jango/features/buyer/screens/order/util/buyer_mark_received_action.dart';
 import 'package:market_jango/features/buyer/screens/billing/util/invoice_receipt_pdf.dart';
 import 'package:market_jango/features/buyer/screens/refunds/data/buyer_refunds_api.dart';
 import 'package:market_jango/features/buyer/screens/refunds/model/buyer_track_path_model.dart';
@@ -23,6 +26,16 @@ bool _buyerLineEligibleForRefund(String status) {
   return s.contains('delivered') || s.contains('return');
 }
 
+String _buyerLineStatusLabel(InvoiceItemDetail item) {
+  if (item.isReceived) {
+    if (item.receivedVia == 'auto') {
+      return 'Received (auto)';
+    }
+    return 'Received';
+  }
+  return item.status;
+}
+
 /// Pass as [GoRouter] `extra` when opening from My Orders (title + order-style meta).
 class BuyerInvoiceDetailsArgs {
   const BuyerInvoiceDetailsArgs(this.invoiceId, {this.fromMyOrders = false});
@@ -31,7 +44,7 @@ class BuyerInvoiceDetailsArgs {
   final bool fromMyOrders;
 }
 
-class BuyerInvoiceDetailsScreen extends ConsumerWidget {
+class BuyerInvoiceDetailsScreen extends ConsumerStatefulWidget {
   const BuyerInvoiceDetailsScreen({
     super.key,
     required this.invoiceId,
@@ -43,8 +56,48 @@ class BuyerInvoiceDetailsScreen extends ConsumerWidget {
   final bool fromMyOrders;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detailsAsync = ref.watch(invoiceDetailsProvider(invoiceId));
+  ConsumerState<BuyerInvoiceDetailsScreen> createState() =>
+      _BuyerInvoiceDetailsScreenState();
+}
+
+class _BuyerInvoiceDetailsScreenState extends ConsumerState<BuyerInvoiceDetailsScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
+      ref.invalidate(buyerOrdersProvider);
+    }
+  }
+
+  Future<void> _refreshDetails() async {
+    ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
+    await ref.read(invoiceDetailsProvider(widget.invoiceId).future);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final detailsAsync = ref.watch(invoiceDetailsProvider(widget.invoiceId));
+    final invoiceId = widget.invoiceId;
+    final fromMyOrders = widget.fromMyOrders;
+
+    final awaitingReceipt = detailsAsync.valueOrNull == null
+        ? const <InvoiceItemDetail>[]
+        : buyerLinesAwaitingReceipt(detailsAsync.valueOrNull!.items);
+    final showBottomUpdateStatus =
+        fromMyOrders && awaitingReceipt.length == 1;
 
     return Scaffold(
       body: ScreenBackground(
@@ -74,14 +127,24 @@ class BuyerInvoiceDetailsScreen extends ConsumerWidget {
                           ),
                         );
                       }
-                      return SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: EdgeInsets.only(bottom: 28.h),
-                        child: _InvoiceWireframeCard(
-                          ref: ref,
-                          details: details,
-                          invoiceId: invoiceId,
-                          fromMyOrders: fromMyOrders,
+                      final hidePerLineReceived = showBottomUpdateStatus;
+                      return RefreshIndicator(
+                        onRefresh: _refreshDetails,
+                        color: AllColor.loginButtomColor,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          padding: EdgeInsets.only(
+                            bottom: showBottomUpdateStatus ? 8.h : 28.h,
+                          ),
+                          child: _InvoiceWireframeCard(
+                            ref: ref,
+                            details: details,
+                            invoiceId: invoiceId,
+                            fromMyOrders: fromMyOrders,
+                            hidePerLineReceivedButton: hidePerLineReceived,
+                          ),
                         ),
                       );
                     },
@@ -121,6 +184,35 @@ class BuyerInvoiceDetailsScreen extends ConsumerWidget {
           ),
         ),
       ),
+      bottomNavigationBar: showBottomUpdateStatus
+          ? SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 12.h),
+                child: FilledButton(
+                  onPressed: () => buyerConfirmAndMarkReceived(
+                    context,
+                    ref,
+                    invoiceItemId: awaitingReceipt.single.id,
+                    invoiceId: invoiceId,
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AllColor.loginButtomColor,
+                    minimumSize: Size(double.infinity, 48.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
+                  ),
+                  child: Text(
+                    'Update status',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -132,14 +224,19 @@ class _InvoiceWireframeCard extends StatelessWidget {
     required this.details,
     required this.invoiceId,
     this.fromMyOrders = false,
+    this.hidePerLineReceivedButton = false,
   });
 
   final WidgetRef ref;
   final InvoiceDetails details;
   final int invoiceId;
   final bool fromMyOrders;
+  final bool hidePerLineReceivedButton;
 
   String _modeLabel() {
+    if (fromMyOrders) {
+      return buyerInvoiceFulfillmentModeLabel(details.items);
+    }
     final ds = details.deliveryStatus?.trim();
     if (ds != null && ds.isNotEmpty) return ds;
     return 'Delivery';
@@ -479,11 +576,57 @@ class _InvoiceWireframeCard extends StatelessWidget {
                                       if (item.status.trim().isNotEmpty) ...[
                                         SizedBox(height: 4.h),
                                         Text(
-                                          '${ref.t(BKeys.status, fallback: 'Status')}: ${item.status}',
+                                          '${ref.t(BKeys.status, fallback: 'Status')}: ${_buyerLineStatusLabel(item)}',
                                           style: TextStyle(
                                             fontSize: 11.sp,
                                             color: AllColor.grey500,
                                             fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                      if (item.canMarkReceived) ...[
+                                        SizedBox(height: 4.h),
+                                        Text(
+                                          item.receiptFields.autoReceiveHintLine,
+                                          style: TextStyle(
+                                            fontSize: 10.sp,
+                                            color: AllColor.grey500,
+                                            height: 1.3,
+                                          ),
+                                        ),
+                                      ],
+                                      if (item.canMarkReceived &&
+                                          !hidePerLineReceivedButton) ...[
+                                        SizedBox(height: 6.h),
+                                        Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: FilledButton(
+                                            onPressed: () =>
+                                                buyerConfirmAndMarkReceived(
+                                              context,
+                                              ref,
+                                              invoiceItemId: item.id,
+                                              invoiceId: invoiceId,
+                                            ),
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor:
+                                                  AllColor.loginButtomColor,
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal: 14.w,
+                                                vertical: 6.h,
+                                              ),
+                                              minimumSize: Size.zero,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                            ),
+                                            child: Text(
+                                              'Received',
+                                              style: TextStyle(
+                                                fontSize: 12.sp,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -1090,101 +1233,230 @@ Future<void> _openBuyerLineRefundDialog(
   required int invoiceItemId,
   String? suggestedAmount,
 }) async {
-  final reasonCtrl = TextEditingController();
-  final amountCtrl = TextEditingController(text: suggestedAmount?.trim() ?? '');
   final ok = await showDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
+    builder: (_) => _BuyerLineRefundDialog(
+      invoiceItemId: invoiceItemId,
+      suggestedAmount: suggestedAmount,
+    ),
+  );
+
+  if (ok != true || !context.mounted) return;
+
+  ref.invalidate(invoiceDetailsProvider(invoiceId));
+  ref.invalidate(buyerRefundsListProvider);
+  GlobalSnackbar.show(
+    context,
+    title: 'Sent',
+    message: 'Refund request submitted',
+    type: CustomSnackType.success,
+  );
+}
+
+class _BuyerLineRefundDialog extends StatefulWidget {
+  const _BuyerLineRefundDialog({
+    required this.invoiceItemId,
+    this.suggestedAmount,
+  });
+
+  final int invoiceItemId;
+  final String? suggestedAmount;
+
+  @override
+  State<_BuyerLineRefundDialog> createState() => _BuyerLineRefundDialogState();
+}
+
+class _BuyerLineRefundDialogState extends State<_BuyerLineRefundDialog> {
+  late final TextEditingController _reason;
+  late final TextEditingController _amount;
+  bool _busy = false;
+  String? _error;
+  String? _reasonError;
+
+  @override
+  void initState() {
+    super.initState();
+    _reason = TextEditingController();
+    _amount = TextEditingController(text: widget.suggestedAmount?.trim() ?? '');
+  }
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    _amount.dispose();
+    super.dispose();
+  }
+
+  InputDecoration _fieldDecoration(String label, {String? hint}) {
+    final orange = AllColor.loginButtomColor;
+    final soft = AllColor.orange200;
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      filled: true,
+      fillColor: AllColor.orange50.withValues(alpha: 0.35),
+      contentPadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        borderSide: BorderSide(color: soft, width: 1.2),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        borderSide: BorderSide(color: orange, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        borderSide: BorderSide(color: AllColor.red, width: 1.2),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.r),
+        borderSide: BorderSide(color: AllColor.red, width: 1.5),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _error = null;
+      _reasonError = null;
+    });
+
+    final reason = _reason.text.trim();
+    if (reason.isEmpty) {
+      setState(() => _reasonError = 'Please enter a reason for your refund.');
+      return;
+    }
+
+    final amtRaw = _amount.text.trim();
+    double? amount;
+    if (amtRaw.isNotEmpty) {
+      amount = double.tryParse(amtRaw.replaceAll(',', ''));
+      if (amount == null) {
+        setState(
+          () => _error = 'Enter a valid amount or leave the field empty.',
+        );
+        return;
+      }
+    }
+
+    setState(() => _busy = true);
+    try {
+      await BuyerRefundsApi.instance.requestLineRefund(
+        invoiceItemId: widget.invoiceItemId,
+        reason: reason,
+        amount: amount,
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final orange = AllColor.loginButtomColor;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
       title: Text(
         'Request refund',
         style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: reasonCtrl,
-              decoration: InputDecoration(
-                labelText: 'Reason',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.r),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Tell us what went wrong. Leave amount empty to request the full line total.',
+                style: TextStyle(fontSize: 12.sp, color: AllColor.grey500),
+              ),
+              if (_error != null) ...[
+                SizedBox(height: 12.h),
+                Container(
+                  padding: EdgeInsets.all(10.w),
+                  decoration: BoxDecoration(
+                    color: AllColor.red.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8.r),
+                    border: Border.all(
+                      color: AllColor.red.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.error_outline, size: 18.sp, color: AllColor.red),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: AllColor.red,
+                            fontSize: 12.sp,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ],
+              SizedBox(height: 12.h),
+              TextField(
+                controller: _reason,
+                enabled: !_busy,
+                maxLines: 3,
+                onChanged: (_) {
+                  if (_reasonError != null) {
+                    setState(() => _reasonError = null);
+                  }
+                },
+                decoration: _fieldDecoration(
+                  'Reason *',
+                  hint: 'e.g. item damaged or wrong product',
+                ).copyWith(errorText: _reasonError),
               ),
-              maxLines: 3,
-            ),
-            SizedBox(height: 12.h),
-            TextField(
-              controller: amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: InputDecoration(
-                labelText: 'Amount (optional)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.r),
+              SizedBox(height: 12.h),
+              TextField(
+                controller: _amount,
+                enabled: !_busy,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
+                decoration: _fieldDecoration('Amount (optional)'),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
+          onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+          style: TextButton.styleFrom(foregroundColor: orange),
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () {
-            if (reasonCtrl.text.trim().isEmpty) return;
-            Navigator.pop(ctx, true);
-          },
-          style: FilledButton.styleFrom(
-            backgroundColor: AllColor.loginButtomColor,
-          ),
-          child: const Text('Submit'),
+          onPressed: _busy ? null : _submit,
+          style: FilledButton.styleFrom(backgroundColor: orange),
+          child: _busy
+              ? SizedBox(
+                  width: 20.w,
+                  height: 20.w,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Submit'),
         ),
       ],
-    ),
-  );
-
-  if (ok != true) {
-    reasonCtrl.dispose();
-    amountCtrl.dispose();
-    return;
-  }
-
-  final reason = reasonCtrl.text.trim();
-  final amtRaw = amountCtrl.text.trim();
-  reasonCtrl.dispose();
-  amountCtrl.dispose();
-
-  try {
-    final amtParsed = double.tryParse(amtRaw.replaceAll(',', ''));
-    await BuyerRefundsApi.instance.requestLineRefund(
-      invoiceItemId: invoiceItemId,
-      reason: reason,
-      amount: amtParsed,
     );
-    ref.invalidate(invoiceDetailsProvider(invoiceId));
-    ref.invalidate(buyerRefundsListProvider);
-    if (context.mounted) {
-      GlobalSnackbar.show(
-        context,
-        title: 'Sent',
-        message: 'Refund request submitted',
-        type: CustomSnackType.success,
-      );
-    }
-  } catch (e) {
-    if (context.mounted) {
-      GlobalSnackbar.show(
-        context,
-        title: 'Error',
-        message: e.toString().replaceFirst('Exception: ', ''),
-        type: CustomSnackType.error,
-      );
-    }
   }
 }

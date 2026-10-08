@@ -36,6 +36,7 @@ import 'package:market_jango/features/transport/screens/billing/screen/transport
 import 'package:market_jango/features/transport/screens/wallet/screen/transport_wallet_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_page.dart';
 import 'package:market_jango/features/buyer/screens/refunds/screen/buyer_refunds_screen.dart';
+import 'package:market_jango/features/buyer/screens/order/screen/buyer_quantity_changes_screen.dart';
 import 'package:market_jango/features/buyer/screens/wallet/screen/buyer_wallet_screen.dart';
 import 'package:market_jango/features/buyer/widgets/buyer_transport_profile_entry.dart';
 import 'package:market_jango/features/vendor/screens/wallet/screen/vendor_wallet_screen.dart';
@@ -227,6 +228,12 @@ class GlobalSettingScreen extends ConsumerWidget {
             // "My Order"
             title: ref.t(BKeys.myOrders),
             onTap: () => context.push(BuyerOrderPage.routeName),
+          ),
+          _DividerLine(),
+          _SettingsTile(
+            leadingIcon: Icons.fact_check_outlined,
+            title: 'Approve quantity changes',
+            onTap: () => context.push(BuyerQuantityChangesScreen.routeName),
           ),
         if (userTypeAsync.value == "driver") ...[
           _DividerLine(),

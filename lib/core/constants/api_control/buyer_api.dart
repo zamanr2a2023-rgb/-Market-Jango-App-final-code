@@ -177,6 +177,22 @@ class BuyerAPIController {
   static String buyerOrderLineRefund(int invoiceItemId) =>
       '$_base_api/buyer/orders/$invoiceItemId/refund';
 
+  /// Pending vendor quantity reductions — buyer approval.
+  static String buyerQuantityChangesPending({int page = 1, int perPage = 15}) {
+    return Uri.parse('$_base_api/buyer/orders/quantity-changes/pending')
+        .replace(
+          queryParameters: {'page': '$page', 'per_page': '$perPage'},
+        )
+        .toString();
+  }
+
+  static String buyerQuantityChangeAccept(int itemId, int requestId) =>
+      '$_base_api/buyer/orders/$itemId/quantity-changes/$requestId/accept';
+
+  /// Confirm marketplace line receipt (`invoice_item_id`).
+  static String buyerOrderMarkReceived(int invoiceItemId) =>
+      '$_base_api/buyer/orders/$invoiceItemId/received';
+
   // --- Live tracking (doc/details.md §5) — `order_id` = invoice id ---
   static String buyerOrderTrack(int invoiceId) =>
       '$_base_api/buyer/orders/$invoiceId/track';

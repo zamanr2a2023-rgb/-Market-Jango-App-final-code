@@ -8,6 +8,7 @@ enum NotificationEventType {
   review,
   announcement,
   autoLineRefund,
+  orderQuantityChangePending,
   unknown,
 }
 
@@ -32,6 +33,9 @@ NotificationEventType parseNotificationEventType(dynamic raw) {
     case 'auto_line_refund':
     case 'auto-line-refund':
       return NotificationEventType.autoLineRefund;
+    case 'order_quantity_change_pending':
+    case 'order-quantity-change-pending':
+      return NotificationEventType.orderQuantityChangePending;
     default:
       return NotificationEventType.unknown;
   }

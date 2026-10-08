@@ -24,7 +24,27 @@ class DriverDeliveriesScreen extends ConsumerStatefulWidget {
       _DriverDeliveriesScreenState();
 }
 
-class _DriverDeliveriesScreenState extends ConsumerState<DriverDeliveriesScreen> {
+class _DriverDeliveriesScreenState extends ConsumerState<DriverDeliveriesScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(driverDeliveriesListProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final page = ref.watch(driverDeliveriesPageProvider);
@@ -96,22 +116,41 @@ class _DriverDeliveriesScreenState extends ConsumerState<DriverDeliveriesScreen>
                   ),
                   data: (p) {
                     if (p.items.isEmpty) {
+                      final isPendingFilter =
+                          statusFilter?.toLowerCase() == 'pending';
                       return ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
+                        padding: EdgeInsets.symmetric(horizontal: 20.w),
                         children: [
-                          SizedBox(height: 80.h),
+                          SizedBox(height: 48.h),
                           Center(
                             child: Text(
                               ref.t(
                                 BKeys.driver_deliveries_empty,
-                                fallback: 'No assignments.',
+                                fallback: 'No deliveries to show.',
                               ),
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: AllColor.grey500,
                                 fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
+                          if (isPendingFilter) ...[
+                            SizedBox(height: 12.h),
+                            Text(
+                              'Transport shipments appear here after the customer pays '
+                              '(status booked). Draft or unpaid jobs stay on the transport app only. '
+                              'Try the All tab, or search by shipment # (e.g. 17).',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AllColor.grey500,
+                                fontSize: 12.sp,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
                         ],
                       );
                     }
@@ -447,7 +486,8 @@ class _DeliveriesSearchFiltersPanelState
             onChanged: (_) => _applyTextDebounced(),
             style: TextStyle(fontSize: 13.sp),
             decoration: InputDecoration(
-              labelText: 'Order number',
+              labelText: 'Shipment # (transport)',
+              hintText: 'Numeric id from transport app',
               isDense: true,
               border: inputBorder,
               enabledBorder: inputBorder,

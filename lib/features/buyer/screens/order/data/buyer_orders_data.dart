@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:market_jango/core/constants/api_control/buyer_api.dart';
-import 'package:market_jango/core/utils/auth_local_storage.dart';
+import 'package:market_jango/features/buyer/screens/order/data/buyer_auth_headers.dart';
 import 'package:market_jango/features/buyer/screens/order/model/order_summary.dart';
 
 final buyerOrdersProvider =
@@ -25,18 +25,16 @@ class BuyerOrdersNotifier extends AsyncNotifier<OrdersPageData?> {
     state = await AsyncValue.guard(_fetch);
   }
 
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(_fetch);
+  }
+
   Future<OrdersPageData?> _fetch() async {
-    final authStorage = AuthLocalStorage();
-    final token = await authStorage.getToken();
+    final headers = await buyerAuthHeaders();
 
     final uri = Uri.parse('${BuyerAPIController.all_order}?page=$_page');
-    final res = await http.get(
-      uri,
-      headers: {
-        'Accept': 'application/json',
-        if (token != null) 'token': token,
-      },
-    );
+    final res = await http.get(uri, headers: headers);
 
     if (res.statusCode != 200) {
       throw Exception('Failed to fetch orders: ${res.statusCode}');

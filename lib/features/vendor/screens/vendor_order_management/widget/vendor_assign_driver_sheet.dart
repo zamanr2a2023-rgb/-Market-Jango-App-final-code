@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:market_jango/core/constants/color_control/all_color.dart';
 import 'package:market_jango/core/widget/global_snackbar.dart';
-import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_available_drivers_loader.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_driver_assign_filters.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_order_assign_rules.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/data/vendor_order_api.dart';
 
 /// Bottom sheet to pick an available driver for an invoice line (order item).
 class VendorAssignDriverSheet extends StatefulWidget {
@@ -15,6 +17,8 @@ class VendorAssignDriverSheet extends StatefulWidget {
     required this.lineStatus,
     required this.onAssigned,
     required this.onAssignFailed,
+    this.initialPickup,
+    this.initialDrop,
   });
 
   final int lineId;
@@ -22,6 +26,8 @@ class VendorAssignDriverSheet extends StatefulWidget {
   final String lineStatus;
   final Future<void> Function() onAssigned;
   final Future<void> Function() onAssignFailed;
+  final String? initialPickup;
+  final String? initialDrop;
 
   @override
   State<VendorAssignDriverSheet> createState() =>
@@ -30,20 +36,30 @@ class VendorAssignDriverSheet extends StatefulWidget {
 
 class _VendorAssignDriverSheetState extends State<VendorAssignDriverSheet> {
   final _search = TextEditingController();
+  final _pickup = TextEditingController();
+  final _drop = TextEditingController();
+  String? _transportType;
   List<VendorAvailableDriver> _drivers = [];
   bool _loading = true;
   bool _submitting = false;
   String? _error;
+  bool _filtersExpanded = true;
 
   @override
   void initState() {
     super.initState();
+    final pick = widget.initialPickup?.trim();
+    if (pick != null && pick.isNotEmpty) _pickup.text = pick;
+    final drop = widget.initialDrop?.trim();
+    if (drop != null && drop.isNotEmpty) _drop.text = drop;
     _fetch();
   }
 
   @override
   void dispose() {
     _search.dispose();
+    _pickup.dispose();
+    _drop.dispose();
     super.dispose();
   }
 
@@ -54,8 +70,11 @@ class _VendorAssignDriverSheetState extends State<VendorAssignDriverSheet> {
     });
     try {
       final q = _search.text.trim();
-      final list = await VendorOrderApi.instance.fetchAvailableDrivers(
+      final list = await VendorAvailableDriversLoader.instance.fetch(
         search: q.isEmpty ? null : q,
+        pickLocation: _pickup.text.trim(),
+        dropLocation: _drop.text.trim(),
+        transportType: _transportType,
       );
       if (mounted) {
         setState(() {
@@ -71,6 +90,13 @@ class _VendorAssignDriverSheetState extends State<VendorAssignDriverSheet> {
         });
       }
     }
+  }
+
+  void _clearFilters() {
+    _pickup.clear();
+    _drop.clear();
+    setState(() => _transportType = null);
+    _fetch();
   }
 
   Future<void> _assign(VendorAvailableDriver dr) async {
@@ -116,6 +142,20 @@ class _VendorAssignDriverSheetState extends State<VendorAssignDriverSheet> {
     }
   }
 
+  String _driverSubtitle(VendorAvailableDriver dr) {
+    final parts = <String>[];
+    if (dr.location != null && dr.location!.isNotEmpty) {
+      parts.add(dr.location!);
+    }
+    if (dr.transportType != null && dr.transportType!.isNotEmpty) {
+      parts.add(VendorDriverAssignFilters.labelForTransport(
+        dr.transportType!.toLowerCase(),
+      ));
+    }
+    if (dr.phone != null && dr.phone!.isNotEmpty) parts.add(dr.phone!);
+    return parts.isEmpty ? 'Tap to assign' : parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -146,6 +186,43 @@ class _VendorAssignDriverSheetState extends State<VendorAssignDriverSheet> {
         ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.w),
+          child: InkWell(
+            onTap: () => setState(() => _filtersExpanded = !_filtersExpanded),
+            child: Row(
+              children: [
+                Icon(
+                  _filtersExpanded ? Icons.expand_less : Icons.expand_more,
+                  size: 22.sp,
+                ),
+                SizedBox(width: 4.w),
+                Text(
+                  'Pickup, drop & transport',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AllColor.black,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_filtersExpanded)
+          Padding(
+            padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 0),
+            child: VendorDriverAssignFilters(
+              pickupController: _pickup,
+              dropController: _drop,
+              selectedTransport: _transportType,
+              onTransportChanged: (v) => setState(() => _transportType = v),
+              onSearch: _fetch,
+              onClear: _clearFilters,
+              enabled: !_loading && !_submitting,
+              compact: true,
+            ),
+          ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
           child: Row(
             children: [
               Expanded(
@@ -211,6 +288,13 @@ class _VendorAssignDriverSheetState extends State<VendorAssignDriverSheet> {
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(label),
+                      subtitle: Text(
+                        _driverSubtitle(dr),
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: AllColor.grey500,
+                        ),
+                      ),
                       trailing: _submitting
                           ? SizedBox(
                               width: 22.w,

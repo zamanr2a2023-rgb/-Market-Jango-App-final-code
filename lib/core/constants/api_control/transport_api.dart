@@ -95,6 +95,9 @@ class TransportAPIController {
   /// POST pay for shipment
   static String payShipment(int id) => "$_base_api/shipments/$id/pay";
 
+  /// POST confirm transport shipment receipt (after driver delivered).
+  static String shipmentMarkReceived(int id) => "$_base_api/shipments/$id/received";
+
   /// POST initiate payment (returns payment_url for gateway/WebView)
   static String initiateShipmentPayment(int id) =>
       "$_base_api/shipments/$id/initiate-payment";

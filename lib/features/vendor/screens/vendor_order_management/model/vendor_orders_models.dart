@@ -156,12 +156,37 @@ class VendorNestedDriver {
   }
 }
 
-/// Row from `GET /vendor/drivers/available`.
+/// Row from `GET /vendor/drivers/available` (+ optional merge from approved-driver).
 class VendorAvailableDriver {
   final int id;
   final String name;
+  final String? phone;
+  final String? location;
+  final String? zone;
+  final String? town;
+  final String? state;
+  final int? rating;
+  final String? car;
+  final String? transportType;
+  final int? userId;
+  final String? userImage;
+  final String? price;
 
-  VendorAvailableDriver({required this.id, required this.name});
+  VendorAvailableDriver({
+    required this.id,
+    required this.name,
+    this.phone,
+    this.location,
+    this.zone,
+    this.town,
+    this.state,
+    this.rating,
+    this.car,
+    this.transportType,
+    this.userId,
+    this.userImage,
+    this.price,
+  });
 
   factory VendorAvailableDriver.fromJson(Map<String, dynamic> j) {
     final user = j['user'] is Map<String, dynamic>
@@ -170,6 +195,101 @@ class VendorAvailableDriver {
     return VendorAvailableDriver(
       id: _toInt(j['id']),
       name: _s(user?['name'] ?? j['name']),
+      phone: _nullableStr(user?['phone'] ?? j['phone']),
+      location: _nullableStr(j['location']),
+      zone: _nullableStr(j['zone']),
+      town: _nullableStr(j['town']),
+      state: _nullableStr(j['state']),
+      rating: j['rating'] == null ? null : _toInt(j['rating']),
+      car: _nullableStr(j['car']),
+      transportType: _nullableStr(j['transport_type']),
+      userId: user?['id'] == null ? null : _toInt(user!['id']),
+      userImage: _nullableStr(user?['image']),
+      price: _nullableStr(j['price']),
+    );
+  }
+
+  VendorAvailableDriver mergeApprovedMetadata(VendorApprovedDriverMetadata meta) {
+    return VendorAvailableDriver(
+      id: id,
+      name: name.isNotEmpty ? name : meta.name,
+      phone: phone ?? meta.phone,
+      location: location ?? meta.location,
+      zone: zone ?? meta.zone,
+      town: town ?? meta.town,
+      state: state ?? meta.state,
+      rating: rating ?? meta.rating,
+      car: car ?? meta.carLabel,
+      transportType: transportType ?? meta.transportType,
+      userId: userId ?? meta.userId,
+      userImage: userImage ?? meta.userImage,
+      price: price ?? meta.price,
+    );
+  }
+
+  static String? _nullableStr(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    return s.isEmpty ? null : s;
+  }
+}
+
+/// Parsed from paginated `GET /approved-driver` for client-side transport filter + chat.
+class VendorApprovedDriverMetadata {
+  final int driverId;
+  final int userId;
+  final String name;
+  final String? phone;
+  final String? location;
+  final String? zone;
+  final String? town;
+  final String? state;
+  final int? rating;
+  final String? transportType;
+  final String? userImage;
+  final String? price;
+  final String? carLabel;
+
+  const VendorApprovedDriverMetadata({
+    required this.driverId,
+    required this.userId,
+    required this.name,
+    this.phone,
+    this.location,
+    this.zone,
+    this.town,
+    this.state,
+    this.rating,
+    this.transportType,
+    this.userImage,
+    this.price,
+    this.carLabel,
+  });
+
+  factory VendorApprovedDriverMetadata.fromJson(Map<String, dynamic> j) {
+    final user = j['user'] is Map<String, dynamic>
+        ? j['user'] as Map<String, dynamic>
+        : null;
+    final carName = j['car_name']?.toString().trim() ?? '';
+    final plate =
+        j['number_plate']?.toString().trim() ??
+        j['car_model']?.toString().trim() ??
+        '';
+    final carLabel = [carName, plate].where((e) => e.isNotEmpty).join(' ');
+    return VendorApprovedDriverMetadata(
+      driverId: _toInt(j['id']),
+      userId: _toInt(user?['id'] ?? j['user_id']),
+      name: _s(user?['name']),
+      phone: VendorAvailableDriver._nullableStr(user?['phone']),
+      location: VendorAvailableDriver._nullableStr(j['location']),
+      zone: VendorAvailableDriver._nullableStr(j['zone']),
+      town: VendorAvailableDriver._nullableStr(j['town']),
+      state: VendorAvailableDriver._nullableStr(j['state']),
+      rating: j['rating'] == null ? null : _toInt(j['rating']),
+      transportType: VendorAvailableDriver._nullableStr(j['transport_type']),
+      userImage: VendorAvailableDriver._nullableStr(user?['image']),
+      price: VendorAvailableDriver._nullableStr(j['price']),
+      carLabel: carLabel.isEmpty ? null : carLabel,
     );
   }
 }

@@ -1,6 +1,8 @@
 // lib/features/buyer/screens/order/model/order_summary.dart
 import 'dart:convert';
 
+import 'package:market_jango/features/buyer/screens/order/model/buyer_line_receipt_fields.dart';
+
 class OrdersResponse {
   final String? status;
   final String? message;
@@ -86,6 +88,12 @@ class Order {
   final Invoice invoice;
   final Product product;
 
+  final DateTime? deliveredAt;
+  final DateTime? receivedAt;
+  final String? receivedVia;
+  final DateTime? autoReceiveDeadlineAt;
+  final bool canMarkReceived;
+
   Order({
     required this.id,
     required this.cusName,
@@ -114,7 +122,21 @@ class Order {
     required this.updatedAt,
     required this.invoice,
     required this.product,
+    this.deliveredAt,
+    this.receivedAt,
+    this.receivedVia,
+    this.autoReceiveDeadlineAt,
+    this.canMarkReceived = false,
   });
+
+  bool get isReceived {
+    final s = status.toLowerCase().trim();
+    return s == 'received' || receivedAt != null;
+  }
+
+  /// “To receive” tab — hide after buyer (or auto) confirms receipt.
+  bool get belongsInToReceiveTab =>
+      !isReceived && (!isCompleted || canMarkReceived);
 
   /// UI te dekhabo ei order id
   /// age tax_ref, na thakle tran_id
@@ -153,6 +175,12 @@ class Order {
       case 'complete':
       case 'completed':
         return 'The order has complete';
+      case 'delivered':
+        return 'Confirm delivery received';
+      case 'received':
+        return receivedVia == 'auto'
+            ? 'Receipt confirmed automatically'
+            : 'Receipt confirmed';
       default:
         return '';
     }
@@ -174,6 +202,7 @@ class Order {
   factory Order.fromJson(Map<String, dynamic> json) {
     final invoiceJson = (json['invoice'] as Map<String, dynamic>? ?? const {});
     final productJson = (json['product'] as Map<String, dynamic>? ?? const {});
+    final receipt = BuyerLineReceiptFields.fromJson(json);
 
     return Order(
       id: _toInt(json['id']),
@@ -203,6 +232,11 @@ class Order {
       updatedAt: _toDate(json['updated_at']),
       invoice: Invoice.fromJson(invoiceJson),
       product: Product.fromJson(productJson),
+      deliveredAt: receipt.deliveredAt,
+      receivedAt: receipt.receivedAt,
+      receivedVia: receipt.receivedVia,
+      autoReceiveDeadlineAt: receipt.autoReceiveDeadlineAt,
+      canMarkReceived: receipt.canMarkReceived,
     );
   }
 }

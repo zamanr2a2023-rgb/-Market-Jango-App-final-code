@@ -10,6 +10,8 @@ import 'package:market_jango/core/widget/global_snackbar.dart';
 import 'package:market_jango/features/transport/screens/booking_confirm/data/create_shipment_data.dart';
 import 'package:market_jango/features/transport/screens/booking_confirm/data/transport_shipment_document_api.dart';
 import 'package:market_jango/features/transport/screens/booking_confirm/logic/shipment_payment_logic.dart';
+import 'package:market_jango/features/transport/screens/booking_confirm/util/transport_mark_received_action.dart';
+import 'package:market_jango/features/transport/screens/booking_confirm/util/transport_shipment_receipt.dart';
 import 'package:market_jango/features/transport/screens/my_booking/data/transport_booking_data.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_order_document_local_save.dart';
 
@@ -34,9 +36,36 @@ class TransportShipmentDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _TransportShipmentDetailsScreenState
-    extends ConsumerState<TransportShipmentDetailsScreen> {
+    extends ConsumerState<TransportShipmentDetailsScreen>
+    with WidgetsBindingObserver {
   bool _isPaying = false;
   String? _docLoadingKey;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final id = widget.args.shipmentId;
+    if (state == AppLifecycleState.resumed && id != null) {
+      ref.invalidate(shipmentDetailProvider(id));
+      ref.invalidate(myShipmentsProvider);
+    }
+  }
+
+  Future<void> _refreshShipmentDetail(int shipmentId) async {
+    ref.invalidate(shipmentDetailProvider(shipmentId));
+    await ref.read(shipmentDetailProvider(shipmentId).future);
+  }
 
   Future<void> _payShipment() async {
     final id = widget.args.shipmentId ??
@@ -281,30 +310,97 @@ class _TransportShipmentDetailsScreenState
 
     final shipmentId = widget.args.shipmentId!;
     final detailAsync = ref.watch(shipmentDetailProvider(shipmentId));
+    final detailData = detailAsync.valueOrNull;
+    final shipmentMap = detailData == null
+        ? null
+        : detailData['shipment'] as Map<String, dynamic>? ??
+            detailData as Map<String, dynamic>?;
+    final receipt = shipmentMap == null
+        ? null
+        : transportShipmentReceiptFields(
+            shipment: shipmentMap,
+            detailRoot: detailData,
+          );
+    final showReceivedBar =
+        receipt != null && receipt.canMarkReceived && shipmentId > 0;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: _shipmentAppBar(textPrimary, cardBg),
       body: detailAsync.when(
         data: (data) {
-          final shipmentMap =
+          final map =
               data['shipment'] as Map<String, dynamic>? ?? data as Map<String, dynamic>?;
           final loadedResult = CreateShipmentResult(
-            shipment: shipmentMap,
+            shipment: map,
             totalPieces: (data['total_pieces'] as num?)?.toInt() ?? 0,
             totalWeightKg: (data['total_weight_kg'] as num?)?.toDouble() ?? 0,
           );
-          return _buildScrollContent(
-            context,
-            loadedResult,
-            textPrimary,
-            textSecondary,
-            str,
-            detailRoot: data,
+          return RefreshIndicator(
+            color: AllColor.blue500,
+            onRefresh: () => _refreshShipmentDetail(shipmentId),
+            child: _buildScrollContent(
+              context,
+              loadedResult,
+              textPrimary,
+              textSecondary,
+              str,
+              detailRoot: data,
+            ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load: $e')),
       ),
+      bottomNavigationBar: showReceivedBar
+          ? SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 12.h),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                        padding: EdgeInsets.only(bottom: 8.h),
+                        child: Text(
+                          receipt.autoReceiveHintLine,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11.sp,
+                            color: textSecondary,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => transportConfirmAndMarkReceived(
+                          context,
+                          ref,
+                          shipmentId: shipmentId,
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AllColor.blue500,
+                          minimumSize: Size(double.infinity, 48.h),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14.r),
+                          ),
+                        ),
+                        child: Text(
+                          'Received',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
     );
   }
 
@@ -382,11 +478,60 @@ class _TransportShipmentDetailsScreenState
       );
     }
 
+    final receipt = transportShipmentReceiptFields(
+      shipment: shipment,
+      detailRoot: detailRoot,
+    );
+
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 32.h),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (isPendingLike) ...[
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(10.r),
+                border: Border.all(color: const Color(0xFFFCD34D)),
+              ),
+              child: Text(
+                'Awaiting payment. Pay to send this job to your driver — '
+                'it will not appear on the driver app until payment is complete.',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF92400E),
+                ),
+              ),
+            ),
+            SizedBox(height: 12.h),
+          ],
+          if (receipt.isReceived) ...[
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD1FAE5),
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+              child: Text(
+                receipt.receivedVia == 'auto'
+                    ? 'Received (confirmed automatically)'
+                    : 'Received',
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF065F46),
+                ),
+              ),
+            ),
+            SizedBox(height: 12.h),
+          ],
           Text(
             sid > 0 ? 'SHIPMENT #$sid' : 'SHIPMENT',
             style: TextStyle(

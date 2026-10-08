@@ -318,6 +318,8 @@ class _VendorMarketplaceOrderDetailScreenState
               lineId: widget.lineId,
               invoiceStatus: _orderGateStatus(d),
               lineStatus: d.status,
+              initialPickup: d.pickupAddress,
+              initialDrop: d.shipAddress,
               onAssigned: () async {
                 Navigator.of(sheetCtx).pop();
                 await _load();
@@ -901,26 +903,33 @@ class _VendorMarketplaceOrderDetailScreenState
                 ),
               ),
               SizedBox(height: 12.h),
-              FilledButton.icon(
-                onPressed: _canAssignDriverToLine(d)
-                    ? _openAssignOutletSheet
-                    : null,
-                icon: Icon(Icons.store_mall_directory_outlined, size: 20.sp),
-                label: Text(
-                  'Assign outlet',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w700,
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _canAssignDriverToLine(d)
+                      ? _openAssignOutletSheet
+                      : null,
+                  icon: Icon(Icons.store_mall_directory_outlined, size: 20.sp),
+                  label: Text(
+                    'Assign outlet',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AllColor.loginButtomColor,
-                  foregroundColor: AllColor.white,
-                  disabledBackgroundColor: AllColor.grey300,
-                  disabledForegroundColor: AllColor.grey.shade600,
-                  padding: EdgeInsets.symmetric(vertical: 14.h),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.r),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AllColor.loginButtomColor,
+                    foregroundColor: AllColor.white,
+                    disabledBackgroundColor: AllColor.grey300,
+                    disabledForegroundColor: AllColor.grey.shade600,
+                    minimumSize: Size(double.infinity, 48.h),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 14.h,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
                   ),
                 ),
               ),

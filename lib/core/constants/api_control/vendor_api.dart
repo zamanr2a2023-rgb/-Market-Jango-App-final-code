@@ -141,16 +141,27 @@ class VendorAPIController {
 
   static String get vendorOrderStatuses => '$_base_api/vendor/orders/statuses';
 
-  /// Drivers available for assignment (`search` optional — user name).
-  static String vendorDriversAvailable({String? search}) {
+  /// Drivers available for assignment (`search`, `pick_location`, `drop_location`).
+  static String vendorDriversAvailable({
+    String? search,
+    String? pickLocation,
+    String? dropLocation,
+  }) {
     final q = <String, String>{};
     final s = search?.trim();
     if (s != null && s.isNotEmpty) q['search'] = s;
+    final pick = pickLocation?.trim();
+    if (pick != null && pick.isNotEmpty) q['pick_location'] = pick;
+    final drop = dropLocation?.trim();
+    if (drop != null && drop.isNotEmpty) q['drop_location'] = drop;
     if (q.isEmpty) return '$_base_api/vendor/drivers/available';
     return Uri.parse('$_base_api/vendor/drivers/available')
         .replace(queryParameters: q)
         .toString();
   }
+
+  static String approvedDriverPage(int page) =>
+      '$approved_driver?page=$page';
 
   static String vendorOrderAssignDriver(int invoiceItemId) =>
       '$_base_api/vendor/orders/$invoiceItemId/assign-driver';

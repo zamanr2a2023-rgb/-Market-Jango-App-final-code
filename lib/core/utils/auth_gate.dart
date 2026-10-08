@@ -9,6 +9,7 @@ import 'package:market_jango/features/buyer/screens/billing/screen/buyer_invoice
 import 'package:market_jango/features/buyer/screens/cart/screen/cart_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_history_screen.dart';
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_page.dart';
+import 'package:market_jango/features/buyer/screens/order/screen/buyer_quantity_changes_screen.dart';
 import 'package:market_jango/features/buyer/screens/prement/screen/buyer_payment_screen.dart';
 import 'package:market_jango/features/buyer/screens/refunds/screen/buyer_refund_detail_screen.dart';
 import 'package:market_jango/features/buyer/screens/refunds/screen/buyer_refunds_screen.dart';
@@ -43,6 +44,7 @@ class AuthGate {
     BuyerInvoiceDetailsScreen.routeName,
     BuyerRefundsScreen.routeName,
     BuyerRefundDetailScreen.routeName,
+    BuyerQuantityChangesScreen.routeName,
     GlobalMassageScreen.routeName,
     MyFollowingScreen.routeName,
     GlobalTrackingScreen1.routeName,
