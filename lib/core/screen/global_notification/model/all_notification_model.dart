@@ -85,7 +85,8 @@ class NotificationModel {
     final nested = json['data'] is Map<String, dynamic>
         ? json['data'] as Map<String, dynamic>
         : const <String, dynamic>{};
-    final eventRaw = json['event_type'] ??
+    final eventRaw =
+        json['event_type'] ??
         json['eventType'] ??
         json['type'] ??
         json['notification_type'] ??
@@ -109,10 +110,13 @@ class NotificationModel {
     dynamic pick(String key) => json[key] ?? nested[key];
 
     return NotificationModel(
-      id: json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}') ?? 0,
+      id: json['id'] is int
+          ? json['id'] as int
+          : int.tryParse('${json['id']}') ?? 0,
       name: json['name']?.toString() ?? json['title']?.toString() ?? '',
       message: json['message']?.toString() ?? json['body']?.toString() ?? '',
-      isRead: json['is_read'] == 1 ||
+      isRead:
+          json['is_read'] == 1 ||
           json['is_read'] == true ||
           json['is_read'] == '1' ||
           json['read'] == true ||
@@ -134,7 +138,8 @@ class NotificationModel {
       productId: toId(json['product_id'] ?? json['productId']),
       vendorId: toId(json['vendor_id'] ?? json['vendorId']),
       promotionId: toId(json['promotion_id'] ?? json['promo_id']),
-      deepLink: json['deep_link']?.toString() ??
+      deepLink:
+          json['deep_link']?.toString() ??
           json['deeplink']?.toString() ??
           json['link']?.toString() ??
           nested['deep_link']?.toString(),
@@ -149,7 +154,9 @@ class NotificationModel {
     final n = amount;
     final shown = n == null
         ? null
-        : (n == n.roundToDouble() ? n.toStringAsFixed(0) : n.toStringAsFixed(2));
+        : (n == n.roundToDouble()
+              ? n.toStringAsFixed(0)
+              : n.toStringAsFixed(2));
     if (shown != null && shown.isNotEmpty) {
       return '$shown has been returned to your wallet';
     }
@@ -173,11 +180,7 @@ class Sender {
   final String name;
   final String email;
 
-  Sender({
-    required this.id,
-    required this.name,
-    required this.email,
-  });
+  Sender({required this.id, required this.name, required this.email});
 
   factory Sender.fromJson(Map<String, dynamic> json) {
     return Sender(

@@ -55,8 +55,7 @@ class VendorInvoicePrinterService {
       for (final d in devices) {
         final dn = d.name.trim().toLowerCase();
         if (dn == target) return d;
-        if (partial == null &&
-            (dn.contains(target) || target.contains(dn))) {
+        if (partial == null && (dn.contains(target) || target.contains(dn))) {
           partial = d;
         }
       }
@@ -197,7 +196,9 @@ class VendorInvoicePrinterService {
         bytes.sublist(offset, end),
       );
       if (!ok) {
-        throw Exception('Print failed. Check paper and that the printer is ready.');
+        throw Exception(
+          'Print failed. Check paper and that the printer is ready.',
+        );
       }
       if (end < bytes.length) {
         await Future<void>.delayed(const Duration(milliseconds: 40));
@@ -209,9 +210,8 @@ class VendorInvoicePrinterService {
   static Future<void> print80mmInvoicePdf({
     required VendorInvoicePrintData data,
   }) async {
-    final doc = await VendorOrderApi.instance.fetchVendorAllOrderInvoiceDocument(
-      data.orderDocumentPathId,
-    );
+    final doc = await VendorOrderApi.instance
+        .fetchVendorAllOrderInvoiceDocument(data.orderDocumentPathId);
     if (doc.bytes.isEmpty) {
       throw Exception('Invoice PDF is empty.');
     }

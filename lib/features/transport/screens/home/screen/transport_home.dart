@@ -750,15 +750,6 @@ class _TransportHomeScreenState extends ConsumerState<TransportHomeScreen> {
                         ],
                       ),
                       SizedBox(height: 12.h),
-                      // Shipping From (Pickup)
-                      _softField(
-                        hint: ref.t(BKeys.pick_up_location),
-                        icon: Icons.location_on_outlined,
-                        bg: AllColor.grey300,
-                        controller: _pickupController,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      SizedBox(height: 10.h),
 
                       // Shipping To (Destination)
                       _softField(
@@ -774,9 +765,8 @@ class _TransportHomeScreenState extends ConsumerState<TransportHomeScreen> {
                   SizedBox(height: 20.h),
                   Builder(
                     builder: (_) {
-                      final pickup = _pickupController.text.trim();
                       final destination = _destinationController.text.trim();
-                      final canSearch = pickup.isNotEmpty && destination.isNotEmpty;
+                      final canSearch = destination.isNotEmpty;
                       return SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -843,7 +833,7 @@ class _TransportHomeScreenState extends ConsumerState<TransportHomeScreen> {
                           padding: EdgeInsets.only(top: 24.h),
                           child: Center(
                             child: Text(
-                              ref.t(BKeys.find_your_driver, fallback: 'Select transport type, pickup & destination, then tap Search to see drivers'),
+                              ref.t(BKeys.find_your_driver, fallback: 'Select transport type, enter destination, then tap Search to see drivers'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 14.sp,

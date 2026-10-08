@@ -153,7 +153,7 @@ class UserModel {
           .whereType<Map<String, dynamic>>()
           .map((e) => UserImage.fromJson(e))
           .toList(),
-      
+
       // ==== cover image ====
       coverImage: json['cover_image']?.toString(),
     );
@@ -342,7 +342,11 @@ class DriverInfo {
     price: '${json['price'] ?? ''}',
     rating: json['rating'] ?? 0,
     userId: json['user_id'] ?? 0,
-    routeId: json['route_id'] is int ? json['route_id'] as int : (json['route_id'] != null ? int.tryParse(json['route_id'].toString()) : null),
+    routeId: json['route_id'] is int
+        ? json['route_id'] as int
+        : (json['route_id'] != null
+              ? int.tryParse(json['route_id'].toString())
+              : null),
     createdAt: json['created_at']?.toString() ?? '',
     updatedAt: json['updated_at']?.toString() ?? '',
     description: json['description'] ?? '',

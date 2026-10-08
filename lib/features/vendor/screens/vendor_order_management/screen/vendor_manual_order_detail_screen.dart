@@ -738,8 +738,7 @@ class _VendorManualOrderDetailScreenState
         GlobalSnackbar.show(
           context,
           title: 'Return submitted',
-          message:
-              'Pending approval. Stock restores when approved (backend).',
+          message: 'Pending approval. Stock restores when approved (backend).',
           type: CustomSnackType.success,
         );
         await _load();
@@ -1314,13 +1313,9 @@ class _VendorManualOrderDetailScreenState
                       _kv('Debt status', inv.debtStatusLabel),
                       _kv(
                         'Debt total',
-                        inv.summary.debtAmount ??
-                            inv.summary.payable,
+                        inv.summary.debtAmount ?? inv.summary.payable,
                       ),
-                      _kv(
-                        'Remaining',
-                        inv.remainingDebt.toStringAsFixed(2),
-                      ),
+                      _kv('Remaining', inv.remainingDebt.toStringAsFixed(2)),
                       if (inv.summary.debtPaid != null &&
                           inv.summary.debtPaid!.isNotEmpty)
                         _kv('Paid so far', inv.summary.debtPaid!),
@@ -1824,10 +1819,7 @@ class _CollectDebtPaymentDialogState extends State<_CollectDebtPaymentDialog> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
               onSubmitted: (_) => _submit(),
               decoration: InputDecoration(
                 hintText: '0.00',

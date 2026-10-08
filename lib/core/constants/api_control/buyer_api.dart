@@ -4,12 +4,13 @@ class BuyerAPIController {
   static final String _base_api = "$api/api";
   static String buyer_product = "$_base_api/product";
   static String banner = "$_base_api/banner";
+
   /// Guest / logged-in home (`GET /api/buyer/home`) — optional `zone_id` (STEP_05).
   static String buyerHome({int? zoneId}) {
     if (zoneId == null || zoneId <= 0) return '$_base_api/buyer/home';
-    return Uri.parse('$_base_api/buyer/home')
-        .replace(queryParameters: {'zone_id': '$zoneId'})
-        .toString();
+    return Uri.parse(
+      '$_base_api/buyer/home',
+    ).replace(queryParameters: {'zone_id': '$zoneId'}).toString();
   }
 
   /// Register / guest zone list — STEP_05 `GET /api/buyer/visibility-locations/zones`.
@@ -17,34 +18,28 @@ class BuyerAPIController {
       '$_base_api/buyer/visibility-locations/zones';
 
   /// `GET …/states?zone=` — register & visibility dropdowns.
-  static String visibilityLocationsStates({required String zone}) =>
-      Uri.parse('$_base_api/buyer/visibility-locations/states')
-          .replace(queryParameters: {'zone': zone.trim()})
-          .toString();
+  static String visibilityLocationsStates({required String zone}) => Uri.parse(
+    '$_base_api/buyer/visibility-locations/states',
+  ).replace(queryParameters: {'zone': zone.trim()}).toString();
 
   /// `GET …/towns?zone=&state=` — register & visibility dropdowns.
   static String visibilityLocationsTowns({
     required String zone,
     required String state,
-  }) =>
-      Uri.parse('$_base_api/buyer/visibility-locations/towns')
-          .replace(
-            queryParameters: {
-              'zone': zone.trim(),
-              'state': state.trim(),
-            },
-          )
-          .toString();
+  }) => Uri.parse('$_base_api/buyer/visibility-locations/towns')
+      .replace(queryParameters: {'zone': zone.trim(), 'state': state.trim()})
+      .toString();
 
   static String cart = "$_base_api/cart";
   static String get cartDeliveryCharges => "$_base_api/cart/delivery-charges";
 
   /// `GET /api/cart/delivery-charges?is_urgent=0|1` (LAST EDITES checkout).
   static String cartDeliveryChargesWithUrgent({required bool isUrgent}) {
-    return Uri.parse(cartDeliveryCharges)
-        .replace(queryParameters: {'is_urgent': isUrgent ? '1' : '0'})
-        .toString();
+    return Uri.parse(
+      cartDeliveryCharges,
+    ).replace(queryParameters: {'is_urgent': isUrgent ? '1' : '0'}).toString();
   }
+
   static String cartDelete(int id) => "$_base_api/cart/$id";
   static String cart_create = "$_base_api/cart/create";
   static String category = "$_base_api/category";
@@ -76,9 +71,9 @@ class BuyerAPIController {
     if (n != null && n.isNotEmpty) {
       q['name'] = n;
     }
-    return Uri.parse('$_base_api/product/vendor/$vendorId')
-        .replace(queryParameters: q)
-        .toString();
+    return Uri.parse(
+      '$_base_api/product/vendor/$vendorId',
+    ).replace(queryParameters: q).toString();
   }
 
   /// GET api/vendor/{vendorId}/business-types — public business types for a vendor shop.
@@ -97,10 +92,12 @@ class BuyerAPIController {
       "$_base_api/buyer/invoice/tracking/details/$id";
 
   /// GET api/InvoiceProductList/{id} — invoice details with items (product, vendor per item)
-  static String invoiceProductList(int id) => "$_base_api/InvoiceProductList/$id";
+  static String invoiceProductList(int id) =>
+      "$_base_api/InvoiceProductList/$id";
 
   static String buyer_search_product(name) =>
       "$_base_api/search/product?name=$name";
+
   /// GET api/product/search?visibility_country=&category_id=&visibility_state=
   static String productSearch({
     required String visibilityCountry,
@@ -109,7 +106,8 @@ class BuyerAPIController {
     String? visibilityTown,
   }) {
     final country = Uri.encodeComponent(visibilityCountry.trim());
-    var url = '$_base_api/product/search?visibility_country=$country&category_id=$categoryId';
+    var url =
+        '$_base_api/product/search?visibility_country=$country&category_id=$categoryId';
     if (visibilityState != null && visibilityState.trim().isNotEmpty) {
       url += '&visibility_state=${Uri.encodeComponent(visibilityState.trim())}';
     }
@@ -118,6 +116,7 @@ class BuyerAPIController {
     }
     return url;
   }
+
   static String review_buyer(id) => "$_base_api/review/create/buyer/$id";
   static String review_vendor(id) => "$_base_api/review/vendor/$id";
 
@@ -139,12 +138,13 @@ class BuyerAPIController {
     if (status != null && status.trim().isNotEmpty) {
       q['status'] = status.trim();
     }
-    return Uri.parse('$_base_api/wallet/transactions')
-        .replace(queryParameters: q)
-        .toString();
+    return Uri.parse(
+      '$_base_api/wallet/transactions',
+    ).replace(queryParameters: q).toString();
   }
 
   static String get buyerWalletTopup => '$_base_api/wallet/topup';
+
   /// Flutterwave (or gateway) hosted pay — returns `payment_url`, `tx_ref`, `redirect_url`.
   static String get buyerWalletTopupInitiate =>
       '$_base_api/wallet/topup/initiate';
@@ -155,9 +155,9 @@ class BuyerAPIController {
     if (status != null && status.trim().isNotEmpty) {
       q['status'] = status.trim();
     }
-    return Uri.parse('$_base_api/wallet/payouts')
-        .replace(queryParameters: q)
-        .toString();
+    return Uri.parse(
+      '$_base_api/wallet/payouts',
+    ).replace(queryParameters: q).toString();
   }
 
   // --- Buyer refunds (doc/details.md §E) ---
@@ -166,9 +166,9 @@ class BuyerAPIController {
     if (status != null && status.trim().isNotEmpty) {
       q['status'] = status.trim();
     }
-    return Uri.parse('$_base_api/buyer/refunds')
-        .replace(queryParameters: q)
-        .toString();
+    return Uri.parse(
+      '$_base_api/buyer/refunds',
+    ).replace(queryParameters: q).toString();
   }
 
   static String buyerRefundDetail(int id) => '$_base_api/buyer/refunds/$id';
@@ -188,16 +188,14 @@ class BuyerAPIController {
   }
 
   /// Query: `tx_ref` (required).
-  static String paymentVerify({required String txRef}) =>
-      Uri.parse('$_base_api/payment/verify')
-          .replace(queryParameters: {'tx_ref': txRef})
-          .toString();
+  static String paymentVerify({required String txRef}) => Uri.parse(
+    '$_base_api/payment/verify',
+  ).replace(queryParameters: {'tx_ref': txRef}).toString();
 
   /// Successful-delivery invoices only; 10/page (doc B2).
-  static String buyerInvoicesSuccessful({int page = 1}) =>
-      Uri.parse('$_base_api/invoice').replace(queryParameters: {
-        'page': '$page',
-      }).toString();
+  static String buyerInvoicesSuccessful({int page = 1}) => Uri.parse(
+    '$_base_api/invoice',
+  ).replace(queryParameters: {'page': '$page'}).toString();
 
   // --- Delivery charge locations (Postman: buyer/delivery-charge-locations/*) ---
   /// GET …/zones — `data.items` = zone names.
@@ -206,13 +204,13 @@ class BuyerAPIController {
 
   /// GET …/states?zone= — `data.items` = state names for the zone.
   static String visibilityStatesByZone({required String zone}) => Uri.parse(
-        '$_base_api/buyer/delivery-charge-locations/states',
-      ).replace(queryParameters: {'zone': zone.trim()}).toString();
+    '$_base_api/buyer/delivery-charge-locations/states',
+  ).replace(queryParameters: {'zone': zone.trim()}).toString();
 
   /// GET …/towns?zone_name= — `data.items` = town names.
   static String visibilityTownsByZone({required String zoneName}) => Uri.parse(
-        '$_base_api/buyer/delivery-charge-locations/towns',
-      ).replace(queryParameters: {'zone_name': zoneName.trim()}).toString();
+    '$_base_api/buyer/delivery-charge-locations/towns',
+  ).replace(queryParameters: {'zone_name': zoneName.trim()}).toString();
 
   static String visibilityVendors({
     required String zone,
@@ -220,15 +218,12 @@ class BuyerAPIController {
     String? town,
     int perPage = 20,
   }) {
-    final q = <String, String>{
-      'zone': zone.trim(),
-      'per_page': '$perPage',
-    };
+    final q = <String, String>{'zone': zone.trim(), 'per_page': '$perPage'};
     if (state != null && state.trim().isNotEmpty) q['state'] = state.trim();
     if (town != null && town.trim().isNotEmpty) q['town'] = town.trim();
-    return Uri.parse('$_base_api/buyer/visibility-locations/vendors')
-        .replace(queryParameters: q)
-        .toString();
+    return Uri.parse(
+      '$_base_api/buyer/visibility-locations/vendors',
+    ).replace(queryParameters: q).toString();
   }
 
   static String visibilityVendorsByCategory({
@@ -298,12 +293,16 @@ class BuyerAPIController {
   /// `GET /follows/me` — list of accounts the current user follows
   static String myFollowing({int page = 1}) =>
       '$_base_api/follows/me?page=$page';
+
+  /// POLISH — enable transport on a buyer account (same login).
+  static String get buyerTransportEnable =>
+      '$_base_api/buyer/transport/enable';
 }
 
 // lib/core/constants/api_control/buyer_api.dart
 class BuyerPaymentAPIController {
   static final String _base_api = "$api/api";
-  
+
   static String get invoice_createate => "$_base_api/invoice/create";
 
   // ✅ payment verify/callback endpoint (GET) - using base URL

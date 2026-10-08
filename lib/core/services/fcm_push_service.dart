@@ -40,7 +40,11 @@ class FcmPushService {
   static final FcmPushService instance = FcmPushService._();
 
   static final Logger _log = Logger(
-    printer: PrettyPrinter(methodCount: 0, errorMethodCount: 5, lineLength: 120),
+    printer: PrettyPrinter(
+      methodCount: 0,
+      errorMethodCount: 5,
+      lineLength: 120,
+    ),
   );
 
   static void _logFcmToken(String? token, String reason) {
@@ -98,22 +102,21 @@ class FcmPushService {
       },
     );
 
-    final androidPlugin = _local.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _local
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await androidPlugin?.createNotificationChannel(_channel);
 
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
 
     final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await messaging.requestPermission(alert: true, badge: true, sound: true);
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
@@ -165,7 +168,8 @@ class FcmPushService {
 
   void _onForegroundMessage(RemoteMessage message) {
     final n = message.notification;
-    final title = n?.title ?? message.data['title']?.toString() ?? 'Notification';
+    final title =
+        n?.title ?? message.data['title']?.toString() ?? 'Notification';
     final body = n?.body ?? message.data['body']?.toString() ?? '';
     final event = parseNotificationEventType(
       message.data['event_type'] ?? message.data['type'],
@@ -212,7 +216,8 @@ class FcmPushService {
       _refreshWalletAfterRefund();
     }
 
-    final deepLink = data['deep_link']?.toString() ??
+    final deepLink =
+        data['deep_link']?.toString() ??
         data['deeplink']?.toString() ??
         data['link']?.toString();
     if (deepLink != null && deepLink.startsWith('/')) {

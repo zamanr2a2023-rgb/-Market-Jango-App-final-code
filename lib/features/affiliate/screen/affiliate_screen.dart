@@ -36,6 +36,9 @@ class AffiliateScreen extends ConsumerWidget {
       await influencerNotifier.refresh();
     }
 
+    final storeLinks = affiliateLinksAsync.valueOrNull ?? const <AffiliateLinkModel>[];
+    final hasStoreLink = storeLinks.isNotEmpty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -58,6 +61,22 @@ class AffiliateScreen extends ConsumerWidget {
         ),
         centerTitle: true,
       ),
+      floatingActionButton: hasStoreLink
+          ? FloatingActionButton.extended(
+              onPressed: () =>
+                  _openEditStoreSheet(context, ref, storeLinks.first),
+              backgroundColor: AllColor.loginButtomColor,
+              icon: const Icon(Icons.edit_outlined, color: Colors.white),
+              label: Text(
+                'Edit',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14.sp,
+                ),
+              ),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: onRefresh,
         child: SingleChildScrollView(
@@ -321,34 +340,41 @@ class AffiliateScreen extends ConsumerWidget {
       );
       return;
     }
+    _showStoreAffiliateSheet(context, ref);
+  }
+
+  void _openEditStoreSheet(
+    BuildContext context,
+    WidgetRef ref,
+    AffiliateLinkModel link,
+  ) {
+    final fullUrl = '${_baseUrl()}/affiliate/${link.linkCode}';
+    _showStoreAffiliateSheet(
+      context,
+      ref,
+      existingLink: link,
+      initialFullUrl: fullUrl,
+    );
+  }
+
+  void _showStoreAffiliateSheet(
+    BuildContext context,
+    WidgetRef ref, {
+    AffiliateLinkModel? existingLink,
+    String? initialFullUrl,
+  }) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _AddLinkSheet(
+        existingLink: existingLink,
+        initialFullUrl: initialFullUrl,
         onSaved: () {
           ref.read(affiliateLinksProvider.notifier).refresh();
-          ref.read(affiliateStatisticsProvider.notifier).refresh();
-        },
-      ),
-    );
-  }
-
-  void _openEditSheet(
-    BuildContext context,
-    WidgetRef ref,
-    AffiliateLinkModel link,
-    AffiliateLinksNotifier notifier,
-  ) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _EditLinkSheet(
-        link: link,
-        onSaved: () {
-          notifier.refresh();
-          ref.read(affiliateStatisticsProvider.notifier).refresh();
+          if (ref.read(getUserTypeProvider).value != 'driver') {
+            ref.read(affiliateStatisticsProvider.notifier).refresh();
+          }
         },
       ),
     );
@@ -1136,9 +1162,15 @@ class _CreatedLinkDialog extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _AddLinkSheet extends ConsumerStatefulWidget {
+  final AffiliateLinkModel? existingLink;
+  final String? initialFullUrl;
   final VoidCallback onSaved;
 
-  const _AddLinkSheet({required this.onSaved});
+  const _AddLinkSheet({
+    this.existingLink,
+    this.initialFullUrl,
+    required this.onSaved,
+  });
 
   @override
   ConsumerState<_AddLinkSheet> createState() => _AddLinkSheetState();
@@ -1152,9 +1184,28 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
   final _cookieDurationController = TextEditingController();
   final _expiresAtController = TextEditingController();
   bool _loading = false;
+  bool _hydrating = false;
+  bool _active = true;
   String _attributionModel = 'first_click';
+  AffiliateLinkModel? _editingLink;
+  String? _fullUrlForCopy;
 
   static const List<String> _attributionOptions = ['first_click', 'last_click'];
+
+  bool get _isEditMode => _editingLink != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _editingLink = widget.existingLink;
+    _fullUrlForCopy = widget.initialFullUrl;
+    if (_editingLink != null) {
+      _active = _editingLink!.status == 'active';
+      _applyLinkToControllers(_editingLink!);
+      _hydrating = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _hydrateFromApi());
+    }
+  }
 
   bool _isValidHttpUrl(String input) {
     final uri = Uri.tryParse(input.trim());
@@ -1163,6 +1214,112 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
     if (uri.scheme != 'http' && uri.scheme != 'https') return false;
     if (uri.host.isEmpty) return false;
     return true;
+  }
+
+  void _applyLinkToControllers(AffiliateLinkModel link) {
+    _nameController.text = link.name ?? '';
+    _descriptionController.text = link.description ?? '';
+    _destinationController.text = link.destinationUrl ?? '';
+    if (link.customRate != null) {
+      _customRateController.text = link.customRate!.toString();
+    }
+    if (link.cookieDurationDays != null) {
+      _cookieDurationController.text = link.cookieDurationDays!.toString();
+    }
+    final attr = link.attributionModel?.trim();
+    if (attr != null &&
+        attr.isNotEmpty &&
+        _attributionOptions.contains(attr)) {
+      _attributionModel = attr;
+    }
+    if (link.expiresAt != null && link.expiresAt!.isNotEmpty) {
+      _expiresAtController.text = link.expiresAt!;
+    }
+    _active = link.status == 'active';
+  }
+
+  Future<void> _hydrateFromApi() async {
+    final link = _editingLink;
+    if (link == null) {
+      if (mounted) setState(() => _hydrating = false);
+      return;
+    }
+    try {
+      final detail = await ref.read(affiliateLinkDetailProvider(link.id).future);
+      if (!mounted) return;
+      if (detail != null) {
+        _editingLink = detail.affiliateLink;
+        if (detail.fullUrl.isNotEmpty) {
+          _fullUrlForCopy = detail.fullUrl;
+        }
+        _applyLinkToControllers(detail.affiliateLink);
+      }
+    } catch (_) {
+      // Keep list payload pre-fill.
+    } finally {
+      if (mounted) setState(() => _hydrating = false);
+    }
+  }
+
+  double? _parseCustomRate() {
+    final raw = _customRateController.text.trim();
+    if (raw.isEmpty) return null;
+    final v = double.tryParse(raw);
+    if (v == null || v < 0 || v > 100) {
+      GlobalSnackbar.show(
+        context,
+        title: 'Invalid rate',
+        message: 'Custom rate must be between 0 and 100',
+        type: CustomSnackType.error,
+      );
+      return null;
+    }
+    return v;
+  }
+
+  int? _parseCookieDays() {
+    final raw = _cookieDurationController.text.trim();
+    if (raw.isEmpty) return null;
+    final v = int.tryParse(raw);
+    if (v == null || v < 1) {
+      GlobalSnackbar.show(
+        context,
+        title: 'Invalid duration',
+        message: 'Cookie duration must be a positive number of days',
+        type: CustomSnackType.error,
+      );
+      return null;
+    }
+    return v;
+  }
+
+  void _copyStoreLink() {
+    final url = _fullUrlForCopy ?? '';
+    if (url.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: url));
+    GlobalSnackbar.show(
+      context,
+      title: 'Copied',
+      message: 'Affiliate link copied',
+      type: CustomSnackType.success,
+    );
+  }
+
+  Future<void> _switchToEditWithLink(AffiliateLinkModel link) async {
+    _editingLink = link;
+    _fullUrlForCopy =
+        '${Uri.parse(CommonAPIController.affiliateLinks).origin}/affiliate/${link.linkCode}';
+    _applyLinkToControllers(link);
+    setState(() {});
+    await _hydrateFromApi();
+    if (mounted) {
+      GlobalSnackbar.show(
+        context,
+        title: 'Existing link',
+        message: 'Your store affiliate link is open for editing.',
+        type: CustomSnackType.info,
+      );
+    }
   }
 
   @override
@@ -1178,16 +1335,18 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
 
   Future<void> _submit() async {
     final destination = _destinationController.text.trim();
-    if (destination.isEmpty) {
-      GlobalSnackbar.show(
-        context,
-        title: 'Invalid URL',
-        message: 'Destination URL is required',
-        type: CustomSnackType.error,
-      );
-      return;
+    if (!_isEditMode) {
+      if (destination.isEmpty) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Invalid URL',
+          message: 'Destination URL is required',
+          type: CustomSnackType.error,
+        );
+        return;
+      }
     }
-    if (!_isValidHttpUrl(destination)) {
+    if (destination.isNotEmpty && !_isValidHttpUrl(destination)) {
       GlobalSnackbar.show(
         context,
         title: 'Invalid URL',
@@ -1197,33 +1356,55 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
       return;
     }
 
+    final customRate = _parseCustomRate();
+    if (_customRateController.text.trim().isNotEmpty && customRate == null) {
+      return;
+    }
+    final cookieDurationDays = _parseCookieDays();
+    if (_cookieDurationController.text.trim().isNotEmpty &&
+        cookieDurationDays == null) {
+      return;
+    }
+
+    final expiresAtStr = _expiresAtController.text.trim();
+    final expiresAt = expiresAtStr.isEmpty ? null : expiresAtStr;
+    final name = _nameController.text.trim();
+    final description = _descriptionController.text.trim();
+
     setState(() => _loading = true);
     try {
       final token = await ref.read(authTokenProvider.future);
 
-      double? customRate;
-      final customRateStr = _customRateController.text.trim();
-      if (customRateStr.isNotEmpty) {
-        customRate = double.tryParse(customRateStr);
+      if (_isEditMode) {
+        await affiliateUpdate(
+          token,
+          id: _editingLink!.id,
+          name: name.isEmpty ? null : name,
+          description: description.isEmpty ? null : description,
+          destinationUrl: destination.isEmpty ? null : destination,
+          customRate: customRate,
+          cookieDurationDays: cookieDurationDays,
+          attributionModel: _attributionModel,
+          expiresAt: expiresAt,
+          status: _active ? 'active' : 'inactive',
+        );
+        if (mounted) {
+          widget.onSaved();
+          Navigator.pop(context);
+          GlobalSnackbar.show(
+            context,
+            title: 'Updated',
+            message: 'Store affiliate link saved',
+            type: CustomSnackType.success,
+          );
+        }
+        return;
       }
-
-      int? cookieDurationDays;
-      final cookieStr = _cookieDurationController.text.trim();
-      if (cookieStr.isNotEmpty) {
-        cookieDurationDays = int.tryParse(cookieStr);
-      }
-
-      final expiresAtStr = _expiresAtController.text.trim();
-      final expiresAt = expiresAtStr.isEmpty ? null : expiresAtStr;
 
       final result = await affiliateGenerate(
         token,
-        name: _nameController.text.trim().isEmpty
-            ? null
-            : _nameController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty
-            ? null
-            : _descriptionController.text.trim(),
+        name: name.isEmpty ? null : name,
+        description: description.isEmpty ? null : description,
         destinationUrl: destination,
         customRate: customRate,
         cookieDurationDays: cookieDurationDays,
@@ -1234,6 +1415,23 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
         widget.onSaved();
         Navigator.pop(context);
         _showCreatedLinkDialog(context, result.fullUrl, result.link.linkCode);
+      }
+    } on AffiliateApiException catch (e) {
+      if (!_isEditMode && e.statusCode == 422) {
+        await ref.read(affiliateLinksProvider.notifier).refresh();
+        final links = ref.read(affiliateLinksProvider).valueOrNull ?? [];
+        if (links.isNotEmpty && mounted) {
+          await _switchToEditWithLink(links.first);
+          return;
+        }
+      }
+      if (mounted) {
+        GlobalSnackbar.show(
+          context,
+          title: 'Error',
+          message: e.message,
+          type: CustomSnackType.error,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -1281,6 +1479,8 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom + 24.h;
+    final linkCode = _editingLink?.linkCode ?? '';
+    final displayUrl = _fullUrlForCopy ?? '';
     return Container(
       padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, bottomPadding),
       decoration: BoxDecoration(
@@ -1324,7 +1524,9 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
                       borderRadius: BorderRadius.circular(14.r),
                     ),
                     child: Icon(
-                      Icons.add_link_rounded,
+                      _isEditMode
+                          ? Icons.edit_rounded
+                          : Icons.add_link_rounded,
                       size: 28.r,
                       color: AllColor.loginButtomColor,
                     ),
@@ -1335,7 +1537,9 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'New affiliate link',
+                          _isEditMode
+                              ? 'Edit store affiliate link'
+                              : 'New affiliate link',
                           style: TextStyle(
                             fontSize: 20.sp,
                             fontWeight: FontWeight.w700,
@@ -1345,7 +1549,9 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
                         ),
                         SizedBox(height: 4.h),
                         Text(
-                          'Share this link to track clicks & conversions',
+                          _isEditMode
+                              ? 'Update your store affiliate program'
+                              : 'Share this link to track clicks & conversions',
                           style: TextStyle(
                             fontSize: 13.sp,
                             color: AllColor.grey500,
@@ -1356,6 +1562,63 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
                   ),
                 ],
               ),
+              if (_hydrating) ...[
+                SizedBox(height: 16.h),
+                const Center(child: CircularProgressIndicator()),
+              ],
+              if (_isEditMode && linkCode.isNotEmpty) ...[
+                SizedBox(height: 20.h),
+                Container(
+                  padding: EdgeInsets.all(14.w),
+                  decoration: BoxDecoration(
+                    color: AllColor.grey100.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(14.r),
+                    border: Border.all(color: AllColor.grey200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Link code (read-only)',
+                        style: TextStyle(
+                          fontSize: 11.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AllColor.grey500,
+                        ),
+                      ),
+                      SizedBox(height: 4.h),
+                      Text(
+                        linkCode,
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      if (displayUrl.isNotEmpty) ...[
+                        SizedBox(height: 10.h),
+                        Text(
+                          displayUrl,
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: AllColor.black87,
+                          ),
+                        ),
+                        SizedBox(height: 10.h),
+                        OutlinedButton.icon(
+                          onPressed: _copyStoreLink,
+                          icon: const Icon(Icons.copy_rounded, size: 18),
+                          label: const Text('Copy link'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AllColor.loginButtomColor,
+                            side: BorderSide(color: AllColor.loginButtomColor),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               SizedBox(height: 28.h),
               Text(
                 'Link details',
@@ -1689,11 +1952,41 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
                   ),
                 ),
               ),
+              if (_isEditMode) ...[
+                SizedBox(height: 14.h),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 4.h),
+                  decoration: BoxDecoration(
+                    color: AllColor.grey100.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(14.r),
+                    border: Border.all(color: AllColor.grey200),
+                  ),
+                  child: SwitchListTile(
+                    title: Text(
+                      'Link active',
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _active ? 'Clicks are being tracked' : 'Link is paused',
+                      style: TextStyle(fontSize: 12.sp, color: AllColor.grey500),
+                    ),
+                    value: _active,
+                    onChanged: (v) => setState(() => _active = v),
+                    activeThumbColor: AllColor.loginButtomColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
+                  ),
+                ),
+              ],
               SizedBox(height: 28.h),
               SizedBox(
                 height: 52.h,
                 child: ElevatedButton(
-                  onPressed: _loading ? null : _submit,
+                  onPressed: (_loading || _hydrating) ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AllColor.loginButtomColor,
                     foregroundColor: Colors.white,
@@ -1715,10 +2008,15 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_rounded, size: 22.r),
+                            Icon(
+                              _isEditMode
+                                  ? Icons.check_rounded
+                                  : Icons.add_rounded,
+                              size: 22.r,
+                            ),
                             SizedBox(width: 8.w),
                             Text(
-                              'Create link',
+                              _isEditMode ? 'Save changes' : 'Create link',
                               style: TextStyle(
                                 fontSize: 16.sp,
                                 fontWeight: FontWeight.w600,
@@ -1730,310 +2028,6 @@ class _AddLinkSheetState extends ConsumerState<_AddLinkSheet> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Edit link bottom sheet
-// ---------------------------------------------------------------------------
-
-class _EditLinkSheet extends ConsumerStatefulWidget {
-  final AffiliateLinkModel link;
-  final VoidCallback onSaved;
-
-  const _EditLinkSheet({required this.link, required this.onSaved});
-
-  @override
-  ConsumerState<_EditLinkSheet> createState() => _EditLinkSheetState();
-}
-
-class _EditLinkSheetState extends ConsumerState<_EditLinkSheet> {
-  late final TextEditingController _nameController;
-  late final TextEditingController _destinationController;
-  bool _active = true;
-  bool _loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: widget.link.name ?? '');
-    _destinationController = TextEditingController(
-      text: widget.link.destinationUrl ?? '',
-    );
-    _active = widget.link.status == 'active';
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _destinationController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    setState(() => _loading = true);
-    try {
-      final token = await ref.read(authTokenProvider.future);
-      await affiliateUpdate(
-        token,
-        id: widget.link.id,
-        name: _nameController.text.trim().isEmpty
-            ? null
-            : _nameController.text.trim(),
-        status: _active ? 'active' : 'inactive',
-        destinationUrl: _destinationController.text.trim().isEmpty
-            ? null
-            : _destinationController.text.trim(),
-      );
-      if (mounted) {
-        widget.onSaved();
-        Navigator.pop(context);
-        GlobalSnackbar.show(
-          context,
-          title: 'Updated',
-          message: 'Link updated',
-          type: CustomSnackType.success,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        GlobalSnackbar.show(
-          context,
-          title: 'Error',
-          message: e.toString().replaceFirst('Exception: ', ''),
-          type: CustomSnackType.error,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom + 24.h;
-    return Container(
-      padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, bottomPadding),
-      decoration: BoxDecoration(
-        color: AllColor.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(height: 12.h),
-            Center(
-              child: Container(
-                width: 36.w,
-                height: 4.h,
-                decoration: BoxDecoration(
-                  color: AllColor.grey200,
-                  borderRadius: BorderRadius.circular(2.r),
-                ),
-              ),
-            ),
-            SizedBox(height: 24.h),
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12.w),
-                  decoration: BoxDecoration(
-                    color: AllColor.loginButtomColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(14.r),
-                  ),
-                  child: Icon(
-                    Icons.edit_rounded,
-                    size: 28.r,
-                    color: AllColor.loginButtomColor,
-                  ),
-                ),
-                SizedBox(width: 16.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Edit link',
-                        style: TextStyle(
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w700,
-                          color: AllColor.black,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        widget.link.linkCode,
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: AllColor.grey500,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 28.h),
-            Text(
-              'Link details',
-              style: TextStyle(
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w600,
-                color: AllColor.grey500,
-              ),
-            ),
-            SizedBox(height: 10.h),
-            TextField(
-              controller: _nameController,
-              style: TextStyle(fontSize: 15.sp),
-              decoration: InputDecoration(
-                labelText: 'Name',
-                prefixIcon: Icon(
-                  Icons.label_outline_rounded,
-                  size: 22.r,
-                  color: AllColor.grey500,
-                ),
-                filled: true,
-                fillColor: AllColor.grey100.withOpacity(0.6),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14.r),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14.r),
-                  borderSide: BorderSide(color: AllColor.grey200, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14.r),
-                  borderSide: BorderSide(
-                    color: AllColor.loginButtomColor,
-                    width: 1.5,
-                  ),
-                ),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16.w,
-                  vertical: 14.h,
-                ),
-              ),
-            ),
-            SizedBox(height: 14.h),
-            TextField(
-              controller: _destinationController,
-              style: TextStyle(fontSize: 15.sp),
-              keyboardType: TextInputType.url,
-              decoration: InputDecoration(
-                hintText: 'https://example.com',
-                labelText: 'Destination URL',
-                prefixIcon: Icon(
-                  Icons.link_rounded,
-                  size: 22.r,
-                  color: AllColor.grey500,
-                ),
-                filled: true,
-                fillColor: AllColor.grey100.withOpacity(0.6),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14.r),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14.r),
-                  borderSide: BorderSide(color: AllColor.grey200, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14.r),
-                  borderSide: BorderSide(
-                    color: AllColor.loginButtomColor,
-                    width: 1.5,
-                  ),
-                ),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16.w,
-                  vertical: 14.h,
-                ),
-              ),
-            ),
-            SizedBox(height: 14.h),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 4.h),
-              decoration: BoxDecoration(
-                color: AllColor.grey100.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(14.r),
-                border: Border.all(color: AllColor.grey200),
-              ),
-              child: SwitchListTile(
-                title: Text(
-                  'Link active',
-                  style: TextStyle(
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                subtitle: Text(
-                  _active ? 'Clicks are being tracked' : 'Link is paused',
-                  style: TextStyle(fontSize: 12.sp, color: AllColor.grey500),
-                ),
-                value: _active,
-                onChanged: (v) => setState(() => _active = v),
-                activeThumbColor: AllColor.loginButtomColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10.r),
-                ),
-              ),
-            ),
-            SizedBox(height: 28.h),
-            SizedBox(
-              height: 52.h,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AllColor.loginButtomColor,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14.r),
-                  ),
-                ),
-                child: _loading
-                    ? SizedBox(
-                        height: 24.h,
-                        width: 24.w,
-                        child: const CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check_rounded, size: 22.r),
-                          SizedBox(width: 8.w),
-                          Text(
-                            'Save changes',
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-          ],
         ),
       ),
     );

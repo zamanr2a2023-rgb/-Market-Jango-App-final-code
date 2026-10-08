@@ -64,11 +64,11 @@ class VendorRefundsTab extends ConsumerWidget {
                     if (d == null) return;
                     final f =
                         '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-                    ref.read(vendorRefundListParamsProvider.notifier).state =
-                        ref.read(vendorRefundListParamsProvider).copyWith(
-                              page: 1,
-                              fromDate: f,
-                            );
+                    ref
+                        .read(vendorRefundListParamsProvider.notifier)
+                        .state = ref
+                        .read(vendorRefundListParamsProvider)
+                        .copyWith(page: 1, fromDate: f);
                   },
                   child: Text(params.fromDate ?? 'From date'),
                 ),
@@ -87,11 +87,11 @@ class VendorRefundsTab extends ConsumerWidget {
                     if (d == null) return;
                     final f =
                         '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-                    ref.read(vendorRefundListParamsProvider.notifier).state =
-                        ref.read(vendorRefundListParamsProvider).copyWith(
-                              page: 1,
-                              toDate: f,
-                            );
+                    ref
+                        .read(vendorRefundListParamsProvider.notifier)
+                        .state = ref
+                        .read(vendorRefundListParamsProvider)
+                        .copyWith(page: 1, toDate: f);
                   },
                   child: Text(params.toDate ?? 'To date'),
                 ),
@@ -125,12 +125,9 @@ class VendorRefundsTab extends ConsumerWidget {
                 )
                 .toList(),
             onChanged: (v) {
-              ref.read(vendorRefundListParamsProvider.notifier).state =
-                  ref.read(vendorRefundListParamsProvider).copyWith(
-                        page: 1,
-                        status: v,
-                        clearStatus: v == null,
-                      );
+              ref.read(vendorRefundListParamsProvider.notifier).state = ref
+                  .read(vendorRefundListParamsProvider)
+                  .copyWith(page: 1, status: v, clearStatus: v == null);
             },
           ),
           SizedBox(height: 16.h),
@@ -164,12 +161,12 @@ class VendorRefundsTab extends ConsumerWidget {
                             ? null
                             : () {
                                 ref
-                                        .read(
-                                          vendorRefundListParamsProvider
-                                              .notifier,
-                                        )
-                                        .state =
-                                    params.copyWith(page: params.page - 1);
+                                    .read(
+                                      vendorRefundListParamsProvider.notifier,
+                                    )
+                                    .state = params.copyWith(
+                                  page: params.page - 1,
+                                );
                               },
                         child: const Text('Prev'),
                       ),
@@ -179,12 +176,12 @@ class VendorRefundsTab extends ConsumerWidget {
                             ? null
                             : () {
                                 ref
-                                        .read(
-                                          vendorRefundListParamsProvider
-                                              .notifier,
-                                        )
-                                        .state =
-                                    params.copyWith(page: params.page + 1);
+                                    .read(
+                                      vendorRefundListParamsProvider.notifier,
+                                    )
+                                    .state = params.copyWith(
+                                  page: params.page + 1,
+                                );
                               },
                         child: const Text('Next'),
                       ),
@@ -221,10 +218,7 @@ class _SummaryCard extends StatelessWidget {
           children: [
             Text(
               'Summary',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 15.sp,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.sp),
             ),
             SizedBox(height: 10.h),
             _row('Pending', summary.pending),
@@ -253,10 +247,7 @@ class _SummaryCard extends StatelessWidget {
           ),
           Text(
             '${b.count} · ${b.total}',
-            style: TextStyle(
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w700),
           ),
         ],
       ),

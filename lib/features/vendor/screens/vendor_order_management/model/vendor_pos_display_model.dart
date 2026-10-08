@@ -18,10 +18,7 @@ class VendorPosDisplayLine {
     final product = j['product'] is Map<String, dynamic>
         ? j['product'] as Map<String, dynamic>
         : null;
-    final name = (j['name'] ??
-            j['product_name'] ??
-            product?['name'] ??
-            'Item')
+    final name = (j['name'] ?? j['product_name'] ?? product?['name'] ?? 'Item')
         .toString();
     final qty = _toInt(j['quantity'] ?? j['qty'], d: 1);
     final price = _toDouble(
@@ -70,13 +67,14 @@ class VendorPosDisplayData {
       }
     }
     final nested = j['invoice'] ?? j['order'] ?? j['data'];
-    Map<String, dynamic>? nestMap =
-        nested is Map<String, dynamic> ? nested : null;
+    Map<String, dynamic>? nestMap = nested is Map<String, dynamic>
+        ? nested
+        : null;
 
     final items = <VendorPosDisplayLine>[
       ...rawItems.whereType<Map>().map(
-            (e) => VendorPosDisplayLine.fromJson(Map<String, dynamic>.from(e)),
-          ),
+        (e) => VendorPosDisplayLine.fromJson(Map<String, dynamic>.from(e)),
+      ),
     ];
 
     if (items.isEmpty && nestMap != null) {
@@ -85,23 +83,23 @@ class VendorPosDisplayData {
         if (v is List) {
           items.addAll(
             v.whereType<Map>().map(
-                  (e) => VendorPosDisplayLine.fromJson(
-                    Map<String, dynamic>.from(e),
-                  ),
-                ),
+              (e) =>
+                  VendorPosDisplayLine.fromJson(Map<String, dynamic>.from(e)),
+            ),
           );
           break;
         }
       }
     }
 
-    final vendorName = (j['vendor_name'] ??
-            j['store_name'] ??
-            j['shop_name'] ??
-            nestMap?['vendor_name'] ??
-            '')
-        .toString()
-        .trim();
+    final vendorName =
+        (j['vendor_name'] ??
+                j['store_name'] ??
+                j['shop_name'] ??
+                nestMap?['vendor_name'] ??
+                '')
+            .toString()
+            .trim();
 
     double total = _toDouble(
       j['total'] ??
@@ -114,11 +112,12 @@ class VendorPosDisplayData {
       total = items.fold<double>(0, (s, e) => s + e.lineTotal);
     }
 
-    final orderNumber = (j['order_number'] ??
-            nestMap?['order_number'] ??
-            j['invoice_number'])
-        ?.toString();
-    final invoiceId = _toIntOrNull(j['invoice_id'] ?? j['id'] ?? nestMap?['id']);
+    final orderNumber =
+        (j['order_number'] ?? nestMap?['order_number'] ?? j['invoice_number'])
+            ?.toString();
+    final invoiceId = _toIntOrNull(
+      j['invoice_id'] ?? j['id'] ?? nestMap?['id'],
+    );
 
     return VendorPosDisplayData(
       vendorName: vendorName.isEmpty ? 'Store' : vendorName,
@@ -131,11 +130,7 @@ class VendorPosDisplayData {
   }
 
   static VendorPosDisplayData empty({String vendorName = 'Store'}) =>
-      VendorPosDisplayData(
-        vendorName: vendorName,
-        items: const [],
-        total: 0,
-      );
+      VendorPosDisplayData(vendorName: vendorName, items: const [], total: 0);
 }
 
 /// Live walk-in session shared with the customer display route.
@@ -155,13 +150,13 @@ class VendorPosCartSession {
   double get total => items.fold<double>(0, (s, e) => s + e.lineTotal);
 
   VendorPosDisplayData toDisplayData() => VendorPosDisplayData(
-        vendorName: vendorName.isEmpty ? 'Store' : vendorName,
-        items: items,
-        total: total,
-        invoiceId: invoiceId,
-        orderNumber: orderNumber,
-        source: 'local',
-      );
+    vendorName: vendorName.isEmpty ? 'Store' : vendorName,
+    items: items,
+    total: total,
+    invoiceId: invoiceId,
+    orderNumber: orderNumber,
+    source: 'local',
+  );
 
   VendorPosCartSession copyWith({
     String? vendorName,

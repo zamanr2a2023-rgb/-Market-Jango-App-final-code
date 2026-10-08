@@ -22,12 +22,33 @@ final transportPagesProvider = Provider<List<Widget>>(
 
 // --- Widget ------------------------------------------------------------------
 
-class TransportBottomNavBar extends ConsumerWidget {
+class TransportBottomNavBar extends ConsumerStatefulWidget {
   const TransportBottomNavBar({super.key});
   static const String routeName = '/transport_bottom_nav_bar';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TransportBottomNavBar> createState() =>
+      _TransportBottomNavBarState();
+}
+
+class _TransportBottomNavBarState extends ConsumerState<TransportBottomNavBar> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(transportShellActiveProvider.notifier).state = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    ref.read(transportShellActiveProvider.notifier).state = false;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final pages = ref.watch(transportPagesProvider);
     final currentIndex = ref.watch(transportNavIndexProvider);
 

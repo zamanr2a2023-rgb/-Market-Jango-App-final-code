@@ -15,7 +15,7 @@ final userProvider = FutureProvider.family<UserModel, String>((
 ) async {
   final authStorage = AuthLocalStorage();
   final token = await authStorage.getToken();
-  
+
   if (token == null) {
     throw Exception("auth token not found");
   }

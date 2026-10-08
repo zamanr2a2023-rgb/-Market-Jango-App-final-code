@@ -328,6 +328,66 @@ final affiliateLinkDetailProvider = FutureProvider.autoDispose
     });
 
 // ---------------------------------------------------------------------------
+// Affiliate API errors
+// ---------------------------------------------------------------------------
+
+class AffiliateApiException implements Exception {
+  AffiliateApiException(this.statusCode, this.message);
+  final int statusCode;
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+String _formatAffiliateApiError(Map<String, dynamic> json, int statusCode) {
+  if (statusCode == 403) {
+    final msg = json['message']?.toString();
+    if (msg != null && msg.isNotEmpty) {
+      return 'Affiliate is not available on your plan.\n$msg';
+    }
+    return 'Affiliate is not available on your subscription plan.';
+  }
+
+  final parts = <String>[];
+  final msg = json['message']?.toString();
+  if (msg != null && msg.isNotEmpty) parts.add(msg);
+  final errors = json['errors'];
+  if (errors is Map) {
+    for (final e in errors.entries) {
+      final k = e.key.toString();
+      final v = e.value;
+      if (v is List) {
+        for (final item in v) {
+          parts.add('• $k: $item');
+        }
+      } else if (v != null) {
+        parts.add('• $k: $v');
+      }
+    }
+  }
+  final data = json['data'];
+  if (data is Map) {
+    for (final e in data.entries) {
+      final v = e.value;
+      if (v is List) {
+        for (final item in v) {
+          parts.add('• ${e.key}: $item');
+        }
+      }
+    }
+  }
+  if (parts.isEmpty) return 'Request failed (HTTP $statusCode)';
+  return parts.join('\n');
+}
+
+Map<String, dynamic> _decodeAffiliateJson(String body) {
+  final decoded = jsonDecode(body);
+  if (decoded is Map<String, dynamic>) return decoded;
+  return {'message': body};
+}
+
+// ---------------------------------------------------------------------------
 // Generate: POST /api/affiliate/generate
 // ---------------------------------------------------------------------------
 
@@ -379,7 +439,7 @@ Future<AffiliateGenerateResult> affiliateGenerate(
     body: jsonEncode(body),
   );
 
-  final map = jsonDecode(res.body) as Map<String, dynamic>;
+  final map = _decodeAffiliateJson(res.body);
   if (res.statusCode == 201 || res.statusCode == 200) {
     final data = map['data'] as Map<String, dynamic>?;
     if (data != null) {
@@ -392,10 +452,15 @@ Future<AffiliateGenerateResult> affiliateGenerate(
         );
       }
     }
-    throw Exception('Invalid response');
+    throw AffiliateApiException(
+      res.statusCode,
+      _formatAffiliateApiError(map, res.statusCode),
+    );
   }
-  final msg = map['message']?.toString() ?? 'Failed to generate link';
-  throw Exception(msg);
+  throw AffiliateApiException(
+    res.statusCode,
+    _formatAffiliateApiError(map, res.statusCode),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -406,16 +471,32 @@ Future<void> affiliateUpdate(
   String? token, {
   required int id,
   String? name,
+  String? description,
   String? status,
   String? destinationUrl,
+  double? customRate,
+  int? cookieDurationDays,
+  String? attributionModel,
+  String? expiresAt,
 }) async {
   if (token == null || token.isEmpty) throw Exception('Not logged in');
 
   final uri = Uri.parse(CommonAPIController.affiliateLink(id));
   final body = <String, dynamic>{};
   if (name != null) body['name'] = name;
+  if (description != null) body['description'] = description;
   if (status != null) body['status'] = status;
   if (destinationUrl != null) body['destination_url'] = destinationUrl;
+  if (customRate != null) body['custom_rate'] = customRate;
+  if (cookieDurationDays != null) {
+    body['cookie_duration_days'] = cookieDurationDays;
+  }
+  if (attributionModel != null && attributionModel.isNotEmpty) {
+    body['attribution_model'] = attributionModel;
+  }
+  if (expiresAt != null && expiresAt.isNotEmpty) {
+    body['expires_at'] = expiresAt;
+  }
 
   final res = await http.put(
     uri,
@@ -427,10 +508,12 @@ Future<void> affiliateUpdate(
     body: jsonEncode(body),
   );
 
-  final map = jsonDecode(res.body) as Map<String, dynamic>;
+  final map = _decodeAffiliateJson(res.body);
   if (res.statusCode == 200) return;
-  final msg = map['message']?.toString() ?? 'Failed to update link';
-  throw Exception(msg);
+  throw AffiliateApiException(
+    res.statusCode,
+    _formatAffiliateApiError(map, res.statusCode),
+  );
 }
 
 // ---------------------------------------------------------------------------

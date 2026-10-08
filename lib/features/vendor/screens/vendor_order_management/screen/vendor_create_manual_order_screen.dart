@@ -110,6 +110,7 @@ class _VendorCreateManualOrderScreenState
 
   /// `true` = Cash; `false` = Card / Mobile / Debt (see [_payMode]).
   bool _payCash = true;
+
   /// When not cash: `Card`, `Mobile`, or `Debt`.
   String _nonCashMethod = 'Card';
 
@@ -167,13 +168,14 @@ class _VendorCreateManualOrderScreenState
     try {
       final storage = AuthLocalStorage();
       final user = await storage.getUserJson();
-      final name = (user?['name'] ??
-              user?['shop_name'] ??
-              user?['store_name'] ??
-              user?['business_name'] ??
-              '')
-          .toString()
-          .trim();
+      final name =
+          (user?['name'] ??
+                  user?['shop_name'] ??
+                  user?['store_name'] ??
+                  user?['business_name'] ??
+                  '')
+              .toString()
+              .trim();
       if (name.isNotEmpty && mounted) {
         setState(() => _vendorDisplayName = name);
       }
@@ -398,8 +400,8 @@ class _VendorCreateManualOrderScreenState
       final list = data is Map && data['data'] is List
           ? (data['data'] as List)
           : data is List
-              ? data
-              : <dynamic>[];
+          ? data
+          : <dynamic>[];
       final mapped = <_PosProduct>[];
       final cacheById = <int, Map<String, dynamic>>{};
       for (final e in list.whereType<Map<String, dynamic>>()) {
@@ -422,13 +424,16 @@ class _VendorCreateManualOrderScreenState
         if (attrs is List) {
           for (final a in attrs.whereType<Map<String, dynamic>>()) {
             final n = a['name']?.toString().toLowerCase() ?? '';
-            final val = a['value']?.toString() ?? a['attribute_value']?.toString();
+            final val =
+                a['value']?.toString() ?? a['attribute_value']?.toString();
             if (val == null || val.isEmpty) continue;
             if (n.contains('size')) size = val;
             if (n.contains('color') || n.contains('colour')) color = val;
           }
         }
-        final barcode = (e['barcode'] ?? e['barcode_text'] ?? '').toString().trim();
+        final barcode = (e['barcode'] ?? e['barcode_text'] ?? '')
+            .toString()
+            .trim();
         mapped.add(
           _PosProduct(
             id: id,
@@ -457,7 +462,9 @@ class _VendorCreateManualOrderScreenState
         var page = 1;
         var lastPage = 1;
         do {
-          final bp = await VendorBarcodeApi.instance.fetchBarcodeList(page: page);
+          final bp = await VendorBarcodeApi.instance.fetchBarcodeList(
+            page: page,
+          );
           lastPage = bp.lastPage < 1 ? 1 : bp.lastPage;
           for (final p in bp.items) {
             final existing = cacheById[p.id];
@@ -498,8 +505,9 @@ class _VendorCreateManualOrderScreenState
         } while (page <= lastPage && page <= 25);
       } catch (_) {}
 
-      await OfflineSaleQueueStore.instance
-          .saveCatalogCache(cacheById.values.toList());
+      await OfflineSaleQueueStore.instance.saveCatalogCache(
+        cacheById.values.toList(),
+      );
       if (mounted) setState(() => _catalog = mapped);
     } catch (_) {
       // Offline / API failure — use last cached catalog (real data only).
@@ -591,7 +599,9 @@ class _VendorCreateManualOrderScreenState
     final p = _posFromBarcode(b);
     _cacheProduct(p);
     final isNew = _addOrIncrementLine(p);
-    final code = b.barcode.trim().isNotEmpty ? b.barcode.trim() : b.barcodeText.trim();
+    final code = b.barcode.trim().isNotEmpty
+        ? b.barcode.trim()
+        : b.barcodeText.trim();
     OfflineSaleQueueStore.instance.upsertCatalogProduct({
       'id': b.id,
       'name': b.name,
@@ -803,7 +813,10 @@ class _VendorCreateManualOrderScreenState
     _wedgeIdleTimer?.cancel();
     if (value.trim().isEmpty) return;
     // Many USB/BT wedges fire Enter; idle flush covers scanners with no suffix.
-    _wedgeIdleTimer = Timer(const Duration(milliseconds: 120), _flushWedgeBuffer);
+    _wedgeIdleTimer = Timer(
+      const Duration(milliseconds: 120),
+      _flushWedgeBuffer,
+    );
   }
 
   void _onWedgeSubmitted(String value) {
@@ -918,8 +931,7 @@ class _VendorCreateManualOrderScreenState
       final online = await resolveIsOnline(net);
 
       if (!online) {
-        final queued =
-            await OfflineSaleQueueStore.instance.enqueueSales(items);
+        final queued = await OfflineSaleQueueStore.instance.enqueueSales(items);
         bumpOfflineQueue(ref);
         if (!mounted) return;
         for (final l in _lines) {
@@ -965,12 +977,13 @@ class _VendorCreateManualOrderScreenState
       _customerPaid.clear();
       await _clearPosCartDraft();
       _syncPosCustomerSession();
-      ref.read(vendorPosCartSessionProvider.notifier).state =
-          ref.read(vendorPosCartSessionProvider).copyWith(
-                invoiceId: inv.id,
-                orderNumber: inv.orderNumber,
-                vendorName: _vendorDisplayName,
-              );
+      ref.read(vendorPosCartSessionProvider.notifier).state = ref
+          .read(vendorPosCartSessionProvider)
+          .copyWith(
+            invoiceId: inv.id,
+            orderNumber: inv.orderNumber,
+            vendorName: _vendorDisplayName,
+          );
       if (showBill) {
         await _showBillSheet(inv);
       }
@@ -1011,7 +1024,10 @@ class _VendorCreateManualOrderScreenState
     );
   }
 
-  Future<void> _openBillPrint(VendorManualOrderInvoice inv, String billText) async {
+  Future<void> _openBillPrint(
+    VendorManualOrderInvoice inv,
+    String billText,
+  ) async {
     if (!mounted) return;
     await VendorWalkInBillPrintFlow.openPrinterSheet(
       context,
@@ -1049,8 +1065,14 @@ class _VendorCreateManualOrderScreenState
       isDense: true,
       border: OutlineInputBorder(borderRadius: radius, borderSide: idle),
       enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: idle),
-      focusedBorder: OutlineInputBorder(borderRadius: radius, borderSide: focus),
-      disabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: idle),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: focus,
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: idle,
+      ),
       errorBorder: OutlineInputBorder(
         borderRadius: radius,
         borderSide: BorderSide(color: AllColor.red200, width: 1),
@@ -1092,10 +1114,7 @@ class _VendorCreateManualOrderScreenState
           IconButton(
             tooltip: 'Customer display',
             onPressed: _openCustomerDisplay,
-            icon: Icon(
-              Icons.tv_outlined,
-              color: AllColor.loginButtomColor,
-            ),
+            icon: Icon(Icons.tv_outlined, color: AllColor.loginButtomColor),
           ),
         ],
       ),
@@ -1179,31 +1198,36 @@ class _VendorCreateManualOrderScreenState
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    child: GlobalSearchBar<VendorBarcodeListPage,
-                        VendorBarcodeProduct>(
-                      provider: walkInBarcodeSearchProvider,
-                      itemsSelector: (res) => res.items,
-                      itemBuilder: (context, p) =>
-                          _WalkInBarcodeSuggestionTile(product: p),
-                      onItemSelected: (p) {
-                        _addProductFromBarcode(p);
-                        _requestWedgeFocus(force: true);
-                      },
-                      onFocusChange: (hasFocus) {
-                        _searchFocused = hasFocus;
-                        if (!hasFocus) _requestWedgeFocus();
-                      },
-                      hintText: ref.t(VKeys.searchProducts),
-                      debounce: const Duration(milliseconds: 400),
-                      minChars: 1,
-                      showResults: true,
-                      resultsMaxHeight: 380,
-                      autofocus: false,
-                    ),
+                    child:
+                        GlobalSearchBar<
+                          VendorBarcodeListPage,
+                          VendorBarcodeProduct
+                        >(
+                          provider: walkInBarcodeSearchProvider,
+                          itemsSelector: (res) => res.items,
+                          itemBuilder: (context, p) =>
+                              _WalkInBarcodeSuggestionTile(product: p),
+                          onItemSelected: (p) {
+                            _addProductFromBarcode(p);
+                            _requestWedgeFocus(force: true);
+                          },
+                          onFocusChange: (hasFocus) {
+                            _searchFocused = hasFocus;
+                            if (!hasFocus) _requestWedgeFocus();
+                          },
+                          hintText: ref.t(VKeys.searchProducts),
+                          debounce: const Duration(milliseconds: 400),
+                          minChars: 1,
+                          showResults: true,
+                          resultsMaxHeight: 380,
+                          autofocus: false,
+                        ),
                   ),
                   SizedBox(width: 8.w),
                   IconButton.filled(
-                    onPressed: _loadingCatalog ? null : _toggleContinuousScanner,
+                    onPressed: _loadingCatalog
+                        ? null
+                        : _toggleContinuousScanner,
                     style: IconButton.styleFrom(
                       backgroundColor: _continuousScan
                           ? AllColor.red
@@ -1369,13 +1393,13 @@ class _VendorCreateManualOrderScreenState
                   focusNode: _customerNameFocus,
                   textCapitalization: TextCapitalization.words,
                   maxLength: 100,
-                  buildCounter: (
-                    context, {
-                    required currentLength,
-                    required isFocused,
-                    maxLength,
-                  }) =>
-                      const SizedBox.shrink(),
+                  buildCounter:
+                      (
+                        context, {
+                        required currentLength,
+                        required isFocused,
+                        maxLength,
+                      }) => const SizedBox.shrink(),
                   decoration: _fieldDeco('Customer name', hint: 'Required'),
                 ),
                 SizedBox(height: 12.h),
@@ -1384,13 +1408,13 @@ class _VendorCreateManualOrderScreenState
                   focusNode: _customerPhoneFocus,
                   keyboardType: TextInputType.phone,
                   maxLength: 30,
-                  buildCounter: (
-                    context, {
-                    required currentLength,
-                    required isFocused,
-                    maxLength,
-                  }) =>
-                      const SizedBox.shrink(),
+                  buildCounter:
+                      (
+                        context, {
+                        required currentLength,
+                        required isFocused,
+                        maxLength,
+                      }) => const SizedBox.shrink(),
                   decoration: _fieldDeco('Phone', hint: 'Optional'),
                 ),
               ],
@@ -1483,7 +1507,9 @@ class _VendorCreateManualOrderScreenState
                       width: double.infinity,
                       padding: EdgeInsets.all(12.w),
                       decoration: BoxDecoration(
-                        color: AllColor.loginButtomColor.withValues(alpha: 0.08),
+                        color: AllColor.loginButtomColor.withValues(
+                          alpha: 0.08,
+                        ),
                         borderRadius: BorderRadius.circular(10.r),
                       ),
                       child: Text(
@@ -1569,8 +1595,7 @@ class _VendorCreateManualOrderScreenState
     required double? tender,
     required String changeStr,
   }) {
-    final changeText =
-        tender != null && tender >= _cartTotal ? changeStr : '—';
+    final changeText = tender != null && tender >= _cartTotal ? changeStr : '—';
     return Container(
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
@@ -1649,10 +1674,7 @@ class _VendorCreateManualOrderScreenState
               const Spacer(),
               Text(
                 totalStr,
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w800),
               ),
             ],
           ),
@@ -1720,8 +1742,9 @@ class _VendorCreateManualOrderScreenState
                   style: TextStyle(
                     fontSize: 13.sp,
                     fontWeight: FontWeight.w700,
-                    color:
-                        selected ? AllColor.loginButtomColor : AllColor.black,
+                    color: selected
+                        ? AllColor.loginButtomColor
+                        : AllColor.black,
                   ),
                 ),
               ),
@@ -1760,8 +1783,9 @@ class _VendorCreateManualOrderScreenState
         children: List.generate(_lines.length, (i) {
           final line = _lines[i];
           final q = int.tryParse(line.qty.text.trim()) ?? 0;
-          final amt =
-              (q > 0 ? line.product.sellPrice * q : 0).toStringAsFixed(2);
+          final amt = (q > 0 ? line.product.sellPrice * q : 0).toStringAsFixed(
+            2,
+          );
           final meta = <String>[
             if (line.product.sizeLabel?.isNotEmpty == true)
               'Size ${line.product.sizeLabel}',
@@ -1907,6 +1931,7 @@ class _VendorCreateManualOrderScreenState
     );
   }
 }
+
 class _PosContinuousScannerPanel extends StatelessWidget {
   const _PosContinuousScannerPanel({
     required this.controller,
@@ -1935,10 +1960,7 @@ class _PosContinuousScannerPanel extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: controller,
-            onDetect: onDetect,
-          ),
+          MobileScanner(controller: controller, onDetect: onDetect),
           Positioned(
             left: 10.w,
             right: 10.w,
@@ -1950,8 +1972,8 @@ class _PosContinuousScannerPanel extends StatelessWidget {
                     busy
                         ? 'Looking up…'
                         : (lastLabel == null
-                            ? 'Continuous scan — keep scanning'
-                            : 'Last: $lastLabel'),
+                              ? 'Continuous scan — keep scanning'
+                              : 'Last: $lastLabel'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -2030,10 +2052,7 @@ class _WalkInBarcodeSuggestionTile extends StatelessWidget {
                     product.barcode,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.sp,
-                      color: AllColor.grey500,
-                    ),
+                    style: TextStyle(fontSize: 11.sp, color: AllColor.grey500),
                   ),
                 ],
                 SizedBox(height: 6.h),

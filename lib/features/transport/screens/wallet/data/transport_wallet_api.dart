@@ -101,20 +101,7 @@ BuyerWalletPage<BuyerWalletTransaction> _parseWalletTransactionsPage(
 }
 
 Future<Map<String, String>> _transportWalletHeaders() async {
-  final storage = AuthLocalStorage();
-  final token = await storage.getToken();
-  final id = await storage.getUserId();
-  final userType = await storage.getUserType();
-  final userJson = await storage.getUserJson();
-  final email = userJson?['email']?.toString();
-  return {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    if (token != null && token.isNotEmpty) 'token': token,
-    if (id != null && id.isNotEmpty) 'id': id,
-    if (userType != null && userType.isNotEmpty) 'user_type': userType,
-    if (email != null && email.isNotEmpty) 'email': email,
-  };
+  return TransportAPIController.transportAuthHeaders(jsonContentType: true);
 }
 
 void _maybeAssertEnvelope(String body) {

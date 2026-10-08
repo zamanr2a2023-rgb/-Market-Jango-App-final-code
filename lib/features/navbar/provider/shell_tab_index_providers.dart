@@ -11,3 +11,6 @@ final driverNavIndexProvider = StateProvider<int>((ref) => 0);
 
 /// Active tab index when [TransportBottomNavBar] is the current shell.
 final transportNavIndexProvider = StateProvider<int>((ref) => 0);
+
+/// True while [TransportBottomNavBar] is mounted (buyer same-login transport shell).
+final transportShellActiveProvider = StateProvider<bool>((ref) => false);

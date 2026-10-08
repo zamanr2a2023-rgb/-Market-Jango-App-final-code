@@ -8,6 +8,7 @@ import 'package:market_jango/features/vendor/screens/vendor_order_management/dat
 import 'package:market_jango/features/vendor/screens/vendor_order_management/model/vendor_orders_models.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/provider/vendor_orders_provider.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_assign_driver_sheet.dart';
+import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_assign_outlet_sheet.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/util/vendor_order_document_local_save.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_marketplace_line_product_card.dart';
 import 'package:market_jango/features/vendor/screens/vendor_order_management/widget/vendor_order_assign_rules.dart';
@@ -243,6 +244,53 @@ class _VendorMarketplaceOrderDetailScreenState
     }
     return 'This line must be Pending or Processing to assign a driver. '
         'Current line status: ${d.status.isEmpty ? '—' : d.status}.';
+  }
+
+  String _outletAssignmentLabel(VendorMarketplaceLineDetail d) {
+    if (d.outletId == null) return 'Not assigned';
+    final status = d.outletStatus?.trim();
+    final base = 'Outlet #${d.outletId}';
+    if (status != null && status.isNotEmpty) {
+      return '$base · $status';
+    }
+    return base;
+  }
+
+  Future<void> _openAssignOutletSheet() async {
+    final d = _detail;
+    if (d == null || !mounted) return;
+    if (!_canAssignDriverToLine(d)) {
+      GlobalSnackbar.show(
+        context,
+        title: 'Cannot assign outlet',
+        message: _assignDriverBlockedHint(
+          d,
+        ).replaceFirst('Driver assignment', 'Outlet assignment'),
+        type: CustomSnackType.error,
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) {
+        final h = MediaQuery.sizeOf(context).height * 0.58;
+        return SafeArea(
+          child: SizedBox(
+            height: h,
+            child: VendorAssignOutletSheet(
+              lineId: widget.lineId,
+              invoiceStatus: _orderGateStatus(d),
+              lineStatus: d.status,
+              onAssigned: () async {
+                Navigator.of(sheetCtx).pop();
+                await _load();
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _openAssignDriverSheet() async {
@@ -785,6 +833,95 @@ class _VendorMarketplaceOrderDetailScreenState
                 decoration: _inputDecoration(
                   label: 'Note (optional)',
                   hint: 'Reason or message for status change',
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          _section(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(8.r),
+                    decoration: BoxDecoration(
+                      color: AllColor.orange50.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
+                    child: Icon(
+                      Icons.storefront_outlined,
+                      color: AllColor.loginButtomColor,
+                      size: 22.sp,
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Outlet',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15.sp,
+                            color: AllColor.black,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        SizedBox(height: 2.h),
+                        Text(
+                          'Assign this line to a pickup outlet.',
+                          style: TextStyle(
+                            fontSize: 11.5.sp,
+                            color: AllColor.grey500,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12.h),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10.r),
+                  border: Border.all(color: AllColor.grey200),
+                ),
+                child: Text(
+                  _outletAssignmentLabel(d),
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                    color: AllColor.black,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12.h),
+              FilledButton.icon(
+                onPressed: _canAssignDriverToLine(d)
+                    ? _openAssignOutletSheet
+                    : null,
+                icon: Icon(Icons.store_mall_directory_outlined, size: 20.sp),
+                label: Text(
+                  'Assign outlet',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AllColor.loginButtomColor,
+                  foregroundColor: AllColor.white,
+                  disabledBackgroundColor: AllColor.grey300,
+                  disabledForegroundColor: AllColor.grey.shade600,
+                  padding: EdgeInsets.symmetric(vertical: 14.h),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
                 ),
               ),
             ],

@@ -1,7 +1,9 @@
 import 'package:market_jango/core/utils/auth_local_storage.dart';
 
 /// Headers aligned with vendor API middleware (`token`, `id`, `user_type`, `email`).
-Future<Map<String, String>> vendorOrderApiHeaders({String? tokenOverride}) async {
+Future<Map<String, String>> vendorOrderApiHeaders({
+  String? tokenOverride,
+}) async {
   final storage = AuthLocalStorage();
   final token = tokenOverride ?? await storage.getToken();
   final userId = await storage.getUserId();
@@ -34,7 +36,9 @@ Future<Map<String, String>> vendorMultipartApiHeaders({
     'Accept': 'application/json',
     if (token != null && token.isNotEmpty) 'token': token,
     if (userId != null && userId.isNotEmpty) 'id': userId,
-    'user_type': (userType != null && userType.isNotEmpty) ? userType : 'vendor',
+    'user_type': (userType != null && userType.isNotEmpty)
+        ? userType
+        : 'vendor',
     if (email.isNotEmpty) 'email': email,
   };
 }

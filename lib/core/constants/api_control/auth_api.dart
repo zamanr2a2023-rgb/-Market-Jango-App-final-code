@@ -33,5 +33,16 @@ class AuthAPIController {
   static String verifyOtp="$_base_api/verify-mail-otp";
   static String route="$_base_api/route";
   static String user_show = "$_base_api/user/show";
+
+  /// POLISH — includes `modules.transport` (fallback: [user_show]).
+  static String userDetail({String? id}) {
+    if (id == null || id.trim().isEmpty) {
+      return '$_base_api/user/detail';
+    }
+    return Uri.parse('$_base_api/user/detail')
+        .replace(queryParameters: {'id': id.trim()})
+        .toString();
+  }
+
   static String vendor_show = "$_base_api/vendor/show";
 }

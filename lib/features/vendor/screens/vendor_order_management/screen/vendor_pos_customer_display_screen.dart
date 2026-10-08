@@ -43,9 +43,7 @@ class VendorPosCustomerDisplayScreen extends ConsumerWidget {
     final session = ref.watch(vendorPosCartSessionProvider);
     return Scaffold(
       backgroundColor: AllColor.black,
-      body: SafeArea(
-        child: _DisplayBody(data: session.toDisplayData()),
-      ),
+      body: SafeArea(child: _DisplayBody(data: session.toDisplayData())),
     );
   }
 }

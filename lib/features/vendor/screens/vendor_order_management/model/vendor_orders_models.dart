@@ -69,6 +69,7 @@ class VendorNestedInvoice {
   final int id;
   final String orderNumber;
   final String status;
+
   /// Parent order status when API nests `order` — assign-driver often validates this.
   final String? orderStatus;
   final String? paymentMethod;
@@ -267,6 +268,9 @@ class VendorMarketplaceLine {
   final int? outletId;
   final String? outletStatus;
 
+  /// Pending buyer approval for a vendor-requested quantity decrease (detail/list GET).
+  final VendorQuantityChangeRequest? pendingQuantityChange;
+
   /// Buyer-brief accent (`doc/details.md`); optional from API.
   final String? orderColorKey;
   final String? suggestedColor;
@@ -294,6 +298,7 @@ class VendorMarketplaceLine {
     this.parentOrderStatus,
     this.outletId,
     this.outletStatus,
+    this.pendingQuantityChange,
     this.orderColorKey,
     this.suggestedColor,
     this.isUrgent = false,
@@ -362,13 +367,18 @@ class VendorMarketplaceLine {
           : vendorFromNested,
       parentOrderStatus: parentOrderStatus,
       outletId: j['outlet_id'] == null ? null : _toInt(j['outlet_id']),
-      outletStatus: (j['outlet_status'] == null ||
+      outletStatus:
+          (j['outlet_status'] == null ||
               j['outlet_status'].toString().trim().isEmpty)
           ? null
           : j['outlet_status'].toString(),
+      pendingQuantityChange: VendorQuantityChangeRequest.tryParseFromLineJson(
+        j,
+      ),
       orderColorKey: colorKey.isEmpty ? null : colorKey,
       suggestedColor: suggested.isEmpty ? null : suggested,
-      isUrgent: urgentFromMap(j) ||
+      isUrgent:
+          urgentFromMap(j) ||
           (ord is Map<String, dynamic> && urgentFromMap(ord)),
     );
   }
@@ -402,6 +412,7 @@ class VendorMarketplaceLineDetail extends VendorMarketplaceLine {
     super.parentOrderStatus,
     super.outletId,
     super.outletStatus,
+    super.pendingQuantityChange,
     super.orderColorKey,
     super.suggestedColor,
     super.isUrgent,
@@ -446,6 +457,7 @@ class VendorMarketplaceLineDetail extends VendorMarketplaceLine {
       parentOrderStatus: base.parentOrderStatus,
       outletId: base.outletId,
       outletStatus: base.outletStatus,
+      pendingQuantityChange: base.pendingQuantityChange,
       orderColorKey: base.orderColorKey,
       suggestedColor: base.suggestedColor,
       isUrgent: base.isUrgent,
@@ -514,17 +526,19 @@ class OrderSummary {
           vat: fromNested.vat,
           customerPaid: fromNested.customerPaid,
           change: fromNested.change,
-          debtAmount: fromNested.debtAmount ??
+          debtAmount:
+              fromNested.debtAmount ??
               (j['debt_amount'] ?? j['total_debt'])?.toString(),
-          debtRemaining: fromNested.debtRemaining ??
+          debtRemaining:
+              fromNested.debtRemaining ??
               (j['debt_remaining'] ??
                       j['remaining_balance'] ??
                       j['remaining_debt'])
                   ?.toString(),
-          debtPaid: fromNested.debtPaid ??
+          debtPaid:
+              fromNested.debtPaid ??
               (j['debt_paid'] ?? j['amount_paid'])?.toString(),
-          debtStatus:
-              fromNested.debtStatus ?? j['debt_status']?.toString(),
+          debtStatus: fromNested.debtStatus ?? j['debt_status']?.toString(),
         );
       }
     }
@@ -651,8 +665,7 @@ class VendorManualOrderInvoice {
     if (!isDebtPayment) return 0;
     final total = summary.debtTotalNumeric;
     final paid = summary.debtPaidNumeric;
-    final hasPaidField =
-        (summary.debtPaid ?? '').trim().isNotEmpty || paid > 0;
+    final hasPaidField = (summary.debtPaid ?? '').trim().isNotEmpty || paid > 0;
     if (total > 0 && hasPaidField) {
       final computed = total - paid;
       return computed < 0 ? 0 : computed;
@@ -676,10 +689,8 @@ class VendorManualOrderInvoice {
       return st[0].toUpperCase() + (st.length > 1 ? st.substring(1) : '');
     }
     if (isDebtFullyPaid) return 'Paid';
-    final paid = double.tryParse(
-          (summary.debtPaid ?? '').replaceAll(',', ''),
-        ) ??
-        0;
+    final paid =
+        double.tryParse((summary.debtPaid ?? '').replaceAll(',', '')) ?? 0;
     if (paid > 0 && remainingDebt > 0) return 'Partial';
     return 'Unpaid';
   }
@@ -954,7 +965,9 @@ class VendorPayoutPreview {
       if (value == null) return null;
       if (currency == null || currency.isEmpty) return value;
       if (value.contains(currency)) return value;
-      if (value.startsWith(r'$') || value.contains(' ') || value.endsWith('%')) {
+      if (value.startsWith(r'$') ||
+          value.contains(' ') ||
+          value.endsWith('%')) {
         return value;
       }
       return '$currency $value';
@@ -1124,7 +1137,9 @@ class VendorRefundListItem {
       amount: _toDouble(j['amount']),
       reason: _s(j['reason']),
       productName: _s(product?['name']),
-      customerName: _s(user?['name'] ?? inv?['customer_name'] ?? inv?['cus_name']),
+      customerName: _s(
+        user?['name'] ?? inv?['customer_name'] ?? inv?['cus_name'],
+      ),
       orderNumber: _s(inv?['order_number']),
       refundMethod: (j['refund_method'] ?? j['method'])?.toString(),
       quantity: j['quantity'] == null ? null : _toInt(j['quantity']),
@@ -1236,8 +1251,9 @@ class VendorRefundDetail {
       requestedBy: j['requested_by']?.toString(),
       productName: _s(product?['name']),
       orderNumber: _s(inv?['order_number']),
-      customerName:
-          _s(user?['name'] ?? inv?['customer_name'] ?? inv?['cus_name']),
+      customerName: _s(
+        user?['name'] ?? inv?['customer_name'] ?? inv?['cus_name'],
+      ),
       customerPhone:
           (user?['phone'] ?? inv?['customer_phone'] ?? inv?['cus_phone'])
               ?.toString(),
@@ -1245,8 +1261,8 @@ class VendorRefundDetail {
       refundMethod: (j['refund_method'] ?? j['method'])?.toString(),
       quantity: j['quantity'] == null ? null : _toInt(j['quantity']),
       stockRestored: stockRestored,
-      stockRestoredQty: j['stock_restored_qty'] == null &&
-              j['restored_quantity'] == null
+      stockRestoredQty:
+          j['stock_restored_qty'] == null && j['restored_quantity'] == null
           ? null
           : _toInt(j['stock_restored_qty'] ?? j['restored_quantity']),
     );
@@ -1292,22 +1308,94 @@ class VendorCreditPolicy {
       creditLimit: _toDouble(
         j['credit_limit'] ?? j['limit'] ?? j['max_credit'],
       ),
-      dueDays: _toInt(j['due_days'] ?? j['due_date_days'] ?? j['due_days_count']),
+      dueDays: _toInt(
+        j['due_days'] ?? j['due_date_days'] ?? j['due_days_count'],
+      ),
       lateFee: _toDouble(j['late_fee'] ?? j['late_fee_amount']),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'credit_limit': creditLimit,
-        'due_days': dueDays,
-        'late_fee': lateFee,
-      };
+    'credit_limit': creditLimit,
+    'due_days': dueDays,
+    'late_fee': lateFee,
+  };
 
   static const empty = VendorCreditPolicy(
     creditLimit: 0,
     dueDays: 0,
     lateFee: 0,
   );
+}
+
+/// Buyer-approval quantity change (`change_request` on PATCH or line GET).
+class VendorQuantityChangeRequest {
+  final int id;
+  final int? proposedQuantity;
+  final String status;
+
+  const VendorQuantityChangeRequest({
+    required this.id,
+    this.proposedQuantity,
+    required this.status,
+  });
+
+  bool get awaitsBuyerApproval {
+    final s = status.toLowerCase().trim().replaceAll(RegExp(r'[\s\-]+'), '_');
+    return s == 'pending' ||
+        s == 'pending_buyer_approval' ||
+        (s.contains('pending') && s.contains('approval'));
+  }
+
+  factory VendorQuantityChangeRequest.fromJson(Map<String, dynamic> j) {
+    final proposed = j['proposed_quantity'] ?? j['quantity'];
+    return VendorQuantityChangeRequest(
+      id: _toInt(j['id']),
+      proposedQuantity: proposed == null ? null : _toInt(proposed),
+      status: _s(j['status']),
+    );
+  }
+
+  static VendorQuantityChangeRequest? tryParseFromLineJson(
+    Map<String, dynamic> j,
+  ) {
+    final raw =
+        j['change_request'] ??
+        j['pending_quantity_change'] ??
+        j['quantity_change_request'];
+    if (raw is! Map) return null;
+    final req = VendorQuantityChangeRequest.fromJson(
+      Map<String, dynamic>.from(raw),
+    );
+    if (req.id <= 0 && !req.awaitsBuyerApproval && req.status.isEmpty) {
+      return null;
+    }
+    return req;
+  }
+
+  static VendorQuantityChangeRequest? tryParse(Map<String, dynamic> top) {
+    Map<String, dynamic> source = top;
+    final data = top['data'];
+    if (data is Map<String, dynamic>) source = data;
+    final raw = source['change_request'];
+    if (raw is! Map) return null;
+    return VendorQuantityChangeRequest.fromJson(Map<String, dynamic>.from(raw));
+  }
+}
+
+/// `PATCH …/quantity` response payload.
+class VendorMarketplaceQuantityPatchResult {
+  final AutoRefundModel? autoRefund;
+  final VendorQuantityChangeRequest? changeRequest;
+
+  const VendorMarketplaceQuantityPatchResult({
+    this.autoRefund,
+    this.changeRequest,
+  });
+
+  bool get sentForBuyerApproval =>
+      changeRequest?.awaitsBuyerApproval == true ||
+      autoRefund?.skipReason == 'pending_buyer_approval';
 }
 
 /// `auto_refund` on cancel-line and quantity-update responses.
@@ -1332,13 +1420,44 @@ class AutoRefundModel {
           skipReason!.isEmpty ||
           skipReason == 'unpaid_or_cod_pending');
 
+  bool get pendingBuyerApproval =>
+      skipped && skipReason == 'pending_buyer_approval';
+
+  /// Wallet credit message when refund was applied immediately.
+  String? walletCreditMessage() {
+    if (skipped || credited <= 0) return null;
+    final n = credited == credited.roundToDouble()
+        ? credited.toStringAsFixed(0)
+        : credited.toStringAsFixed(2);
+    return 'Amount returned to buyer wallet ($n).';
+  }
+
+  /// Skipped-refund explanation for cancel or immediate quantity updates.
+  String? skippedRefundMessage() {
+    if (!skipped) return null;
+    final r = skipReason?.trim().toLowerCase();
+    if (r == 'pending_buyer_approval') {
+      return 'Quantity change is waiting for buyer approval.';
+    }
+    if (r == null || r.isEmpty || r == 'unpaid_or_cod_pending') {
+      return 'No refund issued because the order was unpaid/COD pending.';
+    }
+    return null;
+  }
+
+  /// User-facing note for cancel-line [auto_refund] (not pending qty approval).
+  String? cancelLineRefundMessage() {
+    return walletCreditMessage() ?? skippedRefundMessage();
+  }
+
   factory AutoRefundModel.fromJson(Map<String, dynamic> j) {
     final reason = j['skip_reason']?.toString().trim();
     final idRaw = j['refund_id'];
     final id = idRaw == null ? null : _toInt(idRaw);
     return AutoRefundModel(
       credited: _toDouble(j['credited']),
-      skipped: j['skipped'] == true ||
+      skipped:
+          j['skipped'] == true ||
           j['skipped'] == 1 ||
           j['skipped']?.toString().toLowerCase() == 'true',
       skipReason: (reason == null || reason.isEmpty || reason == 'null')

@@ -56,7 +56,9 @@ class VendorWalkInBillPreviewDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       elevation: 0,
       child: Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.82),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+        ),
         decoration: BoxDecoration(
           color: AllColor.white,
           borderRadius: BorderRadius.circular(20.r),
@@ -149,7 +151,11 @@ class _Header extends StatelessWidget {
           ),
           IconButton(
             onPressed: onClose,
-            icon: Icon(Icons.close_rounded, color: AllColor.grey500, size: 22.sp),
+            icon: Icon(
+              Icons.close_rounded,
+              color: AllColor.grey500,
+              size: 22.sp,
+            ),
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFFF3F4F6),
             ),
@@ -172,11 +178,17 @@ class _SuccessBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFECFDF5),
         borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: const Color(0xFF6EE7B7).withValues(alpha: 0.5)),
+        border: Border.all(
+          color: const Color(0xFF6EE7B7).withValues(alpha: 0.5),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.check_circle_rounded, color: const Color(0xFF059669), size: 22.sp),
+          Icon(
+            Icons.check_circle_rounded,
+            color: const Color(0xFF059669),
+            size: 22.sp,
+          ),
           SizedBox(width: 10.w),
           Expanded(
             child: Column(
@@ -320,7 +332,9 @@ class _ReceiptCard extends StatelessWidget {
               children: [
                 _ReceiptRow(
                   label: 'Payable',
-                  value: inv.summary.payable.isEmpty ? '—' : inv.summary.payable,
+                  value: inv.summary.payable.isEmpty
+                      ? '—'
+                      : inv.summary.payable,
                   valueBold: true,
                   valueLarge: true,
                 ),
@@ -445,7 +459,10 @@ class _ItemRow extends StatelessWidget {
                   else if (unit != null && unit.isNotEmpty)
                     Text(
                       unit,
-                      style: TextStyle(fontSize: 12.sp, color: AllColor.grey500),
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: AllColor.grey500,
+                      ),
                     ),
                 ],
               ),

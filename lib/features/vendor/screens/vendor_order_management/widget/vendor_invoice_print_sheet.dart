@@ -8,10 +8,7 @@ import 'package:market_jango/features/vendor/screens/vendor_order_management/wid
 class VendorInvoicePrintSheet {
   VendorInvoicePrintSheet._();
 
-  static Future<void> show(
-    BuildContext context,
-    VendorInvoicePrintData data,
-  ) {
+  static Future<void> show(BuildContext context, VendorInvoicePrintData data) {
     return VendorPrinterChoiceSheet.show(
       context,
       title: 'Print invoice',

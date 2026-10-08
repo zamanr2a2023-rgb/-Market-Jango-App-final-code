@@ -597,11 +597,9 @@ class _BuyerPaymentScreenState extends ConsumerState<BuyerPaymentScreen> {
       saved: savedContacts,
     );
     final contactLines = buyer == null && savedContacts == null
-        ? const ['___,', '+____,', '_____']
+        ? const ['_____', '+____']
         : [
-            'Pickup: ${contacts.pickupName.isEmpty ? '—' : contacts.pickupName}',
-            contacts.pickupPhone.isEmpty ? '—' : contacts.pickupPhone,
-            'Drop: ${contacts.dropName.isEmpty ? '—' : contacts.dropName}',
+            contacts.dropName.isEmpty ? '—' : contacts.dropName,
             contacts.dropPhone.isEmpty ? '—' : contacts.dropPhone,
           ];
 

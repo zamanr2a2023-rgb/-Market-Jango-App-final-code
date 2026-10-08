@@ -513,6 +513,7 @@ class VendorHomeScreen extends ConsumerWidget {
               productName: prod.name,
               image: prod.image,
               viewCount: prod.viewCount,
+              showDownloadButton: false,
             ),
             Positioned(
               top: 20.h,

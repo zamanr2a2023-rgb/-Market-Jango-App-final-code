@@ -174,11 +174,10 @@ Future<InitiateShipmentPaymentResult> initiateShipmentPayment({
   final uri = Uri.parse(TransportAPIController.initiateShipmentPayment(shipmentId));
   final res = await http.post(
     uri,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      if (token.isNotEmpty) 'token': token,
-    },
+    headers: await TransportAPIController.transportAuthHeaders(
+      tokenOverride: token,
+      jsonContentType: true,
+    ),
     body: jsonEncode(<String, dynamic>{}),
   );
 
@@ -212,11 +211,10 @@ Future<void> payShipment({
       : <String, dynamic>{};
   final res = await http.post(
     uri,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      if (token.isNotEmpty) 'token': token,
-    },
+    headers: await TransportAPIController.transportAuthHeaders(
+      tokenOverride: token,
+      jsonContentType: true,
+    ),
     body: jsonEncode(body),
   );
 
@@ -316,10 +314,9 @@ Future<ShipmentListResult> getMyShipments({
   );
   final res = await http.get(
     uri,
-    headers: {
-      'Accept': 'application/json',
-      if (token.isNotEmpty) 'token': token,
-    },
+    headers: await TransportAPIController.transportAuthHeaders(
+      tokenOverride: token,
+    ),
   );
   final json = jsonDecode(res.body) as Map<String, dynamic>;
   if (json['status'] != 'success') {
@@ -348,10 +345,9 @@ Future<Map<String, dynamic>> getShipmentDetails({
   final uri = Uri.parse(TransportAPIController.shipmentById(shipmentId));
   final res = await http.get(
     uri,
-    headers: {
-      'Accept': 'application/json',
-      if (token.isNotEmpty) 'token': token,
-    },
+    headers: await TransportAPIController.transportAuthHeaders(
+      tokenOverride: token,
+    ),
   );
   final json = jsonDecode(res.body) as Map<String, dynamic>;
   if (json['status'] != 'success') {

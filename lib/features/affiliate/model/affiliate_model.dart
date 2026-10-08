@@ -15,6 +15,9 @@ class AffiliateLinkModel {
   final String? createdAt;
   final int? totalClicks;
   final int? totalConversions;
+  final double? customRate;
+  final int? cookieDurationDays;
+  final String? attributionModel;
 
   const AffiliateLinkModel({
     required this.id,
@@ -32,6 +35,9 @@ class AffiliateLinkModel {
     this.createdAt,
     this.totalClicks,
     this.totalConversions,
+    this.customRate,
+    this.cookieDurationDays,
+    this.attributionModel,
   });
 
   String get displayName => name?.trim().isNotEmpty == true ? name! : 'Link $linkCode';
@@ -42,6 +48,21 @@ class AffiliateLinkModel {
       if (v is int) return v;
       if (v is num) return v.toInt();
       return int.tryParse(v.toString()) ?? def;
+    }
+
+    double? toDoubleN(dynamic v) {
+      if (v == null) return null;
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString());
+    }
+
+    int? toIntN(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString());
     }
 
     return AffiliateLinkModel(
@@ -60,15 +81,10 @@ class AffiliateLinkModel {
       createdAt: json['created_at']?.toString(),
       totalClicks: json['total_clicks'] != null ? toInt(json['total_clicks']) : null,
       totalConversions: json['total_conversions'] != null ? toInt(json['total_conversions']) : null,
+      customRate: toDoubleN(json['custom_rate']),
+      cookieDurationDays: toIntN(json['cookie_duration_days']),
+      attributionModel: json['attribution_model']?.toString(),
     );
-  }
-
-  Map<String, dynamic> toUpdateBody({String? name, String? status, String? destinationUrl}) {
-    final m = <String, dynamic>{};
-    if (name != null) m['name'] = name;
-    if (status != null) m['status'] = status;
-    if (destinationUrl != null) m['destination_url'] = destinationUrl;
-    return m;
   }
 }
 

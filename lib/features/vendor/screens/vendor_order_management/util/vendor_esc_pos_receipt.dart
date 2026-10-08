@@ -26,7 +26,12 @@ class VendorEscPosReceipt {
       );
     }
 
-    line('MARKET JANGO', align: AlignPos.center, bold: true, size: FontSize.big);
+    line(
+      'MARKET JANGO',
+      align: AlignPos.center,
+      bold: true,
+      size: FontSize.big,
+    );
     line(
       data.walkInReceipt ? 'WALK-IN RECEIPT' : 'INVOICE',
       align: AlignPos.center,
@@ -59,9 +64,7 @@ class VendorEscPosReceipt {
 
     for (final item in data.lines) {
       line(_fit(item.name, _chars58), bold: true);
-      line(
-        ' ${item.quantity} x ${item.unitPrice} = ${item.lineTotal}',
-      );
+      line(' ${item.quantity} x ${item.unitPrice} = ${item.lineTotal}');
     }
 
     line('--------------------------------');
@@ -70,7 +73,12 @@ class VendorEscPosReceipt {
         data.total != data.payable) {
       line('Subtotal: ${data.total}', align: AlignPos.right);
     }
-    line('TOTAL: ${data.payable}', align: AlignPos.right, bold: true, size: FontSize.doubleHeight);
+    line(
+      'TOTAL: ${data.payable}',
+      align: AlignPos.right,
+      bold: true,
+      size: FontSize.doubleHeight,
+    );
     final paid = data.customerPaid?.trim();
     if (paid != null && paid.isNotEmpty && paid != '—') {
       line('Paid: $paid', align: AlignPos.right);
@@ -81,7 +89,11 @@ class VendorEscPosReceipt {
     }
     line('--------------------------------');
     line('Thank you', align: AlignPos.center);
-    line('58mm BT | ESC/POS', align: AlignPos.center, size: FontSize.compressed);
+    line(
+      '58mm BT | ESC/POS',
+      align: AlignPos.center,
+      size: FontSize.compressed,
+    );
 
     out.addAll(PostCode.cut());
     return out;

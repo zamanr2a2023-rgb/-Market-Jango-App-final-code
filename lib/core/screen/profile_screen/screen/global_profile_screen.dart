@@ -37,6 +37,7 @@ import 'package:market_jango/features/transport/screens/wallet/screen/transport_
 import 'package:market_jango/features/buyer/screens/order/screen/buyer_order_page.dart';
 import 'package:market_jango/features/buyer/screens/refunds/screen/buyer_refunds_screen.dart';
 import 'package:market_jango/features/buyer/screens/wallet/screen/buyer_wallet_screen.dart';
+import 'package:market_jango/features/buyer/widgets/buyer_transport_profile_entry.dart';
 import 'package:market_jango/features/vendor/screens/wallet/screen/vendor_wallet_screen.dart';
 import 'package:market_jango/features/navbar/provider/shell_tab_index_providers.dart';
 import '../../../../features/vendor/screens/vendor_my_product_screen.dart/screen/vendor_my_product_screen.dart';
@@ -341,6 +342,10 @@ class GlobalSettingScreen extends ConsumerWidget {
             title: ref.t(BKeys.refunds, fallback: 'Refunds'),
             onTap: () => context.push(BuyerRefundsScreen.routeName),
           ),
+        if (userTypeAsync.value == "buyer") ...[
+          _DividerLine(),
+          const BuyerTransportProfileEntry(),
+        ],
         if (userTypeAsync.value == "transport")
           _SettingsTile(
             leadingIcon: Icons.receipt_long_outlined,
@@ -483,8 +488,7 @@ class GlobalSettingScreen extends ConsumerWidget {
         _SettingsTile(
           leadingIcon: Icons.notifications_active_outlined,
           title: 'Notification settings',
-          onTap: () =>
-              context.push(NotificationPreferencesScreen.routeName),
+          onTap: () => context.push(NotificationPreferencesScreen.routeName),
         ),
         _DividerLine(),
         _SettingsTile(

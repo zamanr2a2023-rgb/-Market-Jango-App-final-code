@@ -17,10 +17,9 @@ class TransportOrdersRepository {
     final uri = Uri.parse('$baseUrl?page=$page');
     final res = await http.get(
       uri,
-      headers: {
-        'Accept': 'application/json',
-        if (token.isNotEmpty) 'token': token,
-      },
+      headers: await TransportAPIController.transportAuthHeaders(
+        tokenOverride: token,
+      ),
     );
     if (res.statusCode == 200) {
       return TransportOrdersResponse.fromJson(jsonDecode(res.body));

@@ -32,11 +32,12 @@ String _normalizeTokenHeader(String raw) {
   return 'Bearer $t';
 }
 
-Map<String, String> _shipmentPdfHeaders(String token) {
-  return {
-    'Accept': 'application/pdf',
-    if (token.isNotEmpty) 'token': _normalizeTokenHeader(token),
-  };
+Future<Map<String, String>> _shipmentPdfHeaders(String token) async {
+  final headers = await TransportAPIController.transportAuthHeaders(
+    tokenOverride: _normalizeTokenHeader(token),
+    accept: 'application/pdf',
+  );
+  return headers;
 }
 
 String _httpErrorMessage(http.Response res) {
@@ -66,7 +67,7 @@ Future<TransportShipmentPdfBytes> fetchTransportShipmentInvoiceDocument({
 }) async {
   if (shipmentId <= 0) throw Exception('Invalid shipment id');
   final uri = Uri.parse(TransportAPIController.shipmentDownloadInvoice(shipmentId));
-  final res = await http.get(uri, headers: _shipmentPdfHeaders(token));
+  final res = await http.get(uri, headers: await _shipmentPdfHeaders(token));
   if (res.statusCode != 200) {
     throw Exception(_httpErrorMessage(res));
   }
@@ -86,7 +87,7 @@ Future<TransportShipmentPdfBytes> fetchTransportShipmentDeliveryLabelDocument({
   final uri = Uri.parse(
     TransportAPIController.shipmentDownloadDeliveryLabel(shipmentId),
   );
-  final res = await http.get(uri, headers: _shipmentPdfHeaders(token));
+  final res = await http.get(uri, headers: await _shipmentPdfHeaders(token));
   if (res.statusCode != 200) {
     throw Exception(_httpErrorMessage(res));
   }

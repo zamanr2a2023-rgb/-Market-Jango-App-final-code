@@ -133,7 +133,9 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
     if (_pairedDevices.isEmpty) {
       return 'No paired devices — pair your printer in phone Bluetooth settings';
     }
-    final count = VendorInvoicePrinterService.likelyPrinters(_pairedDevices).length;
+    final count = VendorInvoicePrinterService.likelyPrinters(
+      _pairedDevices,
+    ).length;
     if (count > 0) {
       return '$count printer(s) detected · tap to choose';
     }
@@ -314,7 +316,9 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
                     children: [
                       if (likely.isNotEmpty) ...[
                         _PickerSectionHeader(title: 'Detected printers'),
-                        ...likely.map((d) => _PrinterListTile(device: d, ctx: ctx)),
+                        ...likely.map(
+                          (d) => _PrinterListTile(device: d, ctx: ctx),
+                        ),
                       ],
                       if (others.isNotEmpty) ...[
                         _PickerSectionHeader(
@@ -322,7 +326,9 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
                               ? 'Paired devices'
                               : 'Other paired devices',
                         ),
-                        ...others.map((d) => _PrinterListTile(device: d, ctx: ctx)),
+                        ...others.map(
+                          (d) => _PrinterListTile(device: d, ctx: ctx),
+                        ),
                       ],
                     ],
                   ),
@@ -348,8 +354,7 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final s80 = widget.subtitle80 ??
-        'Epson / Star · system print dialog';
+    final s80 = widget.subtitle80 ?? 'Epson / Star · system print dialog';
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -399,7 +404,8 @@ class _VendorPrinterChoiceSheetState extends State<VendorPrinterChoiceSheet> {
               ),
             ],
           ),
-          if (widget.subtitle != null && widget.subtitle!.trim().isNotEmpty) ...[
+          if (widget.subtitle != null &&
+              widget.subtitle!.trim().isNotEmpty) ...[
             SizedBox(height: 4.h),
             Text(
               widget.subtitle!,
@@ -532,7 +538,10 @@ class _PrintOptionTile extends StatelessWidget {
                     SizedBox(height: 4.h),
                     Text(
                       subtitle,
-                      style: TextStyle(fontSize: 12.sp, color: AllColor.grey500),
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: AllColor.grey500,
+                      ),
                     ),
                   ],
                 ),

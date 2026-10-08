@@ -460,15 +460,15 @@ class _WalkInTab extends ConsumerWidget {
             },
             backgroundColor: AllColor.loginButtomColor,
             foregroundColor: AllColor.white,
-            extendedPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+            extendedPadding: EdgeInsets.symmetric(
+              horizontal: 12.w,
+              vertical: 8.h,
+            ),
             extendedIconLabelSpacing: 6.w,
             icon: Icon(Icons.add, size: 20.sp),
             label: Text(
               'New order',
-              style: TextStyle(
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -1421,10 +1421,7 @@ List<List<VendorMarketplaceLine>> _groupMarketplaceLinesByOrder(
 }
 
 class _MarketplaceOrderGroupTile extends StatelessWidget {
-  const _MarketplaceOrderGroupTile({
-    required this.lines,
-    required this.onTap,
-  });
+  const _MarketplaceOrderGroupTile({required this.lines, required this.onTap});
 
   final List<VendorMarketplaceLine> lines;
   final VoidCallback onTap;
@@ -1485,7 +1482,7 @@ class _ManualTile extends StatelessWidget {
     final pay = (invoice.paymentMethod ?? '').trim();
     final debtExtra = invoice.isDebtPayment
         ? ' · Debt ${invoice.debtStatusLabel}'
-            '${invoice.isDebtFullyPaid ? '' : ' · rem ${invoice.remainingDebt.toStringAsFixed(2)}'}'
+              '${invoice.isDebtFullyPaid ? '' : ' · rem ${invoice.remainingDebt.toStringAsFixed(2)}'}'
         : '';
     return Card(
       margin: EdgeInsets.only(bottom: 10.h),

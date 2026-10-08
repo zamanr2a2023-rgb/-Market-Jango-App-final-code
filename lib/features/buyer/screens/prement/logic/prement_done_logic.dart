@@ -42,15 +42,10 @@ String? _deliveryContactError(BuildContext context, ProviderContainer container)
       shipPhone: b?.shipPhone,
       saved: saved,
     );
-    final pickupName = contacts.pickupName;
-    final pickupPhone = contacts.pickupPhone;
     final dropName = contacts.dropName;
     final dropPhone = contacts.dropPhone;
-    if (pickupName.isEmpty ||
-        dropName.isEmpty ||
-        !isValidContactPhone(pickupPhone) ||
-        !isValidContactPhone(dropPhone)) {
-      return 'Pickup and drop name and a valid phone are required.';
+    if (dropName.isEmpty || !isValidContactPhone(dropPhone)) {
+      return 'Drop-off contact name and a valid phone are required.';
     }
   } catch (_) {}
   return null;

@@ -54,8 +54,6 @@ class _ShippingContractForm extends StatefulWidget {
 }
 
 class _ShippingContractFormState extends State<_ShippingContractForm> {
-  late final TextEditingController _pickupNameCtrl;
-  late final TextEditingController _pickupPhoneCtrl;
   late final TextEditingController _dropNameCtrl;
   late final TextEditingController _dropPhoneCtrl;
   late final TextEditingController _emailCtrl;
@@ -66,26 +64,6 @@ class _ShippingContractFormState extends State<_ShippingContractForm> {
   void initState() {
     super.initState();
     final buyer = widget.page?.buyer;
-    final saved = widget.ref.read(savedDeliveryContactsProvider);
-    _pickupNameCtrl = TextEditingController(
-      text: firstFilledContact(buyer?.pickupContactName, saved?.pickupName),
-    );
-    _pickupPhoneCtrl = TextEditingController(
-      text: firstFilledContact(buyer?.pickupContactPhone, saved?.pickupPhone),
-    );
-    if ((saved?.pickupName.isEmpty ?? true) &&
-        (buyer?.pickupContactName.isEmpty ?? true)) {
-      loadSavedDeliveryContacts().then((stored) {
-        if (!mounted || stored == null) return;
-        widget.ref.read(savedDeliveryContactsProvider.notifier).state = stored;
-        if (_pickupNameCtrl.text.trim().isEmpty) {
-          _pickupNameCtrl.text = stored.pickupName;
-        }
-        if (_pickupPhoneCtrl.text.trim().isEmpty) {
-          _pickupPhoneCtrl.text = stored.pickupPhone;
-        }
-      });
-    }
     _dropNameCtrl = TextEditingController(
       text: (buyer?.dropContactName.isNotEmpty ?? false)
           ? buyer!.dropContactName
@@ -101,14 +79,10 @@ class _ShippingContractFormState extends State<_ShippingContractForm> {
 
   @override
   void dispose() {
-    final pickupNameCtrl = _pickupNameCtrl;
-    final pickupPhoneCtrl = _pickupPhoneCtrl;
     final dropNameCtrl = _dropNameCtrl;
     final dropPhoneCtrl = _dropPhoneCtrl;
     final emailCtrl = _emailCtrl;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      pickupNameCtrl.dispose();
-      pickupPhoneCtrl.dispose();
       dropNameCtrl.dispose();
       dropPhoneCtrl.dispose();
       emailCtrl.dispose();
@@ -118,16 +92,13 @@ class _ShippingContractFormState extends State<_ShippingContractForm> {
 
   Future<void> _save() async {
     FocusManager.instance.primaryFocus?.unfocus();
-    final pickupName = _pickupNameCtrl.text.trim();
-    final pickupPhone = _pickupPhoneCtrl.text.trim();
     final dropName = _dropNameCtrl.text.trim();
     final dropPhone = _dropPhoneCtrl.text.trim();
     String? error;
-    if (pickupName.isEmpty || dropName.isEmpty) {
-      error = 'Pickup and drop name are required.';
-    } else if (!isValidContactPhone(pickupPhone) ||
-        !isValidContactPhone(dropPhone)) {
-      error = 'Enter a valid phone number for pickup and drop.';
+    if (dropName.isEmpty) {
+      error = 'Drop-off contact name is required.';
+    } else if (!isValidContactPhone(dropPhone)) {
+      error = 'Enter a valid phone number for drop-off.';
     }
     if (error != null) {
       setState(() => _error = error);
@@ -140,8 +111,6 @@ class _ShippingContractFormState extends State<_ShippingContractForm> {
     try {
       await widget.ref.read(userUpdateServiceProvider).updateUserFields(
         fields: {
-          'pickup_contact_name': pickupName,
-          'pickup_contact_phone': pickupPhone,
           'drop_contact_name': dropName,
           'drop_contact_phone': dropPhone,
           'ship_name': dropName,
@@ -152,8 +121,8 @@ class _ShippingContractFormState extends State<_ShippingContractForm> {
       );
       if (!mounted) return;
       final saved = SavedDeliveryContacts(
-        pickupName: pickupName,
-        pickupPhone: pickupPhone,
+        pickupName: '',
+        pickupPhone: '',
         dropName: dropName,
         dropPhone: dropPhone,
       );
@@ -211,19 +180,6 @@ class _ShippingContractFormState extends State<_ShippingContractForm> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CustomTextFormField(
-                      label: 'Pickup name',
-                      controller: _pickupNameCtrl,
-                      hintText: 'Pickup contact name',
-                    ),
-                    SizedBox(height: 12.h),
-                    CustomTextFormField(
-                      label: 'Pickup phone',
-                      controller: _pickupPhoneCtrl,
-                      hintText: 'Pickup phone',
-                      keyboardType: TextInputType.phone,
-                    ),
-                    SizedBox(height: 12.h),
                     CustomTextFormField(
                       label: 'Drop name',
                       controller: _dropNameCtrl,

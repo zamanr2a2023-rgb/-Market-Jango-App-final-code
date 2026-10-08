@@ -52,11 +52,10 @@ Future<void> startTransportInvoiceCheckout(
 
     final res = await http.post(
       uri,
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        if (token != null && token.isNotEmpty) 'token': token,
-      },
+      headers: await TransportAPIController.transportAuthHeaders(
+        tokenOverride: token,
+        jsonContentType: true,
+      ),
       body: jsonEncode({
         'drop_address': dropAddress,
         'drop_longitude': dropLongitude.toString(),

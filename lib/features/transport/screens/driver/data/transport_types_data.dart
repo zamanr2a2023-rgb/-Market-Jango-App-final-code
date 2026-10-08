@@ -21,11 +21,10 @@ class TransportTypesNotifier extends AsyncNotifier<List<String>> {
     final uri = Uri.parse(TransportAPIController.transportTypes);
     final res = await http.get(
       uri,
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        if (token.isNotEmpty) 'token': token,
-      },
+      headers: await TransportAPIController.transportAuthHeaders(
+        tokenOverride: token,
+        jsonContentType: true,
+      ),
     );
 
     if (res.statusCode != 200) {

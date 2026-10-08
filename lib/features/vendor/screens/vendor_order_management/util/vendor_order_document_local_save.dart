@@ -67,8 +67,9 @@ Future<void> saveVendorOrderDocumentLocallyAndShare({
       .trim()
       .replaceAll(RegExp(r'[^\w\-\.]'), '_')
       .replaceAll(RegExp(r'_+'), '_');
-  final base =
-      safeOrder.isEmpty ? 'order' : (safeOrder.length > 40 ? safeOrder.substring(0, 40) : safeOrder);
+  final base = safeOrder.isEmpty
+      ? 'order'
+      : (safeOrder.length > 40 ? safeOrder.substring(0, 40) : safeOrder);
   final ts = DateTime.now().millisecondsSinceEpoch;
   final name = '${tag}_${base}_$ts.$ext';
 

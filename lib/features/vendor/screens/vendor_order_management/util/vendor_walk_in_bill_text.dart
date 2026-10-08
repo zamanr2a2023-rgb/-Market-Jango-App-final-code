@@ -45,10 +45,7 @@ Future<Uint8List> buildWalkInBillTextPdf(String billText) async {
           for (final line in billText.split('\n'))
             pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 4),
-              child: pw.Text(
-                line,
-                style: const pw.TextStyle(fontSize: 10),
-              ),
+              child: pw.Text(line, style: const pw.TextStyle(fontSize: 10)),
             ),
         ],
       ),

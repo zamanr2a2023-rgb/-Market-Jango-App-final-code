@@ -84,22 +84,24 @@ class _GlobalNotificationsState
                                 child: NotificationTile(
                                   title: n.name.isEmpty
                                       ? (n.eventType ==
-                                              NotificationEventType.autoLineRefund
-                                          ? 'Wallet refund'
-                                          : 'No Title')
+                                                NotificationEventType
+                                                    .autoLineRefund
+                                            ? 'Wallet refund'
+                                            : 'No Title')
                                       : n.name,
                                   time: n.createdAt != null
                                       ? DateFormat.jm().format(n.createdAt!)
                                       : 'No time',
                                   isUnread: isUnread,
-                                  massage: n.eventType ==
+                                  massage:
+                                      n.eventType ==
                                           NotificationEventType.autoLineRefund
                                       ? (n.message.trim().isNotEmpty
-                                          ? n.message
-                                          : n.walletRefundText)
+                                            ? n.message
+                                            : n.walletRefundText)
                                       : (n.message.isEmpty
-                                          ? 'No message'
-                                          : n.message),
+                                            ? 'No message'
+                                            : n.message),
                                 ),
                               ),
                             ),
@@ -171,14 +173,11 @@ class NotificationTile extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 SizedBox(height: 4.h),
-                Text(
-                  massage,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text(massage, style: Theme.of(context).textTheme.titleMedium),
               ],
             ),
           ),

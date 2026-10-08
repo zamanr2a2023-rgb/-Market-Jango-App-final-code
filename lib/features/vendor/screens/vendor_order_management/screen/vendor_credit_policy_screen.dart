@@ -80,11 +80,7 @@ class _VendorCreditPolicyScreenState
     setState(() => _saving = true);
     try {
       final updated = await VendorOrderApi.instance.updateCreditPolicy(
-        VendorCreditPolicy(
-          creditLimit: limit,
-          dueDays: days,
-          lateFee: fee,
-        ),
+        VendorCreditPolicy(creditLimit: limit, dueDays: days, lateFee: fee),
       );
       ref.invalidate(vendorCreditPolicyProvider);
       _hydrated = false;

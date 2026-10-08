@@ -30,7 +30,8 @@ class VendorEscPosUtil {
     final d = result.printData;
     final p = result.product;
     final n = copies ?? d.copies;
-    final barcodeValue = (d.barcode.isNotEmpty ? d.barcode : d.barcodeText).trim();
+    final barcodeValue = (d.barcode.isNotEmpty ? d.barcode : d.barcodeText)
+        .trim();
     final out = <int>[];
 
     void line(
@@ -89,7 +90,9 @@ class VendorEscPosUtil {
   static List<int> _code128(String data) {
     final payload = data.codeUnits;
     if (payload.length > 255) {
-      throw Exception('Barcode is too long to print (${payload.length} chars).');
+      throw Exception(
+        'Barcode is too long to print (${payload.length} chars).',
+      );
     }
     final out = <int>[];
     _addCmd(out, '\x1B@');
@@ -110,7 +113,9 @@ class VendorEscPosUtil {
   static List<int> _code39(String data) {
     final payload = data.codeUnits;
     if (payload.length > 255) {
-      throw Exception('Barcode is too long to print (${payload.length} chars).');
+      throw Exception(
+        'Barcode is too long to print (${payload.length} chars).',
+      );
     }
     final out = <int>[];
     _addCmd(out, '\x1B@');

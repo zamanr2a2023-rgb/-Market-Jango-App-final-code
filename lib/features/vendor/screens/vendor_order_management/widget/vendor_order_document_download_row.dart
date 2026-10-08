@@ -49,8 +49,14 @@ class VendorOrderDocumentDownloadRow extends StatelessWidget {
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AllColor.loginButtomColor,
-                  side: BorderSide(color: AllColor.loginButtomColor, width: 1.2),
-                  padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
+                  side: BorderSide(
+                    color: AllColor.loginButtomColor,
+                    width: 1.2,
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    vertical: 12.h,
+                    horizontal: 8.w,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24.r),
                   ),
@@ -79,7 +85,10 @@ class VendorOrderDocumentDownloadRow extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF1E3A5F),
                   side: BorderSide(color: AllColor.grey300, width: 1.2),
-                  padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
+                  padding: EdgeInsets.symmetric(
+                    vertical: 12.h,
+                    horizontal: 8.w,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24.r),
                   ),
@@ -104,10 +113,7 @@ class VendorOrderDocumentDownloadRow extends StatelessWidget {
                 : Icon(Icons.print_outlined, size: 20.sp),
             label: Text(
               'Print invoice',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700),
             ),
             style: FilledButton.styleFrom(
               backgroundColor: AllColor.loginButtomColor,

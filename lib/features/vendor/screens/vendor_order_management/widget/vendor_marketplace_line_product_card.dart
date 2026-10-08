@@ -33,6 +33,7 @@ class _VendorMarketplaceLineProductCardState
   final _qtyReason = TextEditingController();
   bool _cancelBusy = false;
   bool _qtyBusy = false;
+  VendorQuantityChangeRequest? _localPendingQtyChange;
 
   static const _titleColor = Color(0xFF111827);
   static const _cardBorder = Color(0xFFE5E7EB);
@@ -51,7 +52,17 @@ class _VendorMarketplaceLineProductCardState
         oldWidget.line.quantity != widget.line.quantity) {
       _qty = widget.line.quantity;
     }
+    if (oldWidget.line.pendingQuantityChange !=
+        widget.line.pendingQuantityChange) {
+      _localPendingQtyChange = null;
+    }
   }
+
+  VendorQuantityChangeRequest? get _pendingQtyChange =>
+      widget.line.pendingQuantityChange ?? _localPendingQtyChange;
+
+  bool get _awaitingBuyerQtyApproval =>
+      _pendingQtyChange?.awaitsBuyerApproval == true;
 
   @override
   void dispose() {
@@ -59,19 +70,8 @@ class _VendorMarketplaceLineProductCardState
     super.dispose();
   }
 
-  String? _autoRefundMessage(AutoRefundModel? refund) {
-    if (refund == null) return null;
-    if (refund.skipped) {
-      return 'No refund issued because payment was not completed.';
-    }
-    if (refund.creditedToWallet) {
-      final n = refund.credited == refund.credited.roundToDouble()
-          ? refund.credited.toStringAsFixed(0)
-          : refund.credited.toStringAsFixed(2);
-      return 'Amount returned to buyer wallet ($n).';
-    }
-    return null;
-  }
+  String? _cancelRefundMessage(AutoRefundModel? refund) =>
+      refund?.cancelLineRefundMessage();
 
   String _productTitle() {
     final n = widget.line.product.name.trim();
@@ -131,7 +131,19 @@ class _VendorMarketplaceLineProductCardState
   bool get _qtyDirty => _qty != widget.line.quantity;
 
   bool get _canApplyQty =>
-      !_qtyBusy && _qtyDirty && _qtyReason.text.trim().isNotEmpty;
+      !_qtyBusy &&
+      !_awaitingBuyerQtyApproval &&
+      _qtyDirty &&
+      _qtyReason.text.trim().isNotEmpty;
+
+  String _pendingQtyBannerText() {
+    final pending = _pendingQtyChange;
+    final proposed = pending?.proposedQuantity;
+    if (proposed != null && proposed > 0) {
+      return 'Awaiting buyer approval to change quantity to $proposed.';
+    }
+    return 'Awaiting buyer approval for the requested quantity change.';
+  }
 
   Future<void> _confirmCancel() async {
     final reason = TextEditingController();
@@ -231,12 +243,12 @@ class _VendorMarketplaceLineProductCardState
         reason: r,
       );
       if (!mounted) return;
-      final note = _autoRefundMessage(refund);
+      final note = _cancelRefundMessage(refund);
       GlobalSnackbar.show(
         context,
         title: 'Cancelled',
         message: note == null ? 'Line removed' : 'Line removed. $note',
-        type: refund != null && refund.skipped
+        type: refund != null && refund.skipped && !refund.pendingBuyerApproval
             ? CustomSnackType.warning
             : CustomSnackType.success,
       );
@@ -296,22 +308,44 @@ class _VendorMarketplaceLineProductCardState
     setState(() => _qtyBusy = true);
     try {
       final previousQty = widget.line.quantity;
-      final refund = await VendorOrderApi.instance.patchMarketplaceLineQuantity(
+      final reducedBy = previousQty - _qty;
+      final result = await VendorOrderApi.instance.patchMarketplaceLineQuantity(
         invoiceItemId: widget.line.id,
         quantity: _qty,
         reason: reason,
       );
-      final reducedBy = previousQty - _qty;
       if (!mounted) return;
-      final note = reducedBy > 0 ? _autoRefundMessage(refund) : null;
-      GlobalSnackbar.show(
-        context,
-        title: 'Updated',
-        message: note == null ? 'Quantity saved' : 'Quantity saved. $note',
-        type: refund != null && refund.skipped && reducedBy > 0
-            ? CustomSnackType.warning
-            : CustomSnackType.success,
-      );
+      if (reducedBy > 0 && result.sentForBuyerApproval) {
+        setState(() {
+          _localPendingQtyChange =
+              result.changeRequest ??
+              VendorQuantityChangeRequest(
+                id: 0,
+                proposedQuantity: _qty,
+                status: 'pending_buyer_approval',
+              );
+          _qty = widget.line.quantity;
+        });
+        GlobalSnackbar.show(
+          context,
+          title: 'Pending approval',
+          message: 'Quantity change sent for buyer approval.',
+          type: CustomSnackType.info,
+        );
+      } else {
+        final refund = result.autoRefund;
+        final note = reducedBy > 0
+            ? (refund?.walletCreditMessage() ?? refund?.skippedRefundMessage())
+            : refund?.walletCreditMessage();
+        GlobalSnackbar.show(
+          context,
+          title: 'Updated',
+          message: note == null ? 'Quantity saved' : 'Quantity saved. $note',
+          type: refund != null && refund.skipped && reducedBy > 0
+              ? CustomSnackType.warning
+              : CustomSnackType.success,
+        );
+      }
       _qtyReason.clear();
       await widget.onRefresh();
     } catch (e) {
@@ -548,6 +582,34 @@ class _VendorMarketplaceLineProductCardState
                         letterSpacing: 0.35,
                       ),
                     ),
+                    if (_awaitingBuyerQtyApproval) ...[
+                      SizedBox(height: 8.h),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 10.w,
+                          vertical: 8.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(8.r),
+                          border: Border.all(
+                            color: AllColor.loginButtomColor.withValues(
+                              alpha: 0.35,
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          _pendingQtyBannerText(),
+                          style: TextStyle(
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF9A3412),
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
                     SizedBox(height: 8.h),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,

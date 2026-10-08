@@ -36,30 +36,50 @@ class TransportAPIController {
   static String get transportTypes => "$_base_api/shipments/transport-types";
 
   /// Shipments: GET search transporters; query: transport_type, origin_address, destination_address
-  static String get searchTransporters => "$_base_api/shipments/search-transporters";
+  static String get searchTransporters =>
+      "$_base_api/shipments/search-transporters";
 
   /// POST create shipment (draft) with packages
   static String get createShipment => "$_base_api/shipments";
 
-  /// Headers for `POST /api/shipments` (token, id, user_type, email).
-  static Future<Map<String, String>> shipmentCreateHeaders({
+  /// Auth headers for shipment / transport APIs (token, id, user_type, email).
+  ///
+  /// Buyers keep `user_type: buyer` per POLISH; dedicated transport accounts
+  /// keep `user_type: transport`.
+  static Future<Map<String, String>> transportAuthHeaders({
     String? tokenOverride,
+    bool jsonContentType = false,
+    String accept = 'application/json',
   }) async {
     final storage = AuthLocalStorage();
     final token = tokenOverride ?? await storage.getToken();
     final userId = await storage.getUserId();
+    final userType = await storage.getUserType();
     final userJson = await storage.getUserJson();
     final email = userJson?['email']?.toString() ?? '';
 
+    final effectiveType = (userType != null && userType.trim().isNotEmpty)
+        ? userType.trim().toLowerCase()
+        : 'transport';
+
     return {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
+      'Accept': accept,
+      if (jsonContentType) 'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'token': token,
       if (userId != null && userId.isNotEmpty) 'id': userId,
-      'user_type': 'transport',
+      'user_type': effectiveType,
       if (email.isNotEmpty) 'email': email,
     };
   }
+
+  /// Headers for `POST /api/shipments` (token, id, user_type, email).
+  static Future<Map<String, String>> shipmentCreateHeaders({
+    String? tokenOverride,
+  }) =>
+      transportAuthHeaders(
+        tokenOverride: tokenOverride,
+        jsonContentType: true,
+      );
 
   /// GET single shipment details
   static String shipmentById(int id) => "$_base_api/shipments/$id";
@@ -97,16 +117,18 @@ class TransportAPIController {
     if (status != null && status.trim().isNotEmpty) {
       q['status'] = status.trim();
     }
-    return Uri.parse('$_base_api/transport/wallet/transactions')
-        .replace(queryParameters: q)
-        .toString();
+    return Uri.parse(
+      '$_base_api/transport/wallet/transactions',
+    ).replace(queryParameters: q).toString();
   }
 
   static String get transportWalletTopup => '$_base_api/transport/wallet/topup';
+
   /// Hosted gateway (Flutterwave) — returns `payment_url`, `tx_ref`, `redirect_url`.
   static String get transportWalletTopupInitiate =>
       '$_base_api/transport/wallet/topup/initiate';
-  static String get transportWalletPayout => '$_base_api/transport/wallet/payout';
+  static String get transportWalletPayout =>
+      '$_base_api/transport/wallet/payout';
 
   /// Payout list: backend uses 15 per page by default; `page` is supported.
   static String transportWalletPayouts({int page = 1, String? status}) {
@@ -114,8 +136,8 @@ class TransportAPIController {
     if (status != null && status.trim().isNotEmpty) {
       q['status'] = status.trim();
     }
-    return Uri.parse('$_base_api/transport/wallet/payouts')
-        .replace(queryParameters: q)
-        .toString();
+    return Uri.parse(
+      '$_base_api/transport/wallet/payouts',
+    ).replace(queryParameters: q).toString();
   }
 }

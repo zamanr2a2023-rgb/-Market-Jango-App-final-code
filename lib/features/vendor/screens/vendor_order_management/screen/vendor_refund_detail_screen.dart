@@ -255,8 +255,8 @@ class _VendorRefundDetailScreenState
               d.refundMethodLabel == '—'
                   ? 'Approve applies the refund using the method chosen on the return request (Cash / Wallet / Reduce Debt / Store Credit). Stock is restored by the backend when approved.'
                   : 'Refund method: ${d.refundMethodLabel}. '
-                      'Approve settles via that method — not assumed wallet credit. '
-                      'Stock restoration is backend-controlled on approval.',
+                        'Approve settles via that method — not assumed wallet credit. '
+                        'Stock restoration is backend-controlled on approval.',
               style: TextStyle(fontSize: 13.sp, height: 1.35),
             ),
           ),
@@ -288,13 +288,13 @@ class _VendorRefundDetailScreenState
             children: [
               Text(
                 'Reason',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14.sp,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.sp),
               ),
               SizedBox(height: 8.h),
-              Text(d.reason.isEmpty ? '—' : d.reason, style: TextStyle(fontSize: 14.sp)),
+              Text(
+                d.reason.isEmpty ? '—' : d.reason,
+                style: TextStyle(fontSize: 14.sp),
+              ),
             ],
           ),
           if (d.reviewNote != null && d.reviewNote!.isNotEmpty) ...[

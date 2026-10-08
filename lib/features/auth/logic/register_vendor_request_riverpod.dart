@@ -13,6 +13,27 @@ final vendorRegisterProvider =
       (ref) => VendorRegisterNotifier(),
     );
 
+String _vendorRegisterErrorMessage(Map<String, dynamic> json, int code) {
+  final parts = <String>[];
+  final msg = json['message']?.toString();
+  if (msg != null && msg.isNotEmpty) parts.add(msg);
+  final data = json['data'];
+  if (data is Map) {
+    for (final e in data.entries) {
+      final v = e.value;
+      if (v is List) {
+        for (final item in v) {
+          parts.add('• ${e.key}: $item');
+        }
+      } else if (v != null) {
+        parts.add('• ${e.key}: $v');
+      }
+    }
+  }
+  if (parts.isEmpty) return 'Vendor registration failed (HTTP $code)';
+  return parts.join('\n');
+}
+
 class VendorRegisterNotifier extends StateNotifier<AsyncValue<VendorModel?>> {
   VendorRegisterNotifier() : super(const AsyncData(null));
 
@@ -42,7 +63,9 @@ class VendorRegisterNotifier extends StateNotifier<AsyncValue<VendorModel?>> {
 
       request.fields['country'] = country;
       request.fields['business_name'] = businessName;
-      request.fields['business_type_ids'] = jsonEncode(businessTypeIds);
+      for (final id in businessTypeIds) {
+        request.fields['business_type_ids[]'] = id.toString();
+      }
       request.fields['address'] = address;
       request.fields['zone'] = zone.trim();
       request.fields['state'] = stateName.trim();
@@ -73,7 +96,7 @@ class VendorRegisterNotifier extends StateNotifier<AsyncValue<VendorModel?>> {
         final vendor = VendorModel.fromJson(json['data']);
         state = AsyncData(vendor);
       } else {
-        throw json['message'] ?? 'Vendor registration failed';
+        throw _vendorRegisterErrorMessage(json, response.statusCode);
       }
     } catch (e, st) {
       state = AsyncError(e, st);

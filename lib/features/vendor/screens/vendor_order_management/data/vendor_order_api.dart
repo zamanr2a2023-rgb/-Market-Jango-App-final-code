@@ -39,7 +39,9 @@ Map<String, dynamic>? _unwrapDataMap(Map<String, dynamic> top) {
   return null;
 }
 
-VendorMarketplaceLineDetail _marketplaceDetailFromTop(Map<String, dynamic> top) {
+VendorMarketplaceLineDetail _marketplaceDetailFromTop(
+  Map<String, dynamic> top,
+) {
   Map<String, dynamic> data = _unwrapDataMap(top) ?? top;
   final parentLineItems = data['line_items'];
   // Parent `order` / `order_status` often sit next to `invoice_item`, not inside it.
@@ -131,10 +133,7 @@ VendorOrdersPage<VendorWalletTransaction> _parseWalletTransactionsPage(
 
 /// Raw document from `vendor/all/order/{id}/download-*` (HTML or PDF bytes).
 class VendorOrderDocumentBytes {
-  const VendorOrderDocumentBytes({
-    required this.bytes,
-    this.contentType,
-  });
+  const VendorOrderDocumentBytes({required this.bytes, this.contentType});
 
   final Uint8List bytes;
   final String? contentType;
@@ -287,13 +286,31 @@ class VendorOrderApi {
     return _marketplaceDetailFromTop(top);
   }
 
-  AutoRefundModel? _readAutoRefund(http.Response res) {
+  Map<String, dynamic> _decodeSuccessTop(http.Response res) {
     _throwIfBad(res);
     final raw = res.body.trim();
-    if (raw.isEmpty) return null;
+    if (raw.isEmpty) return <String, dynamic>{};
     final top = _decodeObj(raw);
     _assertJsonSuccess(top);
+    return top;
+  }
+
+  AutoRefundModel? _readAutoRefund(http.Response res) {
+    final top = _decodeSuccessTop(res);
+    if (top.isEmpty) return null;
     return AutoRefundModel.tryParse(top);
+  }
+
+  VendorMarketplaceQuantityPatchResult _readQuantityPatchResult(
+    http.Response res,
+  ) {
+    final top = _decodeSuccessTop(res);
+    return VendorMarketplaceQuantityPatchResult(
+      autoRefund: top.isEmpty ? null : AutoRefundModel.tryParse(top),
+      changeRequest: top.isEmpty
+          ? null
+          : VendorQuantityChangeRequest.tryParse(top),
+    );
   }
 
   /// `POST /vendor/orders/{id}/cancel` — body `{ "reason": "..." }`.
@@ -313,8 +330,8 @@ class VendorOrderApi {
   }
 
   /// `PATCH /vendor/orders/{id}/quantity` — body `{ "quantity": n, "reason": "..." }`.
-  /// Returns `auto_refund` when the backend includes it.
-  Future<AutoRefundModel?> patchMarketplaceLineQuantity({
+  /// Returns `change_request` and `auto_refund` when the backend includes them.
+  Future<VendorMarketplaceQuantityPatchResult> patchMarketplaceLineQuantity({
     required int invoiceItemId,
     required int quantity,
     required String reason,
@@ -331,7 +348,7 @@ class VendorOrderApi {
         'reason': reason,
       }),
     );
-    return _readAutoRefund(res);
+    return _readQuantityPatchResult(res);
   }
 
   Future<VendorOrderStatusesPayload> fetchOrderStatuses() async {
@@ -371,8 +388,10 @@ class VendorOrderApi {
     _throwIfBad(res);
     final top = _decodeObj(res.body);
     final data = _unwrapDataMap(top);
-    var pageData =
-        VendorOrdersPage.parse(data, VendorManualOrderInvoice.fromJson);
+    var pageData = VendorOrdersPage.parse(
+      data,
+      VendorManualOrderInvoice.fromJson,
+    );
 
     // Client-side debt status filter when API ignores debt_status.
     final ds = debtStatus?.trim().toLowerCase();
@@ -401,8 +420,9 @@ class VendorOrderApi {
     } else if (paymentMethod != null &&
         paymentMethod.trim().toLowerCase() == 'debt') {
       // Ensure Debt-only list if API returns mixed when payment_method ignored.
-      final onlyDebt =
-          pageData.items.where((inv) => inv.isDebtPayment).toList();
+      final onlyDebt = pageData.items
+          .where((inv) => inv.isDebtPayment)
+          .toList();
       if (onlyDebt.length != pageData.items.length) {
         pageData = VendorOrdersPage(
           currentPage: pageData.currentPage,
@@ -773,7 +793,9 @@ class VendorOrderApi {
   }
 
   /// Admin write path for credit policy. Tries admin then vendor PUT/POST.
-  Future<VendorCreditPolicy> updateCreditPolicy(VendorCreditPolicy policy) async {
+  Future<VendorCreditPolicy> updateCreditPolicy(
+    VendorCreditPolicy policy,
+  ) async {
     final headers = await vendorOrderApiHeaders();
     final body = jsonEncode(policy.toJson());
 
@@ -835,7 +857,9 @@ class VendorOrderApi {
     int id,
   ) async {
     if (id <= 0) throw Exception('Invalid order id');
-    final uri = Uri.parse(VendorAPIController.vendorAllOrderDownloadInvoice(id));
+    final uri = Uri.parse(
+      VendorAPIController.vendorAllOrderDownloadInvoice(id),
+    );
     final res = await http.get(uri, headers: await _orderDocumentHeaders());
     _throwIfBad(res);
     _throwIfOrderDownloadBodyIsJsonError(res.bodyBytes);
